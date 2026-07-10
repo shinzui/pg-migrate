@@ -1,6 +1,9 @@
 module Database.PostgreSQL.Migrate.Runner
   ( runMigrationPlan,
     runMigrationPlanWith,
+    withRunLifecycle,
+    resumeNonTransactionalMigration,
+    invokeEvent,
   )
 where
 
@@ -65,10 +68,21 @@ runMigrationPlanWith ::
   MigrationPlan ->
   IO (Either MigrationError MigrationReport)
 runMigrationPlanWith options ConnectionProvider {useDedicatedConnection} plan =
+  withRunLifecycle
+    options
+    (ConnectionProvider useDedicatedConnection)
+    (\connection -> runLocked options connection plan)
+
+withRunLifecycle ::
+  RunOptions ->
+  ConnectionProvider ->
+  (Connection.Connection -> IO (Either MigrationError value)) ->
+  IO (Either MigrationError value)
+withRunLifecycle options ConnectionProvider {useDedicatedConnection} action =
   case validateOptions options of
     Left optionsError -> pure (Left optionsError)
     Right () -> do
-      acquired <- useDedicatedConnection (\connection -> runOnConnection options connection plan)
+      acquired <- useDedicatedConnection (\connection -> runOnConnection options connection action)
       pure $ case acquired of
         Left connectionError -> Left (ConnectionAcquisitionFailed connectionError)
         Right result -> result
@@ -76,9 +90,9 @@ runMigrationPlanWith options ConnectionProvider {useDedicatedConnection} plan =
 runOnConnection ::
   RunOptions ->
   Connection.Connection ->
-  MigrationPlan ->
-  IO (Either MigrationError MigrationReport)
-runOnConnection options connection plan = do
+  (Connection.Connection -> IO (Either MigrationError value)) ->
+  IO (Either MigrationError value)
+runOnConnection options connection action = do
   serverVersion <- checkServerVersion connection
   case serverVersion of
     Left migrationError -> pure (Left migrationError)
@@ -92,7 +106,7 @@ runOnConnection options connection plan = do
               acquiredEvent <- invokeEvent options (LockAcquired lockDuration)
               case acquiredEvent of
                 Left eventError -> pure (Left eventError)
-                Right () -> runLocked options connection plan
+                Right () -> action connection
 
 withStatementTimeoutResource ::
   RunOptions ->
@@ -362,43 +376,15 @@ executeNonTransactional options connection planned = do
           )
       case inserted of
         Left migrationError -> finishFailureEvent startedMonotonic migrationError
-        Right () -> do
-          action <- nonTransactionalAction connection planned
-          case action of
-            Left migrationError ->
-              recordObservedFailure ledgerRow startedMonotonic migrationError (renderMigrationError migrationError)
-            Right runAction -> do
-              attempted <- try @SomeException runAction
-              case attempted of
-                Left exception
-                  | isAsyncException exception -> throwIO exception
-                  | otherwise ->
-                      let primary = MigrationActionFailed exception
-                       in recordObservedFailure
-                            ledgerRow
-                            startedMonotonic
-                            primary
-                            (Text.pack (displayException exception))
-                Right (Left sessionError) ->
-                  let primary = NonTransactionalMigrationFailed identifier sessionError
-                   in recordObservedFailure
-                        ledgerRow
-                        startedMonotonic
-                        primary
-                        (Errors.toDetailedText sessionError)
-                Right (Right ()) -> do
-                  transitioned <- markRunningApplied options connection ledgerRow
-                  case transitioned of
-                    Left migrationError -> pure (Left migrationError)
-                    Right () -> finishSuccess startedMonotonic
+        Right () ->
+          executeNonTransactionalAfterRunning
+            options
+            connection
+            planned
+            ledgerRow
+            startedMonotonic
   where
     identifier = plannedId planned
-    finishSuccess started = do
-      duration <- elapsedSince started
-      completed <- invokeEvent options (MigrationCompleted identifier duration)
-      pure $ case completed of
-        Left eventError -> Left eventError
-        Right () -> Right (MigrationResult identifier AppliedNow (Just duration))
     finishFailureEvent started primary = do
       duration <- elapsedSince started
       observed <-
@@ -409,7 +395,70 @@ executeNonTransactional options connection planned = do
       pure $ case observed of
         Left eventError -> Left eventError
         Right () -> Left primary
-    recordObservedFailure ledgerRow started primary diagnostic = do
+
+resumeNonTransactionalMigration ::
+  RunOptions ->
+  Connection.Connection ->
+  MigrationId ->
+  Int32 ->
+  Migration ->
+  IO (Either MigrationError MigrationResult)
+resumeNonTransactionalMigration options connection identifier position migration = do
+  startedAt <- getCurrentTime
+  startedMonotonic <- getMonotonicTimeNSec
+  let planned = PlannedMigration identifier position migration
+      ledgerRow = appliedLedgerRow planned startedAt
+  executeNonTransactionalAfterRunning options connection planned ledgerRow startedMonotonic
+
+executeNonTransactionalAfterRunning ::
+  RunOptions ->
+  Connection.Connection ->
+  PlannedMigration ->
+  AppliedLedgerRow ->
+  Word64 ->
+  IO (Either MigrationError MigrationResult)
+executeNonTransactionalAfterRunning options connection planned ledgerRow startedMonotonic = do
+  action <- nonTransactionalAction connection planned
+  case action of
+    Left migrationError ->
+      recordObservedFailure migrationError (renderMigrationError migrationError)
+    Right runAction -> do
+      attempted <- try @SomeException runAction
+      case attempted of
+        Left exception
+          | isAsyncException exception -> throwIO exception
+          | otherwise ->
+              let primary = MigrationActionFailed exception
+               in recordObservedFailure
+                    primary
+                    (Text.pack (displayException exception))
+        Right (Left sessionError) ->
+          let primary = NonTransactionalMigrationFailed identifier sessionError
+           in recordObservedFailure primary (Errors.toDetailedText sessionError)
+        Right (Right ()) -> do
+          transitioned <- markRunningApplied options connection ledgerRow
+          case transitioned of
+            Left migrationError -> pure (Left migrationError)
+            Right () -> finishSuccess
+  where
+    identifier = plannedId planned
+    finishSuccess = do
+      duration <- elapsedSince startedMonotonic
+      completed <- invokeEvent options (MigrationCompleted identifier duration)
+      pure $ case completed of
+        Left eventError -> Left eventError
+        Right () -> Right (MigrationResult identifier AppliedNow (Just duration))
+    finishFailureEvent primary = do
+      duration <- elapsedSince startedMonotonic
+      observed <-
+        invokeEventWithPrimary
+          options
+          primary
+          (MigrationFailureObserved identifier duration)
+      pure $ case observed of
+        Left eventError -> Left eventError
+        Right () -> Left primary
+    recordObservedFailure primary diagnostic = do
       recorded <- markRunningFailed options connection ledgerRow diagnostic
       case recorded of
         Left recordingError ->
@@ -417,7 +466,7 @@ executeNonTransactional options connection planned = do
             ( Left
                 (NonTransactionalFailureRecordingFailed identifier primary recordingError)
             )
-        Right () -> finishFailureEvent started primary
+        Right () -> finishFailureEvent primary
 
 nonTransactionalAction ::
   Connection.Connection ->

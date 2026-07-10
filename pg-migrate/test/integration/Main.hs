@@ -65,6 +65,9 @@ tests settings =
       testCase "condemned Haskell transactions are detected" (testTransactionCondemn settings),
       testCase "nontransactional CREATE INDEX CONCURRENTLY applies" (testNonTransactionalSuccess settings),
       testCase "nontransactional observed failure records Failed" (testNonTransactionalFailure settings),
+      testCase "repair mark-applied audits and unblocks the plan" (testRepairMarkApplied settings),
+      testCase "repair retry audits and executes the current action once" (testRepairRetry settings),
+      testCase "repair rejects transactional and changed targets" (testRepairValidation settings),
       testCase "events follow durable migration boundaries" (testEventOrder settings),
       testCase "callback failure restores timeout and releases the lock" (testCallbackCleanup settings),
       testCase "two concurrent runners execute each effect once" (testConcurrentRunners settings),
@@ -292,6 +295,90 @@ testNonTransactionalFailure settings =
       rows -> assertFailure ("unexpected failed rows: " <> show rows)
     runMigrationPlan options settings plan >>= assertPlanVerificationFailure
 
+testRepairMarkApplied :: Settings.Settings -> IO ()
+testRepairMarkApplied settings =
+  withTestLedger settings "repair_mark" $ \connection config -> do
+    let component = "repair-mark"
+        plan = missingIndexPlan config component "idx_repair_mark" "mark_missing"
+        options = withLedger config defaultRunOptions
+        targetId = requireRight (Migrate.migrationId component "0001-index")
+        request =
+          requireRight
+            (repairRequest targetId MarkApplied "index was verified out of band" Confirmed)
+    runMigrationPlan options settings plan >>= assertNonTransactionalFailure
+    repaired <-
+      repairMigration options (connectionProviderFromSettings settings) plan request
+        >>= requireRepairRight
+    repaired
+      @?= RepairReport
+        { repairedMigration = targetId,
+          operation = MarkApplied,
+          oldStatus = Failed,
+          newStatus = Applied
+        }
+    snapshot <- useSession connection (loadLedger config)
+    storedStatuses snapshot @?= [Applied]
+    repairCount <- useSession connection (Session.statement () (repairAuditCountStatement config))
+    repairCount @?= 1
+    report <- runMigrationPlan options settings plan >>= requireRunRight
+    reportOutcomes report @?= [AlreadyApplied]
+
+testRepairRetry :: Settings.Settings -> IO ()
+testRepairRetry settings =
+  withTestLedger settings "repair_retry" $ \connection config -> do
+    let component = "repair-retry"
+        plan = missingIndexPlan config component "idx_repair_retry" "retry_values"
+        options = withLedger config defaultRunOptions
+        targetId = requireRight (Migrate.migrationId component "0001-index")
+        request =
+          requireRight
+            (repairRequest targetId Retry "created the missing prerequisite table" Confirmed)
+    runMigrationPlan options settings plan >>= assertNonTransactionalFailure
+    useSession
+      connection
+      (Session.script ("CREATE TABLE " <> quotedSchema config <> ".retry_values (value integer NOT NULL)"))
+    repaired <-
+      repairMigration options (connectionProviderFromSettings settings) plan request
+        >>= requireRepairRight
+    repaired
+      @?= RepairReport
+        { repairedMigration = targetId,
+          operation = Retry,
+          oldStatus = Failed,
+          newStatus = Applied
+        }
+    snapshot <- useSession connection (loadLedger config)
+    storedStatuses snapshot @?= [Applied]
+    repairCount <- useSession connection (Session.statement () (repairAuditCountStatement config))
+    repairCount @?= 1
+    indexExists <- useSession connection (Session.statement (ledgerSchema config) retryIndexExistsStatement)
+    indexExists @?= True
+
+testRepairValidation :: Settings.Settings -> IO ()
+testRepairValidation settings = do
+  withTestLedger settings "repair_transactional" $ \_ config -> do
+    let transactionalPlan =
+          sqlPlan
+            "repair-transactional"
+            [("0001-table", "CREATE TABLE " <> quotedSchema config <> ".transactional_target (value integer)")]
+        options = withLedger config defaultRunOptions
+        transactionalId = requireRight (Migrate.migrationId "repair-transactional" "0001-table")
+        transactionalRequest =
+          requireRight (repairRequest transactionalId MarkApplied "must reject" Confirmed)
+    _ <- runMigrationPlan options settings transactionalPlan >>= requireRunRight
+    repairMigration options (connectionProviderFromSettings settings) transactionalPlan transactionalRequest
+      >>= assertRepairTransactional
+  withTestLedger settings "repair_checksum" $ \_ config -> do
+    let component = "repair-checksum"
+        originalPlan = missingIndexPlan config component "idx_original" "checksum_missing"
+        changedPlan = missingIndexPlan config component "idx_changed" "checksum_missing"
+        options = withLedger config defaultRunOptions
+        targetId = requireRight (Migrate.migrationId component "0001-index")
+        request = requireRight (repairRequest targetId Retry "must reject changed SQL" Confirmed)
+    runMigrationPlan options settings originalPlan >>= assertNonTransactionalFailure
+    repairMigration options (connectionProviderFromSettings settings) changedPlan request
+      >>= assertRepairMetadataMismatch
+
 testEventOrder :: Settings.Settings -> IO ()
 testEventOrder settings =
   withTestLedger settings "events" $ \_ config -> do
@@ -516,6 +603,13 @@ concurrentEffectCountStatement config =
     Encoders.noParams
     (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
 
+repairAuditCountStatement :: LedgerConfig -> Statement.Statement () Int64
+repairAuditCountStatement config =
+  Statement.unpreparable
+    ("SELECT count(*) FROM " <> quotedSchema config <> ".repairs")
+    Encoders.noParams
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
+
 indexExistsStatement :: Statement.Statement Text Bool
 indexExistsStatement =
   Statement.preparable
@@ -526,6 +620,21 @@ indexExistsStatement =
       FROM pg_indexes
       WHERE schemaname = $1
         AND indexname = 'idx_nontransactional'
+    )
+    """
+    (Encoders.param (Encoders.nonNullable Encoders.text))
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+
+retryIndexExistsStatement :: Statement.Statement Text Bool
+retryIndexExistsStatement =
+  Statement.preparable
+    """
+    SELECT EXISTS
+    (
+      SELECT 1
+      FROM pg_indexes
+      WHERE schemaname = $1
+        AND indexname = 'idx_repair_retry'
     )
     """
     (Encoders.param (Encoders.nonNullable Encoders.text))
@@ -591,6 +700,11 @@ requireRunRight = \case
   Left migrationError -> assertFailure (show migrationError) >> error "assertFailure returned"
   Right report -> pure report
 
+requireRepairRight :: Either RepairError RepairReport -> IO RepairReport
+requireRepairRight = \case
+  Left repairError -> assertFailure (show repairError) >> error "assertFailure returned"
+  Right report -> pure report
+
 requireThreadRun ::
   Either SomeException (Either MigrationError MigrationReport) ->
   IO MigrationReport
@@ -621,6 +735,18 @@ assertPlanVerificationFailure = \case
   Left PlanVerificationFailed {} -> pure ()
   Left migrationError -> assertFailure ("expected PlanVerificationFailed, received " <> show migrationError)
   Right report -> assertFailure ("expected PlanVerificationFailed, received " <> show report)
+
+assertRepairTransactional :: Either RepairError RepairReport -> IO ()
+assertRepairTransactional = \case
+  Left RepairTargetTransactional {} -> pure ()
+  Left repairError -> assertFailure ("expected RepairTargetTransactional, received " <> show repairError)
+  Right report -> assertFailure ("expected RepairTargetTransactional, received " <> show report)
+
+assertRepairMetadataMismatch :: Either RepairError RepairReport -> IO ()
+assertRepairMetadataMismatch = \case
+  Left RepairTargetMetadataMismatch {} -> pure ()
+  Left repairError -> assertFailure ("expected RepairTargetMetadataMismatch, received " <> show repairError)
+  Right report -> assertFailure ("expected RepairTargetMetadataMismatch, received " <> show report)
 
 assertEventHandlerFailure :: Either MigrationError MigrationReport -> IO ()
 assertEventHandlerFailure = \case
@@ -701,6 +827,19 @@ planFromMigrations component migrations =
                 :| []
             )
         )
+
+missingIndexPlan :: LedgerConfig -> Text -> Text -> Text -> MigrationPlan
+missingIndexPlan config component indexName tableName =
+  sqlPlan
+    component
+    [ ( "0001-index",
+        Text.unlines
+          [ "-- pg-migrate: no-transaction",
+            "CREATE INDEX CONCURRENTLY " <> indexName <> " ON",
+            quotedSchema config <> "." <> tableName <> " (value)"
+          ]
+      )
+    ]
 
 integrationRunnerVersion :: Text
 integrationRunnerVersion = "pg-migrate-integration"

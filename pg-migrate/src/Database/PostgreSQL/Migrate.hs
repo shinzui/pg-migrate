@@ -45,6 +45,14 @@ module Database.PostgreSQL.Migrate
     connectionProviderFromSettings,
     runMigrationPlan,
     runMigrationPlanWith,
+    RepairOperation (..),
+    Confirmation (..),
+    RepairDefinitionError (..),
+    RepairRequest,
+    repairRequest,
+    RepairError (..),
+    RepairReport (..),
+    repairMigration,
     IdentifierError (..),
     PostgresIdentifierError (..),
     SqlError (..),
@@ -82,6 +90,18 @@ import Database.PostgreSQL.Migrate.Plan
   ( PlanError (..),
     migrationPlan,
     resolveMigrationPlan,
+  )
+import Database.PostgreSQL.Migrate.Repair
+  ( repairMigration,
+  )
+import Database.PostgreSQL.Migrate.Repair.Types
+  ( Confirmation (..),
+    RepairDefinitionError (..),
+    RepairError (..),
+    RepairOperation (..),
+    RepairReport (..),
+    RepairRequest,
+    repairRequest,
   )
 import Database.PostgreSQL.Migrate.Runner
   ( runMigrationPlan,

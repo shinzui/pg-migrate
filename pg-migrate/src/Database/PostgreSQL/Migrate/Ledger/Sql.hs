@@ -11,6 +11,10 @@ module Database.PostgreSQL.Migrate.Ledger.Sql
     insertRunningMigrationStatement,
     markRunningMigrationAppliedStatement,
     markRunningMigrationFailedStatement,
+    RepairLedgerRow (..),
+    insertRepairAuditStatement,
+    prepareMarkAppliedStatement,
+    prepareRetryStatement,
     ledgerVersionOneDdl,
   )
 where
@@ -144,6 +148,15 @@ data FailedLedgerRow = FailedLedgerRow
     failedLedgerError :: !Text
   }
 
+data RepairLedgerRow = RepairLedgerRow
+  { repairLedgerMigrationId :: !MigrationId,
+    repairLedgerOperation :: !Text,
+    repairLedgerOldStatus :: !MigrationStatus,
+    repairLedgerNewStatus :: !MigrationStatus,
+    repairLedgerReason :: !Text,
+    repairLedgerRunnerVersion :: !Text
+  }
+
 insertAppliedMigrationStatement :: LedgerConfig -> Statement AppliedLedgerRow ()
 insertAppliedMigrationStatement config =
   Statement.unpreparable
@@ -206,6 +219,48 @@ markRunningMigrationFailedStatement config =
     failedLedgerRowEncoder
     Decoders.rowsAffected
 
+insertRepairAuditStatement :: LedgerConfig -> Statement RepairLedgerRow ()
+insertRepairAuditStatement config =
+  Statement.unpreparable
+    ( Text.unwords
+        [ "INSERT INTO",
+          qualifiedLedgerTable config "repairs",
+          "(component, migration, operation, old_status, new_status, reason, runner_version)",
+          "VALUES ($1, $2, $3, $4, $5, $6, $7)"
+        ]
+    )
+    repairLedgerRowEncoder
+    Decoders.noResult
+
+prepareMarkAppliedStatement :: LedgerConfig -> Statement RepairLedgerRow Int64
+prepareMarkAppliedStatement config =
+  Statement.unpreparable
+    ( Text.unwords
+        [ "UPDATE",
+          qualifiedLedgerTable config "migrations",
+          "SET status = 'applied', finished_at = clock_timestamp(),",
+          "execution_time_ms = COALESCE(execution_time_ms,",
+          "GREATEST(0, round(extract(epoch FROM (clock_timestamp() - started_at)) * 1000))::bigint),",
+          "error = NULL WHERE component = $1 AND migration = $2 AND status = $3"
+        ]
+    )
+    repairTransitionEncoder
+    Decoders.rowsAffected
+
+prepareRetryStatement :: LedgerConfig -> Statement RepairLedgerRow Int64
+prepareRetryStatement config =
+  Statement.unpreparable
+    ( Text.unwords
+        [ "UPDATE",
+          qualifiedLedgerTable config "migrations",
+          "SET status = 'running', started_at = clock_timestamp(), finished_at = NULL,",
+          "execution_time_ms = NULL, error = NULL, runner_version = $4",
+          "WHERE component = $1 AND migration = $2 AND status = $3"
+        ]
+    )
+    repairRetryEncoder
+    Decoders.rowsAffected
+
 appliedLedgerRowEncoder :: Encoders.Params AppliedLedgerRow
 appliedLedgerRowEncoder =
   mconcat
@@ -235,6 +290,37 @@ failedLedgerRowEncoder =
   contramap failedLedgerIdentity appliedLedgerIdentityEncoder
     <> contramap failedLedgerError (Encoders.param (Encoders.nonNullable Encoders.text))
 
+repairLedgerRowEncoder :: Encoders.Params RepairLedgerRow
+repairLedgerRowEncoder =
+  mconcat
+    [ contramap repairComponentText (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap repairMigrationText (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap repairLedgerOperation (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap (encodeMigrationStatus . repairLedgerOldStatus) (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap (encodeMigrationStatus . repairLedgerNewStatus) (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap repairLedgerReason (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap repairLedgerRunnerVersion (Encoders.param (Encoders.nonNullable Encoders.text))
+    ]
+
+repairTransitionEncoder :: Encoders.Params RepairLedgerRow
+repairTransitionEncoder =
+  mconcat
+    [ contramap repairComponentText (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap repairMigrationText (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap (encodeMigrationStatus . repairLedgerOldStatus) (Encoders.param (Encoders.nonNullable Encoders.text))
+    ]
+
+repairRetryEncoder :: Encoders.Params RepairLedgerRow
+repairRetryEncoder =
+  repairTransitionEncoder
+    <> contramap repairLedgerRunnerVersion (Encoders.param (Encoders.nonNullable Encoders.text))
+
+repairComponentText :: RepairLedgerRow -> Text
+repairComponentText = componentNameText . migrationIdComponent . repairLedgerMigrationId
+
+repairMigrationText :: RepairLedgerRow -> Text
+repairMigrationText = migrationNameText . migrationIdName . repairLedgerMigrationId
+
 appliedComponentText :: AppliedLedgerRow -> Text
 appliedComponentText = componentNameText . migrationIdComponent . appliedMigrationId
 
@@ -253,6 +339,12 @@ encodeTransactionMode :: TransactionMode -> Text
 encodeTransactionMode = \case
   Transactional -> "transactional"
   NonTransactional -> "nontransactional"
+
+encodeMigrationStatus :: MigrationStatus -> Text
+encodeMigrationStatus = \case
+  Running -> "running"
+  Applied -> "applied"
+  Failed -> "failed"
 
 ledgerVersionOneDdl :: LedgerConfig -> Text
 ledgerVersionOneDdl config =

@@ -31,8 +31,9 @@ audit trail.
 - [x] (2026-07-10 13:17 PDT) Milestone 1: implemented exact metadata-guarded
   Running/Applied/Failed transitions and single-statement/session dispatch in the existing
   runner; all 85 unit tests and both focused PostgreSQL success/failure tests pass.
-- [ ] Milestone 2: add validated repair requests, mark-applied, retry, and append-only
-  repair audit records under the normal connection and lock bracket.
+- [x] (2026-07-10 13:25 PDT) Milestone 2: added confirmed, reason-bearing repair
+  requests; metadata-verified mark-applied and retry; append-only audit rows; and shared
+  runner lifecycle/dispatch hooks; all 87 unit and 3 focused repair integration tests pass.
 - [ ] Milestone 3: prove success, observed failure, crash ambiguity, callback cleanup,
   repair validation/auditing, and final workspace acceptance.
 
@@ -207,3 +208,7 @@ verifiable milestones from the plan of work.
 2026-07-10: Recorded the completed nontransactional state machine after a live
 `CREATE INDEX CONCURRENTLY` reached Applied and an observed server error durably reached
 Failed with diagnostic text.
+
+2026-07-10: Recorded the completed repair API after mark-applied and retry both wrote one
+audit row, retry executed the unchanged current action once, and transactional/checksum
+validation rejected unsafe requests.

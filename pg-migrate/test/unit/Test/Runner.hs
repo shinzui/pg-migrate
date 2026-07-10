@@ -16,7 +16,9 @@ tests =
     [ testCase "default options are conservative" testDefaultOptions,
       testCase "functional option updates compose" testOptionUpdates,
       testCase "report values remain immutable structured data" testReportValues,
-      testCase "server version classification accepts only 17 and 18" testServerVersions
+      testCase "server version classification accepts only 17 and 18" testServerVersions,
+      testCase "repair requests require confirmation" testRepairConfirmation,
+      testCase "repair requests require a non-empty reason" testRepairReason
     ]
 
 testDefaultOptions :: IO ()
@@ -59,6 +61,20 @@ assertUnsupported :: Int -> Either MigrationError Int -> IO ()
 assertUnsupported expected = \case
   Left (UnsupportedPostgresVersion actual) -> actual @?= expected
   other -> error ("expected unsupported PostgreSQL version, received " <> show other)
+
+testRepairConfirmation :: IO ()
+testRepairConfirmation = do
+  let identifier = requireRight (Migrate.migrationId "component" "0001")
+  repairRequest identifier MarkApplied "operator verified state" NotConfirmed
+    @?= Left RepairNotConfirmed
+  case repairRequest identifier MarkApplied "operator verified state" Confirmed of
+    Left repairError -> error (show repairError)
+    Right _ -> pure ()
+
+testRepairReason :: IO ()
+testRepairReason = do
+  let identifier = requireRight (Migrate.migrationId "component" "0001")
+  repairRequest identifier Retry "   " Confirmed @?= Left EmptyRepairReason
 
 requireRight :: (Show error) => Either error value -> value
 requireRight = \case
