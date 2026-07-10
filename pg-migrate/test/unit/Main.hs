@@ -2,6 +2,7 @@ module Main (main) where
 
 import PgMigrate.Prelude ()
 import Test.Definition qualified as Definition
+import Test.History qualified as History
 import Test.Ledger qualified as Ledger
 import Test.Plan qualified as Plan
 import Test.PublicApi qualified as PublicApi
@@ -15,6 +16,7 @@ main =
     ( testGroup
         "pg-migrate"
         [ Definition.tests,
+          History.tests,
           Ledger.tests,
           Plan.tests,
           PublicApi.tests,

@@ -27,8 +27,9 @@ Haskell-migration restrictions without any Codd or `hasql-migration` dependency 
 
 ## Progress
 
-- [ ] Milestone 1: define validated evidence, requirements, mappings, state validators,
-  options, errors, and reports with focused pure tests. (started 2026-07-10 13:36 PDT)
+- [x] (2026-07-10 13:42 PDT) Milestone 1: defined opaque evidence/import inputs,
+  safe static evidence and state validators, validated requirements/mappings, conservative
+  options, structured errors/reports, and the public facade; all 95 unit tests pass.
 - [ ] Milestone 2: resolve target prefixes and deterministic normalized evidence purely.
 - [ ] Milestone 3: import target rows and matching audit rows atomically through the
   shared dedicated-connection lifecycle.
@@ -209,3 +210,6 @@ state strength, or target metadata remain hidden.
 2026-07-10: Started implementation after EP-3 and EP-4 hard dependencies and the EP-5
 soft dependency passed their complete acceptance gates; expanded Progress into four
 independently verifiable milestones.
+
+2026-07-10: Recorded the validated source-agnostic history model and public facade after
+all 95 unit tests passed without exposing a constructor that can forge StateVerified.

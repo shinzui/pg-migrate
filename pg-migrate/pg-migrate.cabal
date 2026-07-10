@@ -26,11 +26,13 @@ library
   autogen-modules: Paths_pg_migrate
   exposed-modules:
     Database.PostgreSQL.Migrate
+    Database.PostgreSQL.Migrate.History
     Database.PostgreSQL.Migrate.Internal
     PgMigrate.Prelude
 
   other-modules:
     Database.PostgreSQL.Migrate.Definition
+    Database.PostgreSQL.Migrate.History.Types
     Database.PostgreSQL.Migrate.Ledger
     Database.PostgreSQL.Migrate.Ledger.Migrations
     Database.PostgreSQL.Migrate.Ledger.Sql
@@ -48,6 +50,7 @@ library
     Paths_pg_migrate
 
   build-depends:
+    , aeson              >=2.2  && <2.3
     , base               >=4.20 && <4.22
     , bytestring         >=0.12 && <0.13
     , containers         >=0.7  && <0.8
@@ -66,6 +69,7 @@ test-suite pg-migrate-unit
   main-is:        Main.hs
   other-modules:
     Test.Definition
+    Test.History
     Test.Ledger
     Test.Plan
     Test.PublicApi
@@ -73,6 +77,7 @@ test-suite pg-migrate-unit
     Test.Sql
 
   build-depends:
+    , aeson             >=2.2  && <2.3
     , base              >=4.20 && <4.22
     , bytestring        >=0.12 && <0.13
     , containers        >=0.7  && <0.8
