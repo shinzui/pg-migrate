@@ -1,7 +1,7 @@
 ---
 name: release
-description: Release all six pg-migrate packages to Hackage following PVP and the v1 release gates
-argument-hint: "[initial|major|minor|patch]"
+description: Release all six pg-migrate packages to Hackage following PVP with explicit version and publication approvals
+argument-hint: "[initial|major|minor|patch|A.B.C.D]"
 disable-model-invocation: true
 allowed-tools: Read, Bash, Edit, Glob, Grep, Write, AskUserQuestion
 ---
@@ -82,11 +82,14 @@ The following components are not published as independent Hackage packages:
 
 `$ARGUMENTS` is optional:
 
-- `initial` publishes the already prepared coherent version when no release tag
-  exists.
-- `major`, `minor`, or `patch` forces that bump proposal.
-- If omitted, infer whether this is the initial publication or which bump the
-  committed changes require.
+- `initial` enters the first-publication workflow when no release tag exists. It
+  does not select a version or authorize publication.
+- An exact PVP version (`A.B.C.D`) proposes that version explicitly.
+- `major`, `minor`, or `patch` forces that bump proposal when a prior release
+  tag exists.
+- If omitted and no release tag exists, report the coherent current version as
+  a candidate and ask the user to choose or confirm the exact initial version.
+  Otherwise infer which bump the committed changes require.
 
 ## Steps
 
@@ -113,10 +116,12 @@ pg-migrate-test-support/pg-migrate-test-support.cabal
 ```
 
 All six versions must agree. Find the latest `v*` tag and inspect commits and
-file changes since it. If no tag exists, this may be the initial 1.0
-publication; do not mechanically bump an already prepared `1.0.0.0` candidate
-to `1.0.0.1`. If a current version is already newer than the latest tag, treat
-it as the prepared release candidate and verify that its bump is sufficient.
+file changes since it. If no tag exists, treat this as a first-publication
+candidate. The checked-in version is evidence of preparation, not an automatic
+version choice: do not assume `1.0.0.0`, mechanically bump it to `1.0.0.1`, or
+publish it merely because it is already present. If a current version is
+already newer than the latest tag, treat it as the prepared release candidate
+and verify that its bump is sufficient.
 
 Present the current version, last tag or `none`, commit count, changed package
 directories, changed compatibility surfaces, and whether the worktree contains
@@ -124,9 +129,13 @@ unrelated changes. Preserve unrelated user changes throughout the workflow.
 
 ### 2. Propose the release version
 
-If the argument is `initial`, require that no release tag exists and propose the
-coherent current version. If the argument forces a bump, apply it. Otherwise use
-Conventional Commits plus the actual API/contract diff:
+For a first publication (an `initial` argument, or no release tag), require the
+user to choose or explicitly confirm an exact `A.B.C.D` version. Present the
+coherent current version and release-readiness evidence, but do not default to
+that version. If an exact version argument was supplied, validate and propose
+it. A `major`, `minor`, or `patch` argument requires a prior release tag; apply
+the forced bump from that tag. Otherwise use Conventional Commits plus the
+actual API/contract diff:
 
 - `feat!:`, `BREAKING CHANGE:`, removed/renamed exports, changed types, or
   incompatible semantics require a major bump.
@@ -139,7 +148,8 @@ Examples from `1.0.0.0` are `1.1.0.0` for major, `1.0.1.0` for minor, and
 `1.0.0.1` for patch.
 
 Explain the evidence for the proposed level and ask the user to confirm the
-version before editing files. This is the first mandatory approval point.
+exact version before editing files. This is the first mandatory approval point
+and approves only candidate preparation, not publication.
 
 ### 3. Update versions, bounds, contracts, and changelogs
 
@@ -351,6 +361,9 @@ the tag points at the approved release commit.
 ## Non-negotiable rules
 
 - Keep all six package versions coherent.
+- Never infer the first published version from checked-in Cabal files,
+  changelogs, or release checklists. Require explicit confirmation of the exact
+  initial PVP version; `initial` alone is not confirmation.
 - Never weaken or conflate the independent API, ledger, manifest, JSON,
   PostgreSQL, or import-evidence contracts to simplify a release.
 - Never skip warning-free `cabal check`, complete public Haddocks, unpacked
