@@ -89,8 +89,12 @@ in  Schema.Project::{
             "Reusable optparse-applicative parsers and command handlers for service migration executables"
         , dependencies =
           [ internalDep "pg-migrate"
+          , internalDep "pg-migrate-embed"
           , thirdPartyDep "optparse-applicative"
           , thirdPartyDep "hasql"
+          , thirdPartyDep "bytestring"
+          , thirdPartyDep "text"
+          , thirdPartyDep "time"
           ]
         }
       , Schema.Package::{

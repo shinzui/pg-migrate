@@ -1,0 +1,60 @@
+cabal-version: 3.8
+name:          pg-migrate-cli
+version:       0.1.0.0
+synopsis:      Reusable command parsers and renderers for pg-migrate
+description:
+  Lets service executables mount pg-migrate commands while retaining ownership
+  of configuration precedence, output streams, logging, and process exit.
+
+license:       BSD-3-Clause
+build-type:    Simple
+
+common common
+  default-language:   GHC2024
+  default-extensions:
+    DeriveAnyClass
+    DuplicateRecordFields
+    MultilineStrings
+    OverloadedLabels
+    OverloadedStrings
+
+  ghc-options:        -Wall -Wcompat
+
+library
+  import:          common
+  hs-source-dirs:  src
+  exposed-modules:
+    Database.PostgreSQL.Migrate.CLI
+    PgMigrate.CLI.Prelude
+
+  other-modules:
+    Database.PostgreSQL.Migrate.CLI.Parser
+    Database.PostgreSQL.Migrate.CLI.Types
+
+  build-depends:
+    , base                  >=4.20 && <4.22
+    , bytestring            >=0.12 && <0.13
+    , hasql                 >=1.10 && <1.11
+    , optparse-applicative  >=0.19 && <0.20
+    , pg-migrate
+    , pg-migrate-embed
+    , text                  >=2.1  && <2.2
+    , time                  >=1.12 && <1.15
+
+test-suite pg-migrate-cli-test
+  import:         common
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test/unit
+  main-is:        Main.hs
+  other-modules:  Test.Parser
+  build-depends:
+    , base                  >=4.20 && <4.22
+    , bytestring            >=0.12 && <0.13
+    , containers            >=0.7  && <0.8
+    , optparse-applicative  >=0.19 && <0.20
+    , pg-migrate
+    , pg-migrate-cli
+    , tasty                 >=1.5  && <1.6
+    , tasty-hunit           >=0.10 && <0.11
+    , text                  >=2.1  && <2.2
+    , time                  >=1.12 && <1.15

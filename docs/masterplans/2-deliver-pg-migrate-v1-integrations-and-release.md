@@ -57,7 +57,7 @@ package.
 
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
-| 7 | Build the reusable migration CLI and JSON contracts | docs/plans/7-build-the-reusable-migration-cli-and-json-contracts.md | None | None | Not Started |
+| 7 | Build the reusable migration CLI and JSON contracts | docs/plans/7-build-the-reusable-migration-cli-and-json-contracts.md | None | None | In Progress |
 | 8 | Import Codd history through the adapter | docs/plans/8-import-codd-history-through-the-adapter.md | None | EP-7 | Not Started |
 | 9 | Import hasql-migration history through the adapter | docs/plans/9-import-hasql-migration-history-through-the-adapter.md | None | EP-7 | Not Started |
 | 10 | Provide ephemeral PostgreSQL test support and acceptance matrix | docs/plans/10-provide-ephemeral-postgresql-test-support-and-acceptance-matrix.md | EP-7, EP-8, EP-9 | None | Not Started |
@@ -106,12 +106,18 @@ and schema constants remain defined in code by their implementation plans.
 
 ## Progress
 
-(No implementation work has started.)
+- [ ] EP-7: Build the reusable migration CLI and JSON contracts. Implementation started
+  on 2026-07-10 after confirming the core-engine MasterPlan and all six prerequisite
+  ExecPlans are complete. Milestone 1 now provides the compiling optional package, typed
+  command tree, grouped parser, and eight passing parser contract tests.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: the completed core initiative left its internal read-only ledger sessions
+  without the public `migrationStatus` and `verifyMigrationPlan` operations named by the
+  initial specification. EP-7 must add those public operations before its opaque
+  `ConnectionProvider`-based handler can implement status and strict verify safely.
 
 
 ## Decision Log
@@ -137,3 +143,12 @@ and schema constants remain defined in code by their implementation plans.
 ## Outcomes & Retrospective
 
 (To be filled during and after implementation.)
+
+
+## Revision Note
+
+2026-07-10: Started EP-7 after verifying that the core-engine initiative is complete and
+that the optional CLI package has not yet been created.
+
+2026-07-10: Recorded EP-7 Milestone 1 completion and the public core inspection API gap
+that Milestone 2 must close.

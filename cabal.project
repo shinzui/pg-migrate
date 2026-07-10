@@ -1,5 +1,6 @@
 packages:
   pg-migrate
+  pg-migrate-cli
   pg-migrate-embed
 
 with-compiler: ghc-9.12.4

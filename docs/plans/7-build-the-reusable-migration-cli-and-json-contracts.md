@@ -27,12 +27,26 @@ text/JSON for every command without requiring migration discovery.
 
 ## Progress
 
-(No implementation work has started.)
+- [x] (2026-07-10 14:28 PDT) Milestone 1: Created the optional CLI package, typed command
+  model, grouped parser, and parser-focused tests. All 8 parser tests pass, including
+  grouped help, narrow verify wording, duration and conflict rejection, repair
+  confirmation, validated targets, and absent implicit database settings.
+- [ ] (2026-07-10 14:28 PDT) Milestone 2: Add the consumer-supplied handler environment,
+  typed outcomes and exit classes, database inspection operations, execution dispatch,
+  manifest checking, authoring, and stable text rendering.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: Hasql 1.10's `Settings.connectionString` intentionally maps an invalid
+  connection string to empty settings instead of returning a parse error. The CLI parser
+  therefore produces the requested typed Hasql settings without claiming stricter eager
+  URL validation than the dependency provides.
+
+- Observation: the core plan implemented `loadStatus` and `loadVerification` sessions
+  internally, but the public `migrationStatus` and `verifyMigrationPlan` operations named
+  by `docs/initial-spec.md` are absent. Milestone 2 must close that public integration gap
+  rather than reach through the opaque `ConnectionProvider` from the CLI package.
 
 
 ## Decision Log
@@ -48,10 +62,27 @@ text/JSON for every command without requiring migration discovery.
   consumers a compatibility boundary independent of Haskell constructors.
   Date: 2026-07-10
 
+- Decision: Keep parsing free of filesystem and environment access even when authoring
+  cannot infer a numeric name.
+  Rationale: whether `--name` is required depends on manifest contents; the pure parser
+  records the optional name and the handler returns a typed usage failure if the authoring
+  API reports `ExplicitMigrationNameRequired`.
+  Date: 2026-07-10
+
 
 ## Outcomes & Retrospective
 
 (To be filled during and after implementation.)
+
+
+## Revision Note
+
+2026-07-10: Began implementation after confirming the core MasterPlan is complete and the
+declared `pg-migrate-cli/` package directory is absent.
+
+2026-07-10: Completed Milestone 1 with the optional package, public command types, grouped
+parser, and eight passing parser contract tests; recorded Hasql connection-string behavior
+and the missing public core inspection operations for Milestone 2.
 
 
 ## Context and Orientation
