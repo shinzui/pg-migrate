@@ -28,12 +28,27 @@ Haskell package.
 
 ## Progress
 
-(No implementation work has started.)
+- [x] (2026-07-10 15:22 PDT) Milestone 1: Added the optional package, opaque qualified
+  table and source configuration, safe two-part identifier parsing/quoting, typed rows,
+  structured errors, stable evidence keys, and mountable parser.
+- [x] (2026-07-10 15:22 PDT) Milestone 2: Read exact ledger columns in deterministic
+  order, reject duplicates/missing selections, verify base64 MD5 against caller-owned exact
+  bytes, and attach their SHA-256 as `SourceLedgerChecksumVerified` evidence.
+- [x] (2026-07-10 15:22 PDT) Milestone 3: Passed caller-supplied `AllOf`/`AnyOf` mappings
+  and state validators to the generic importer, preserved local timestamps, enforced
+  equivalent-history opt-in, and retained lenient/strict source behavior.
+- [x] (2026-07-10 15:22 PDT) Milestone 4: Exposed read/import/parser APIs and closed 13
+  pure plus 6 PostgreSQL tests for quoted tables, invalid MD5, duplicates, direct and
+  alternative imports, failed validation, local-time audit, idempotency, changed-evidence
+  conflict, action non-execution, and source preservation. All workspace gates pass.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: the registered predecessor now uses `ram`, not `memory`, for its byte-array
+  encoding classes. Matching its `ram >= 0.20 && < 0.23` dependency is required for
+  crypton 1.1's `Digest MD5` to have the `ByteArrayAccess` instance consumed by
+  `convertToBase Base64`.
 
 
 ## Decision Log
@@ -52,7 +67,25 @@ Haskell package.
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+The adapter now reads the predecessor table only through a caller-validated, safely quoted
+qualified name; it never relies on `search_path` or mutates source rows. Selected exact
+payloads must reproduce each stored base64 MD5 before evidence exists. Their independent
+SHA-256 fingerprints support `SamePayload`, while caller-supplied read-only state
+validators and explicit generic-import opt-in support alternative histories.
+
+Thirteen focused tests and six live PostgreSQL scenarios prove quoted custom relations,
+duplicate and checksum rejection before target mutation, strict and lenient selection,
+local timestamp audit encoding, action-free direct import, idempotency, changed-evidence
+conflict, and passing/failing alternative-history validation. The dry-run production plan
+contains no predecessor package, and the full workspace build plus all ten test suites
+pass.
+
+
+## Revision Note
+
+2026-07-10: Implemented and completed EP-9 after confirming the predecessor DDL and
+base64-MD5 implementation through Mori, then closing the pure/live adapter suites,
+dependency dry run, formatting, full build, and full workspace test matrix.
 
 
 ## Context and Orientation

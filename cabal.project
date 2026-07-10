@@ -3,6 +3,7 @@ packages:
   pg-migrate-cli
   pg-migrate-embed
   pg-migrate-import-codd
+  pg-migrate-import-hasql-migration
 
 with-compiler: ghc-9.12.4
 tests: True

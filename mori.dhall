@@ -127,8 +127,16 @@ in  Schema.Project::{
             "Optional hasql-migration history-import adapter: reads schema_migrations and verifies legacy MD5 checksums"
         , dependencies =
           [ internalDep "pg-migrate"
+          , internalDep "pg-migrate-cli"
           , thirdPartyDep "hasql"
           , thirdPartyDep "optparse-applicative"
+          , thirdPartyDep "aeson"
+          , thirdPartyDep "bytestring"
+          , thirdPartyDep "containers"
+          , thirdPartyDep "crypton"
+          , thirdPartyDep "ram"
+          , thirdPartyDep "text"
+          , thirdPartyDep "time"
           ]
         }
       , Schema.Package::{

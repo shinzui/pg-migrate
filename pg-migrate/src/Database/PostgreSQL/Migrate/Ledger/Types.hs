@@ -3,6 +3,7 @@ module Database.PostgreSQL.Migrate.Ledger.Types
     LedgerConfig (..),
     defaultLedgerConfig,
     ledgerConfig,
+    postgresIdentifier,
     postgresIdentifierText,
     ledgerSchemaText,
     ledgerLockKey,

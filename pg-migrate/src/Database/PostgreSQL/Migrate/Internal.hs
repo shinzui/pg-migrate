@@ -14,6 +14,7 @@ module Database.PostgreSQL.Migrate.Internal
     migrationKind,
     migrationSqlBytes,
     PostgresIdentifier (..),
+    postgresIdentifier,
     LedgerMetadata (..),
     LedgerSnapshot (..),
     LedgerError (..),
@@ -82,6 +83,7 @@ import Database.PostgreSQL.Migrate.Ledger.Types
     LedgerSnapshot (..),
     PostgresIdentifier (..),
     ledgerSchemaText,
+    postgresIdentifier,
   )
 import Database.PostgreSQL.Migrate.Plan
   ( ComponentDescription (..),

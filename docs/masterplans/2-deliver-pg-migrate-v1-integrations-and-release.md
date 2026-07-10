@@ -59,7 +59,7 @@ package.
 |---|-------|------|-----------|-----------|--------|
 | 7 | Build the reusable migration CLI and JSON contracts | docs/plans/7-build-the-reusable-migration-cli-and-json-contracts.md | None | None | Complete |
 | 8 | Import Codd history through the adapter | docs/plans/8-import-codd-history-through-the-adapter.md | None | EP-7 | Complete |
-| 9 | Import hasql-migration history through the adapter | docs/plans/9-import-hasql-migration-history-through-the-adapter.md | None | EP-7 | Not Started |
+| 9 | Import hasql-migration history through the adapter | docs/plans/9-import-hasql-migration-history-through-the-adapter.md | None | EP-7 | Complete |
 | 10 | Provide ephemeral PostgreSQL test support and acceptance matrix | docs/plans/10-provide-ephemeral-postgresql-test-support-and-acceptance-matrix.md | EP-7, EP-8, EP-9 | None | Not Started |
 | 11 | Publish v1 API operations and compatibility documentation | docs/plans/11-publish-v1-api-operations-and-compatibility-documentation.md | EP-10 | None | Not Started |
 
@@ -116,6 +116,11 @@ and schema constants remain defined in code by their implementation plans.
   mapping validation, mountable parsing, and generic atomic target import. Eighteen pure
   tests and nine PostgreSQL fixtures prove source preservation, action-free audit writes,
   lock contention, strict/lenient selection, and idempotency; all workspace gates pass.
+- [x] EP-9: Imported `hasql-migration` history through a Hasql-only adapter with safely
+  quoted qualified tables, exact base64-MD5 payload verification, independent SHA-256
+  evidence, local timestamp preservation, direct and validator-backed alternative routes,
+  and generic atomic target import. Thirteen pure and six live tests pass with the full
+  workspace matrix and predecessor-free production closure.
 
 
 ## Surprises & Discoveries
@@ -129,6 +134,10 @@ and schema constants remain defined in code by their implementation plans.
   source access exposed a missing pure target/prefix validator in the generic history API.
   The new `validateHistoryMappingTargets` operation shares the importer's target resolution
   logic without acquiring a connection.
+
+- Observation: the current registered `hasql-migration` fork uses `ram`, not `memory`, for
+  byte-array encoding. EP-9 follows that actual source dependency so crypton MD5 digests
+  and base64 encoding share one `ByteArrayAccess` class.
 
 
 ## Decision Log
@@ -178,3 +187,7 @@ dependency-closure audit passed.
 2026-07-10: Marked EP-8 complete after all V1–V5 fixtures, source-first locking, evidence,
 preflight, audit, non-execution, source-preservation, idempotency, dependency-closure, and
 full-workspace gates passed.
+
+2026-07-10: Marked EP-9 complete after qualified-table, MD5/SHA-256, local timestamp,
+direct/equivalent history, read-only validator, source-preservation, conflict,
+dependency-closure, and full-workspace gates passed.
