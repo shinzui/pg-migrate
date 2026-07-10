@@ -68,7 +68,7 @@ predecessor dependency or source-specific branch.
 | 2 | Validate SQL and embed ordered manifests | docs/plans/2-validate-sql-and-embed-ordered-manifests.md | EP-1 | None | Complete |
 | 3 | Build the versioned ledger and plan verification | docs/plans/3-build-the-versioned-ledger-and-plan-verification.md | EP-1 | EP-2 | Complete |
 | 4 | Run transactional migrations under a dedicated lock | docs/plans/4-run-transactional-migrations-under-a-dedicated-lock.md | EP-2, EP-3 | None | Complete |
-| 5 | Run and repair nontransactional migrations | docs/plans/5-run-and-repair-nontransactional-migrations.md | EP-4 | None | In Progress |
+| 5 | Run and repair nontransactional migrations | docs/plans/5-run-and-repair-nontransactional-migrations.md | EP-4 | None | Complete |
 | 6 | Import migration history through the generic model | docs/plans/6-import-migration-history-through-the-generic-model.md | EP-3, EP-4 | EP-5 | Not Started |
 
 Status values: Not Started, In Progress, Complete, Cancelled.
@@ -132,6 +132,9 @@ operations required by later packages even though the illustrative export list i
 - [x] (2026-07-10 13:10 PDT) EP-4: Added dedicated connection/version/timeout/lock
   ownership, atomic transactional execution, structured events and reports, condemnation
   detection, and interruption-safe cleanup; all 85 unit and 14 integration tests pass.
+- [x] (2026-07-10 13:34 PDT) EP-5: Added durable nontransactional Running/Applied/Failed
+  execution, confirmed metadata-safe repair with immutable audit rows, and true process
+  crash coverage; all 87 unit and 21 integration tests pass and the workspace builds.
 
 
 ## Surprises & Discoveries
@@ -156,6 +159,11 @@ operations required by later packages even though the illustrative export list i
   concurrent runner at the libpq/RTS boundary. EP-4 therefore uses interruptible
   `pg_try_advisory_lock` polling for every wait mode, including infinite wait, while
   retaining the same one-session lock ownership contract for EP-5 and EP-6.
+
+- Observation: PostgreSQL can retain a dead client's advisory lock until its current
+  statement finishes and the backend notices the closed socket. EP-5's crash proof waits
+  for that bounded server-side completion before checking lock cleanup; EP-6 should use
+  the same lifecycle rather than infer cleanup from process termination alone.
 
 
 ## Decision Log
@@ -210,9 +218,10 @@ EP-3 delivered the PostgreSQL-compatible `pgmigrate` ledger, versioned transacti
 typed loading, exhaustive plan comparison, and read-only status/verification sessions.
 EP-4 delivered dedicated connection and lock ownership, server/timeout policy, atomic
 transactional execution, structured event/report/error behavior, and interruption-safe
-cleanup. All final EP-1 through EP-4 formatting, build, unit, package-specific, and live
-database checks passed. The initiative remains in progress: nontransactional repair and
-history import are still owned by EP-5 and EP-6.
+cleanup. EP-5 delivered the conservative nontransactional state machine, audited repair,
+and real process-death evidence without adding public crash hooks. All final EP-1 through
+EP-5 formatting, build, unit, package-specific, and live database checks passed. The
+initiative remains in progress: generic history import is still owned by EP-6.
 
 
 ## Revision Note
@@ -239,6 +248,10 @@ that prevents in-process libpq/RTS starvation.
 
 2026-07-10: Started EP-5 after EP-4's dedicated connection, lock, transactional runner,
 event, and cleanup contracts passed their complete acceptance gate.
+
+2026-07-10: Marked EP-5 complete after the full workspace build, 87 unit tests, and 21
+PostgreSQL 17 integration tests passed, including true process termination, exact repair
+audit contents, invalid-target rejection, and durable nontransactional callback behavior.
 
 2026-07-10: Started EP-4 after its hard dependencies EP-2 and EP-3 passed their complete
 acceptance gates.

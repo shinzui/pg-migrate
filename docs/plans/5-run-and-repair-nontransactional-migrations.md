@@ -34,13 +34,18 @@ audit trail.
 - [x] (2026-07-10 13:25 PDT) Milestone 2: added confirmed, reason-bearing repair
   requests; metadata-verified mark-applied and retry; append-only audit rows; and shared
   runner lifecycle/dispatch hooks; all 87 unit and 3 focused repair integration tests pass.
-- [ ] Milestone 3: prove success, observed failure, crash ambiguity, callback cleanup,
-  repair validation/auditing, and final workspace acceptance.
+- [x] (2026-07-10 13:34 PDT) Milestone 3: proved success, observed failure, true process
+  termination after Running, durable callback boundaries, exact repair audit contents,
+  rejection of every unsafe target class, and cleanup; all 87 unit and 21 PostgreSQL
+  integration tests pass and the full workspace builds.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: after the crash helper receives `SIGKILL`, PostgreSQL retains its session
+  advisory lock until the in-flight `pg_sleep` finishes and the backend observes the dead
+  client socket. The deterministic harness therefore uses a bounded two-second statement
+  and waits for process termination before asserting both Running and lock availability.
 
 
 ## Decision Log
@@ -59,7 +64,13 @@ audit trail.
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+The shared runner now executes validated nontransactional SQL and session actions with
+durable Running/Applied/Failed transitions, preserving ambiguity across process death and
+asynchronous interruption. Repair is explicit, confirmed, metadata-checked, and audited;
+mark-applied and retry cannot operate on unknown, changed, transactional, or already
+Applied targets. The crash helper remains test-only. The final 87-unit/21-integration
+suite proves exact audit fields, success and observed failure, conservative crash state,
+durable callback boundaries, and advisory-lock cleanup.
 
 
 ## Context and Orientation
@@ -212,3 +223,7 @@ Failed with diagnostic text.
 2026-07-10: Recorded the completed repair API after mark-applied and retry both wrote one
 audit row, retry executed the unchanged current action once, and transactional/checksum
 validation rejected unsafe requests.
+
+2026-07-10: Completed the plan after a real `SIGKILL` left Running, every unsafe repair
+target was rejected, audit contents were verified, and all workspace acceptance checks
+passed.

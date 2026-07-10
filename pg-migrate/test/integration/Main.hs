@@ -37,6 +37,8 @@ import Hasql.Session qualified as Session
 import Hasql.Statement qualified as Statement
 import Hasql.Transaction qualified as Transaction
 import System.Environment (lookupEnv)
+import System.Posix.Signals (sigKILL, signalProcess)
+import System.Process (createProcess, getPid, proc, waitForProcess)
 import Test.Tasty (TestTree, defaultMain, testGroup)
 import Test.Tasty.HUnit (assertBool, assertFailure, testCase, (@?=))
 
@@ -67,7 +69,10 @@ tests settings =
       testCase "nontransactional observed failure records Failed" (testNonTransactionalFailure settings),
       testCase "repair mark-applied audits and unblocks the plan" (testRepairMarkApplied settings),
       testCase "repair retry audits and executes the current action once" (testRepairRetry settings),
-      testCase "repair rejects transactional and changed targets" (testRepairValidation settings),
+      testCase "repair retry failure remains audited and Failed" (testRepairRetryFailure settings),
+      testCase "repair rejects invalid targets" (testRepairValidation settings),
+      testCase "terminated nontransactional helper leaves Running" (testCrashAmbiguity settings),
+      testCase "nontransactional callback failure leaves Applied" (testNonTransactionalCallback settings),
       testCase "events follow durable migration boundaries" (testEventOrder settings),
       testCase "callback failure restores timeout and releases the lock" (testCallbackCleanup settings),
       testCase "two concurrent runners execute each effect once" (testConcurrentRunners settings),
@@ -320,6 +325,8 @@ testRepairMarkApplied settings =
     storedStatuses snapshot @?= [Applied]
     repairCount <- useSession connection (Session.statement () (repairAuditCountStatement config))
     repairCount @?= 1
+    repairAudit <- useSession connection (Session.statement () (repairAuditStatement config))
+    repairAudit @?= ("mark-applied", "failed", "applied", "index was verified out of band")
     report <- runMigrationPlan options settings plan >>= requireRunRight
     reportOutcomes report @?= [AlreadyApplied]
 
@@ -351,8 +358,28 @@ testRepairRetry settings =
     storedStatuses snapshot @?= [Applied]
     repairCount <- useSession connection (Session.statement () (repairAuditCountStatement config))
     repairCount @?= 1
+    repairAudit <- useSession connection (Session.statement () (repairAuditStatement config))
+    repairAudit @?= ("retry", "failed", "running", "created the missing prerequisite table")
     indexExists <- useSession connection (Session.statement (ledgerSchema config) retryIndexExistsStatement)
     indexExists @?= True
+
+testRepairRetryFailure :: Settings.Settings -> IO ()
+testRepairRetryFailure settings =
+  withTestLedger settings "repair_retry_failure" $ \connection config -> do
+    let component = "repair-retry-failure"
+        plan = missingIndexPlan config component "idx_retry_failure" "still_missing"
+        options = withLedger config defaultRunOptions
+        targetId = requireRight (Migrate.migrationId component "0001-index")
+        request = requireRight (repairRequest targetId Retry "retry once for audit" Confirmed)
+    runMigrationPlan options settings plan >>= assertNonTransactionalFailure
+    repairMigration options (connectionProviderFromSettings settings) plan request
+      >>= assertRepairRunFailure
+    snapshot <- useSession connection (loadLedger config)
+    storedStatuses snapshot @?= [Failed]
+    repairCount <- useSession connection (Session.statement () (repairAuditCountStatement config))
+    repairCount @?= 1
+    repairAudit <- useSession connection (Session.statement () (repairAuditStatement config))
+    repairAudit @?= ("retry", "failed", "running", "retry once for audit")
 
 testRepairValidation :: Settings.Settings -> IO ()
 testRepairValidation settings = do
@@ -378,6 +405,69 @@ testRepairValidation settings = do
     runMigrationPlan options settings originalPlan >>= assertNonTransactionalFailure
     repairMigration options (connectionProviderFromSettings settings) changedPlan request
       >>= assertRepairMetadataMismatch
+  withTestLedger settings "repair_missing" $ \_ config -> do
+    let component = "repair-missing"
+        plan = missingIndexPlan config component "idx_missing_target" "missing_target"
+        options = withLedger config defaultRunOptions
+        unknownId = requireRight (Migrate.migrationId component "9999-unknown")
+        request = requireRight (repairRequest unknownId MarkApplied "must reject unknown target" Confirmed)
+    repairMigration options (connectionProviderFromSettings settings) plan request
+      >>= assertRepairMissing
+  withTestLedger settings "repair_applied" $ \connection config -> do
+    initialize connection config >>= (@?= Right ())
+    useSession connection (Session.script ("CREATE TABLE " <> quotedSchema config <> ".applied_values (value integer NOT NULL)"))
+    let component = "repair-applied"
+        plan = missingIndexPlan config component "idx_applied_target" "applied_values"
+        options = withLedger config defaultRunOptions
+        targetId = requireRight (Migrate.migrationId component "0001-index")
+        request = requireRight (repairRequest targetId MarkApplied "must reject applied target" Confirmed)
+    _ <- runMigrationPlan options settings plan >>= requireRunRight
+    repairMigration options (connectionProviderFromSettings settings) plan request
+      >>= assertRepairAlreadyApplied
+
+testCrashAmbiguity :: Settings.Settings -> IO ()
+testCrashAmbiguity settings =
+  withTestLedger settings "crash" $ \connection config ->
+    withConnection settings $ \contender -> do
+      (_, _, _, processHandle) <-
+        createProcess
+          ( proc
+              "pg-migrate-crash-helper"
+              [ Text.unpack (ledgerSchema config),
+                show (lockKey config)
+              ]
+          )
+      waitForRunning connection config 200
+      processId <- getPid processHandle >>= maybe (fail "crash helper has no process id") pure
+      signalProcess sigKILL processId
+      _ <- waitForProcess processHandle
+      snapshot <- useSession connection (loadLedger config)
+      storedStatuses snapshot @?= [Running]
+      runMigrationPlan
+        (withLedger config defaultRunOptions)
+        settings
+        (crashMigrationPlan config)
+        >>= assertPlanVerificationFailure
+      _ <- acquireAdvisoryLock contender (lockKey config) NoWait >>= requireMigrationRight
+      releaseAdvisoryLock contender (lockKey config) >>= requireCleanupRight
+
+testNonTransactionalCallback :: Settings.Settings -> IO ()
+testNonTransactionalCallback settings =
+  withTestLedger settings "nontransactional_callback" $ \connection config ->
+    withConnection settings $ \contender -> do
+      initialize connection config >>= (@?= Right ())
+      useSession connection (Session.script ("CREATE TABLE " <> quotedSchema config <> ".callback_values (value integer NOT NULL)"))
+      let component = "nontransactional-callback"
+          plan = missingIndexPlan config component "idx_nontransactional_callback" "callback_values"
+          handler = \case
+            MigrationCompleted {} -> throwIO (userError "nontransactional callback failure")
+            _ -> pure ()
+          options = defaultRunOptions & withLedger config & withEventHandler handler
+      runMigrationPlan options settings plan >>= assertEventHandlerFailure
+      snapshot <- useSession connection (loadLedger config)
+      storedStatuses snapshot @?= [Applied]
+      _ <- acquireAdvisoryLock contender (lockKey config) NoWait >>= requireMigrationRight
+      releaseAdvisoryLock contender (lockKey config) >>= requireCleanupRight
 
 testEventOrder :: Settings.Settings -> IO ()
 testEventOrder settings =
@@ -610,6 +700,20 @@ repairAuditCountStatement config =
     Encoders.noParams
     (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
 
+repairAuditStatement :: LedgerConfig -> Statement.Statement () (Text, Text, Text, Text)
+repairAuditStatement config =
+  Statement.unpreparable
+    ("SELECT operation, old_status, new_status, reason FROM " <> quotedSchema config <> ".repairs")
+    Encoders.noParams
+    ( Decoders.singleRow
+        ( (,,,)
+            <$> Decoders.column (Decoders.nonNullable Decoders.text)
+            <*> Decoders.column (Decoders.nonNullable Decoders.text)
+            <*> Decoders.column (Decoders.nonNullable Decoders.text)
+            <*> Decoders.column (Decoders.nonNullable Decoders.text)
+        )
+    )
+
 indexExistsStatement :: Statement.Statement Text Bool
 indexExistsStatement =
   Statement.preparable
@@ -748,6 +852,24 @@ assertRepairMetadataMismatch = \case
   Left repairError -> assertFailure ("expected RepairTargetMetadataMismatch, received " <> show repairError)
   Right report -> assertFailure ("expected RepairTargetMetadataMismatch, received " <> show report)
 
+assertRepairMissing :: Either RepairError RepairReport -> IO ()
+assertRepairMissing = \case
+  Left RepairTargetMissing {} -> pure ()
+  Left repairError -> assertFailure ("expected RepairTargetMissing, received " <> show repairError)
+  Right report -> assertFailure ("expected RepairTargetMissing, received " <> show report)
+
+assertRepairAlreadyApplied :: Either RepairError RepairReport -> IO ()
+assertRepairAlreadyApplied = \case
+  Left RepairTargetAlreadyApplied {} -> pure ()
+  Left repairError -> assertFailure ("expected RepairTargetAlreadyApplied, received " <> show repairError)
+  Right report -> assertFailure ("expected RepairTargetAlreadyApplied, received " <> show report)
+
+assertRepairRunFailure :: Either RepairError RepairReport -> IO ()
+assertRepairRunFailure = \case
+  Left (RepairRunnerError NonTransactionalMigrationFailed {}) -> pure ()
+  Left repairError -> assertFailure ("expected repaired action failure, received " <> show repairError)
+  Right report -> assertFailure ("expected repaired action failure, received " <> show report)
+
 assertEventHandlerFailure :: Either MigrationError MigrationReport -> IO ()
 assertEventHandlerFailure = \case
   Left (EventHandlerFailed Nothing _) -> pure ()
@@ -840,6 +962,25 @@ missingIndexPlan config component indexName tableName =
           ]
       )
     ]
+
+crashMigrationPlan :: LedgerConfig -> MigrationPlan
+crashMigrationPlan _ =
+  sqlPlan
+    "crash-helper"
+    [ ( "0001-sleep",
+        "-- pg-migrate: no-transaction\nSELECT pg_sleep(2)"
+      )
+    ]
+
+waitForRunning :: Connection.Connection -> LedgerConfig -> Int -> IO ()
+waitForRunning _ _ 0 = assertFailure "crash helper did not persist Running within five seconds"
+waitForRunning connection config attempts = do
+  snapshot <- useSession connection (loadLedger config)
+  if storedStatuses snapshot == [Running]
+    then pure ()
+    else do
+      threadDelay 25000
+      waitForRunning connection config (attempts - 1)
 
 integrationRunnerVersion :: Text
 integrationRunnerVersion = "pg-migrate-integration"
