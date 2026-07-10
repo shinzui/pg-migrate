@@ -27,7 +27,13 @@ Haskell-migration restrictions without any Codd or `hasql-migration` dependency 
 
 ## Progress
 
-(No implementation work has started.)
+- [ ] Milestone 1: define validated evidence, requirements, mappings, state validators,
+  options, errors, and reports with focused pure tests. (started 2026-07-10 13:36 PDT)
+- [ ] Milestone 2: resolve target prefixes and deterministic normalized evidence purely.
+- [ ] Milestone 3: import target rows and matching audit rows atomically through the
+  shared dedicated-connection lifecycle.
+- [ ] Milestone 4: prove live import, idempotency, conflict, rollback, state validation,
+  and full workspace acceptance.
 
 
 ## Surprises & Discoveries
@@ -196,3 +202,10 @@ importMigrationHistory :: ImportOptions -> ConnectionProvider -> MigrationPlan -
 Expose these through public `Database.PostgreSQL.Migrate.History` and re-export the common
 surface from `Database.PostgreSQL.Migrate`. Constructors that could forge validated IDs,
 state strength, or target metadata remain hidden.
+
+
+## Revision Note
+
+2026-07-10: Started implementation after EP-3 and EP-4 hard dependencies and the EP-5
+soft dependency passed their complete acceptance gates; expanded Progress into four
+independently verifiable milestones.
