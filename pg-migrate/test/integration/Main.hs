@@ -1,11 +1,14 @@
 module Main (main) where
 
 import Control.Exception (bracket, finally)
+import Data.Foldable (toList)
 import Data.Int (Int64)
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text.Encoding
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Database.PostgreSQL.Migrate
 import Database.PostgreSQL.Migrate.Internal
@@ -17,6 +20,7 @@ import Hasql.Encoders qualified as Encoders
 import Hasql.Session (Session)
 import Hasql.Session qualified as Session
 import Hasql.Statement qualified as Statement
+import Hasql.Transaction qualified as Transaction
 import System.Environment (lookupEnv)
 import Test.Tasty (TestTree, defaultMain, testGroup)
 import Test.Tasty.HUnit (assertBool, assertFailure, testCase, (@?=))
@@ -40,7 +44,11 @@ tests settings =
       testCase "read-only loading leaves a missing ledger missing" (testMissingReadOnly settings),
       testCase "a future schema version is refused without mutation" (testFutureVersion settings),
       testCase "server version and statement timeout lifecycle are supported" (testConnectionLifecycle settings),
-      testCase "lock no-wait and finite timeout preserve session settings" (testLockLifecycle settings)
+      testCase "lock no-wait and finite timeout preserve session settings" (testLockLifecycle settings),
+      testCase "transactional plans apply once and then report applied" (testTransactionalRunner settings),
+      testCase "transactional SQL failure rolls back action and ledger" (testTransactionalRollback settings),
+      testCase "condemned Haskell transactions are detected" (testTransactionCondemn settings),
+      testCase "nontransactional preflight happens before every mutation" (testNonTransactionalPreflight settings)
     ]
 
 testInstallation :: Settings.Settings -> IO ()
@@ -149,6 +157,87 @@ testLockLifecycle settings = do
       timeoutAfter <- readStatementTimeout contender >>= requireMigrationRight
       timeoutAfter @?= timeoutBefore
 
+testTransactionalRunner :: Settings.Settings -> IO ()
+testTransactionalRunner settings =
+  withTestLedger settings "runner" $ \connection config -> do
+    let plan =
+          sqlPlan
+            "runner"
+            [ ("0001-create", "CREATE TABLE " <> quotedSchema config <> ".effects (value integer NOT NULL)"),
+              ("0002-insert", "INSERT INTO " <> quotedSchema config <> ".effects (value) VALUES (1)")
+            ]
+        options = withLedger config defaultRunOptions
+    firstReport <- runMigrationPlan options settings plan >>= requireRunRight
+    reportOutcomes firstReport @?= [AppliedNow, AppliedNow]
+    secondReport <- runMigrationPlan options settings plan >>= requireRunRight
+    reportOutcomes secondReport @?= [AlreadyApplied, AlreadyApplied]
+    effectCount <- useSession connection (Session.statement () (effectCountStatement config))
+    effectCount @?= 1
+    snapshot <- useSession connection (loadLedger config)
+    length (storedMigrations snapshot) @?= 2
+
+testTransactionalRollback :: Settings.Settings -> IO ()
+testTransactionalRollback settings =
+  withTestLedger settings "rollback" $ \connection config -> do
+    let plan =
+          sqlPlan
+            "rollback"
+            [ ( "0001-fail",
+                Text.unwords
+                  [ "CREATE TABLE",
+                    quotedSchema config <> ".rolled_back (value integer);",
+                    "SELECT 1 / 0"
+                  ]
+              )
+            ]
+    runMigrationPlan (withLedger config defaultRunOptions) settings plan
+      >>= assertDatabaseSessionFailure
+    tableNames <- useSession connection (Session.statement (ledgerSchema config) tableNamesStatement)
+    assertBool "failed transaction left its user table" ("rolled_back" `notElem` tableNames)
+    snapshot <- useSession connection (loadLedger config)
+    storedMigrations snapshot @?= []
+
+testTransactionCondemn :: Settings.Settings -> IO ()
+testTransactionCondemn settings =
+  withTestLedger settings "condemn" $ \connection config -> do
+    let action = do
+          Transaction.sql
+            (Text.Encoding.encodeUtf8 ("CREATE TABLE " <> quotedSchema config <> ".condemned (value integer)"))
+          Transaction.condemn
+        migration =
+          requireRight
+            (transactionMigration "0001-condemn" (migrationFingerprint "condemn-v1") action)
+        plan = planFromMigrations "condemn" [migration]
+    runMigrationPlan (withLedger config defaultRunOptions) settings plan
+      >>= assertTransactionCondemned
+    tableNames <- useSession connection (Session.statement (ledgerSchema config) tableNamesStatement)
+    assertBool "condemned transaction left its user table" ("condemned" `notElem` tableNames)
+    snapshot <- useSession connection (loadLedger config)
+    storedMigrations snapshot @?= []
+
+testNonTransactionalPreflight :: Settings.Settings -> IO ()
+testNonTransactionalPreflight settings =
+  withTestLedger settings "preflight" $ \connection config -> do
+    let transactional =
+          requireRight
+            ( sqlMigration
+                "0001-must-not-run"
+                (Text.Encoding.encodeUtf8 ("CREATE TABLE " <> quotedSchema config <> ".must_not_run (value integer)"))
+            )
+        nontransactional =
+          requireRight
+            ( sqlMigration
+                "0002-concurrent"
+                "-- pg-migrate: no-transaction\nCREATE INDEX CONCURRENTLY never_runs ON missing_table (value)"
+            )
+        plan = planFromMigrations "preflight" [transactional, nontransactional]
+    runMigrationPlan (withLedger config defaultRunOptions) settings plan
+      >>= assertUnsupportedNonTransactional
+    tableNames <- useSession connection (Session.statement (ledgerSchema config) tableNamesStatement)
+    assertBool "preflight allowed an earlier pending migration to run" ("must_not_run" `notElem` tableNames)
+    snapshot <- useSession connection (loadLedger config)
+    storedMigrations snapshot @?= []
+
 withTestLedger ::
   Settings.Settings ->
   Text ->
@@ -164,7 +253,9 @@ withTestLedgerNamed ::
   IO a
 withTestLedgerNamed settings makeSchema action = do
   suffix <- uniqueSuffix
-  let config = requireRight (ledgerConfig (makeSchema suffix) testLockKey)
+  let suffixNumber = read (Text.unpack suffix) :: Integer
+      lockKey = testLockKey + fromIntegral (suffixNumber `mod` 1000000)
+      config = requireRight (ledgerConfig (makeSchema suffix) lockKey)
   withConnection settings $ \connection -> do
     cleanupLedger connection config
     action connection config `finally` cleanupLedger connection config
@@ -243,6 +334,13 @@ migrationCountStatement config =
     Encoders.noParams
     (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
 
+effectCountStatement :: LedgerConfig -> Statement.Statement () Int64
+effectCountStatement config =
+  Statement.unpreparable
+    ("SELECT count(*) FROM " <> quotedSchema config <> ".effects")
+    Encoders.noParams
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
+
 setFutureVersionSql :: LedgerConfig -> Text
 setFutureVersionSql config =
   "UPDATE "
@@ -298,6 +396,29 @@ requireCleanupRight = \case
   Left cleanupIssue -> assertFailure (show cleanupIssue)
   Right () -> pure ()
 
+requireRunRight :: Either MigrationError MigrationReport -> IO MigrationReport
+requireRunRight = \case
+  Left migrationError -> assertFailure (show migrationError) >> error "assertFailure returned"
+  Right report -> pure report
+
+assertDatabaseSessionFailure :: Either MigrationError MigrationReport -> IO ()
+assertDatabaseSessionFailure = \case
+  Left DatabaseSessionFailed {} -> pure ()
+  Left migrationError -> assertFailure ("expected DatabaseSessionFailed, received " <> show migrationError)
+  Right report -> assertFailure ("expected DatabaseSessionFailed, received " <> show report)
+
+assertTransactionCondemned :: Either MigrationError MigrationReport -> IO ()
+assertTransactionCondemned = \case
+  Left TransactionCondemned {} -> pure ()
+  Left migrationError -> assertFailure ("expected TransactionCondemned, received " <> show migrationError)
+  Right report -> assertFailure ("expected TransactionCondemned, received " <> show report)
+
+assertUnsupportedNonTransactional :: Either MigrationError MigrationReport -> IO ()
+assertUnsupportedNonTransactional = \case
+  Left UnsupportedNonTransactionalMigration {} -> pure ()
+  Left migrationError -> assertFailure ("expected UnsupportedNonTransactionalMigration, received " <> show migrationError)
+  Right report -> assertFailure ("expected UnsupportedNonTransactionalMigration, received " <> show report)
+
 assertLockUnavailable :: Either MigrationError value -> IO ()
 assertLockUnavailable = \case
   Left AdvisoryLockUnavailable -> pure ()
@@ -315,6 +436,31 @@ uniqueLockKey = do
   now <- getPOSIXTime
   let microseconds = floor (realToFrac now * (1000000 :: Double)) :: Integer
   pure (testLockKey + fromIntegral (microseconds `mod` 1000000))
+
+reportOutcomes :: MigrationReport -> [MigrationOutcome]
+reportOutcomes MigrationReport {results} =
+  (\MigrationResult {outcome} -> outcome) <$> toList results
+
+sqlPlan :: Text -> [(Text, Text)] -> MigrationPlan
+sqlPlan component entries =
+  planFromMigrations
+    component
+    [ requireRight (sqlMigration name (Text.Encoding.encodeUtf8 sql))
+    | (name, sql) <- entries
+    ]
+
+planFromMigrations :: Text -> [Migration] -> MigrationPlan
+planFromMigrations component migrations =
+  case NonEmpty.nonEmpty migrations of
+    Nothing -> error "planFromMigrations requires at least one migration"
+    Just nonEmptyMigrations ->
+      requireRight
+        ( migrationPlan
+            ( requireRight
+                (migrationComponent component Set.empty nonEmptyMigrations)
+                :| []
+            )
+        )
 
 integrationRunnerVersion :: Text
 integrationRunnerVersion = "pg-migrate-integration"

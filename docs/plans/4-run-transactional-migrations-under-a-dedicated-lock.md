@@ -35,15 +35,22 @@ failed transaction leaves neither user effects nor a ledger row.
   release, PostgreSQL 17/18 classification, blocking/no-wait/finite advisory locks with
   monotonic timing, explicit unlock, and statement-timeout save/restore; all 85 unit and
   6 PostgreSQL integration tests pass.
-- [ ] Milestone 3: initialize and verify the ledger, execute transactional migrations,
-  and insert their Applied rows atomically.
+- [x] (2026-07-10 13:00 PDT) Milestone 3: implemented the locked runner, full-plan
+  verification and nontransactional preflight, atomic SQL/Haskell actions plus Applied
+  rows, repeat-run outcomes, rollback, and post-transaction condemnation detection; all
+  85 unit and 10 PostgreSQL integration tests pass.
 - [ ] Milestone 4: prove event boundaries, rollback, condemnation, lock behavior,
   concurrency, cleanup, and final workspace acceptance.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: Hasql Transaction returns the action result after `condemn` rolls the
+  transaction back; condemnation is not surfaced as a `SessionError`.
+  Evidence: the inspected `commitOrAbort` implementation chooses `abortTransaction` but
+  still returns `Just res`. The runner therefore reloads the expected ledger row after a
+  successful session, and the live condemnation test observes `TransactionCondemned`
+  with neither user table nor ledger row remaining.
 
 
 ## Decision Log
@@ -229,3 +236,6 @@ decision after all 84 unit tests passed.
 
 2026-07-10: Recorded the completed connection, version, lock, and statement-timeout
 lifecycle after all 85 unit and 6 live PostgreSQL tests passed.
+
+2026-07-10: Recorded the completed atomic transactional runner and Hasql condemnation
+discovery after all 85 unit and 10 live PostgreSQL tests passed.

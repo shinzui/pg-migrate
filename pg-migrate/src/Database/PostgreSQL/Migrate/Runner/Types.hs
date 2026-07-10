@@ -97,8 +97,9 @@ data MigrationError
   | PlanVerificationFailed !VerificationReport
   | UnsupportedNonTransactionalMigration !MigrationId
   | TransactionCondemned !MigrationId
-  | EventHandlerFailed !SomeException
+  | EventHandlerFailed !(Maybe MigrationError) !SomeException
   | MigrationActionFailed !SomeException
+  | InvalidMigrationAction !MigrationId
   | CleanupFailed !(Maybe MigrationError) !(NonEmpty CleanupIssue)
   deriving stock (Generic, Show)
 

@@ -23,6 +23,7 @@ common common
 library
   import:          common
   hs-source-dirs:  src
+  autogen-modules: Paths_pg_migrate
   exposed-modules:
     Database.PostgreSQL.Migrate
     Database.PostgreSQL.Migrate.Internal
@@ -35,17 +36,20 @@ library
     Database.PostgreSQL.Migrate.Ledger.Sql
     Database.PostgreSQL.Migrate.Ledger.Types
     Database.PostgreSQL.Migrate.Plan
+    Database.PostgreSQL.Migrate.Runner
     Database.PostgreSQL.Migrate.Runner.Connection
     Database.PostgreSQL.Migrate.Runner.Lock
     Database.PostgreSQL.Migrate.Runner.Types
     Database.PostgreSQL.Migrate.Sql
     Database.PostgreSQL.Migrate.Sql.Scanner
     Database.PostgreSQL.Migrate.Types
+    Paths_pg_migrate
 
   build-depends:
     , base               >=4.20 && <4.22
     , bytestring         >=0.12 && <0.13
     , containers         >=0.7  && <0.8
+    , contravariant      >=1.5  && <1.6
     , crypton            >=1.1  && <1.2
     , hasql              >=1.10 && <1.11
     , hasql-transaction  >=1.2  && <1.3
@@ -83,11 +87,12 @@ test-suite pg-migrate-integration
   hs-source-dirs: test/integration
   main-is:        Main.hs
   build-depends:
-    , base         >=4.20 && <4.22
-    , containers   >=0.7  && <0.8
-    , hasql        >=1.10 && <1.11
+    , base               >=4.20 && <4.22
+    , containers         >=0.7  && <0.8
+    , hasql              >=1.10 && <1.11
+    , hasql-transaction  >=1.2  && <1.3
     , pg-migrate
-    , tasty        >=1.5  && <1.6
-    , tasty-hunit  >=0.10 && <0.11
-    , text         >=2.1  && <2.2
-    , time         >=1.12 && <1.15
+    , tasty              >=1.5  && <1.6
+    , tasty-hunit        >=0.10 && <0.11
+    , text               >=2.1  && <2.2
+    , time               >=1.12 && <1.15

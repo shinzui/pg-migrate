@@ -1,0 +1,399 @@
+module Database.PostgreSQL.Migrate.Runner
+  ( runMigrationPlan,
+    runMigrationPlanWith,
+  )
+where
+
+import Control.Exception
+  ( AsyncException,
+    SomeException,
+    fromException,
+    mask,
+    throwIO,
+    try,
+  )
+import Data.Int (Int32)
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map.Strict qualified as Map
+import Data.Text qualified as Text
+import Data.Time (NominalDiffTime, UTCTime, getCurrentTime)
+import Data.Version (showVersion)
+import Data.Word (Word64)
+import Database.PostgreSQL.Migrate.Ledger
+import Database.PostgreSQL.Migrate.Ledger.Migrations
+import Database.PostgreSQL.Migrate.Ledger.Sql
+import Database.PostgreSQL.Migrate.Ledger.Types
+import Database.PostgreSQL.Migrate.Plan (planDescription)
+import Database.PostgreSQL.Migrate.Runner.Connection
+import Database.PostgreSQL.Migrate.Runner.Lock
+import Database.PostgreSQL.Migrate.Runner.Types
+import Database.PostgreSQL.Migrate.Types
+import GHC.Clock (getMonotonicTimeNSec)
+import Hasql.Connection qualified as Connection
+import Hasql.Connection.Settings qualified as Settings
+import Hasql.Session (Session)
+import Hasql.Transaction (Transaction)
+import Hasql.Transaction qualified as Transaction
+import Hasql.Transaction.Sessions qualified as Transaction.Sessions
+import Paths_pg_migrate qualified as Package
+import PgMigrate.Prelude
+
+data PlannedMigration = PlannedMigration
+  { plannedId :: !MigrationId,
+    plannedPosition :: !Int32,
+    plannedMigration :: !Migration
+  }
+
+runMigrationPlan ::
+  RunOptions ->
+  Settings.Settings ->
+  MigrationPlan ->
+  IO (Either MigrationError MigrationReport)
+runMigrationPlan options settings =
+  runMigrationPlanWith options (connectionProviderFromSettings settings)
+
+runMigrationPlanWith ::
+  RunOptions ->
+  ConnectionProvider ->
+  MigrationPlan ->
+  IO (Either MigrationError MigrationReport)
+runMigrationPlanWith options ConnectionProvider {useDedicatedConnection} plan =
+  case validateOptions options of
+    Left optionsError -> pure (Left optionsError)
+    Right () -> do
+      acquired <- useDedicatedConnection (\connection -> runOnConnection options connection plan)
+      pure $ case acquired of
+        Left connectionError -> Left (ConnectionAcquisitionFailed connectionError)
+        Right result -> result
+
+runOnConnection ::
+  RunOptions ->
+  Connection.Connection ->
+  MigrationPlan ->
+  IO (Either MigrationError MigrationReport)
+runOnConnection options connection plan = do
+  serverVersion <- checkServerVersion connection
+  case serverVersion of
+    Left migrationError -> pure (Left migrationError)
+    Right _ ->
+      withStatementTimeoutResource options connection $ do
+        waitEvent <- invokeEvent options (LockWaitStarted (runLockWait options))
+        case waitEvent of
+          Left eventError -> pure (Left eventError)
+          Right () ->
+            withAdvisoryLockResource options connection $ \lockDuration -> do
+              acquiredEvent <- invokeEvent options (LockAcquired lockDuration)
+              case acquiredEvent of
+                Left eventError -> pure (Left eventError)
+                Right () -> runLocked options connection plan
+
+withStatementTimeoutResource ::
+  RunOptions ->
+  Connection.Connection ->
+  IO (Either MigrationError value) ->
+  IO (Either MigrationError value)
+withStatementTimeoutResource options connection action =
+  mask $ \restore -> do
+    applied <- applyStatementTimeout connection (runStatementTimeout options)
+    case applied of
+      Left migrationError -> pure (Left migrationError)
+      Right previous -> do
+        captured <- try @SomeException (restore action)
+        cleanup <- restoreStatementTimeout connection previous
+        finishResource captured [cleanup]
+
+withAdvisoryLockResource ::
+  RunOptions ->
+  Connection.Connection ->
+  (NominalDiffTime -> IO (Either MigrationError value)) ->
+  IO (Either MigrationError value)
+withAdvisoryLockResource options connection action =
+  mask $ \restore -> do
+    acquired <-
+      restore
+        ( acquireAdvisoryLock
+            connection
+            (ledgerLockKey (runLedgerConfig options))
+            (runLockWait options)
+        )
+    case acquired of
+      Left migrationError -> pure (Left migrationError)
+      Right lockDuration -> do
+        captured <- try @SomeException (restore (action lockDuration))
+        cleanup <-
+          releaseAdvisoryLock connection (ledgerLockKey (runLedgerConfig options))
+        finishResource captured [cleanup]
+
+finishResource ::
+  Either SomeException (Either MigrationError value) ->
+  [Either CleanupIssue ()] ->
+  IO (Either MigrationError value)
+finishResource captured cleanupResults = do
+  let (cleanupIssues, _) = partitionEithers cleanupResults
+  case captured of
+    Left exception
+      | isAsyncException exception -> throwIO exception
+      | otherwise -> pure (attachCleanup cleanupIssues (Left (MigrationActionFailed exception)))
+    Right result -> pure (attachCleanup cleanupIssues result)
+
+attachCleanup ::
+  [CleanupIssue] ->
+  Either MigrationError value ->
+  Either MigrationError value
+attachCleanup cleanupIssues result =
+  case NonEmpty.nonEmpty cleanupIssues of
+    Nothing -> result
+    Just issues ->
+      Left
+        ( CleanupFailed
+            (case result of Left primary -> Just primary; Right _ -> Nothing)
+            issues
+        )
+
+runLocked ::
+  RunOptions ->
+  Connection.Connection ->
+  MigrationPlan ->
+  IO (Either MigrationError MigrationReport)
+runLocked options connection plan = do
+  initialized <-
+    runSession
+      connection
+      (initializeOrUpgradeLedger (runLedgerConfig options) libraryRunnerVersion)
+  case initialized of
+    Left migrationError -> pure (Left migrationError)
+    Right (Left ledgerError) -> pure (Left (LedgerInitializationFailed ledgerError))
+    Right (Right ()) -> do
+      loaded <- runSession connection (loadLedger (runLedgerConfig options))
+      case loaded of
+        Left migrationError -> pure (Left migrationError)
+        Right snapshot -> runVerified options connection plan snapshot
+
+runVerified ::
+  RunOptions ->
+  Connection.Connection ->
+  MigrationPlan ->
+  LedgerSnapshot ->
+  IO (Either MigrationError MigrationReport)
+runVerified options connection plan snapshot = do
+  let verification =
+        comparePlanWithLedger
+          (runUnknownMigrationsPolicy options)
+          (planDescription plan)
+          (storedMigrations snapshot)
+  case verification of
+    VerificationReport {issues = _ : _} ->
+      pure (Left (PlanVerificationFailed verification))
+    VerificationReport {appliedMigrations, pendingMigrations} -> do
+      let planned = flattenPlan plan
+          plannedById = Map.fromList ((\migration -> (plannedId migration, migration)) <$> planned)
+          pending = mapMaybe (`Map.lookup` plannedById) pendingMigrations
+      case find ((== NonTransactional) . migrationModeOf . plannedMigration) pending of
+        Just unsupported ->
+          pure (Left (UnsupportedNonTransactionalMigration (plannedId unsupported)))
+        Nothing -> do
+          validatedEvent <-
+            invokeEvent
+              options
+              PlanValidated
+                { alreadyAppliedCount = length appliedMigrations,
+                  pendingCount = length pending
+                }
+          case validatedEvent of
+            Left eventError -> pure (Left eventError)
+            Right () -> executeVerified options connection planned appliedMigrations pending
+
+executeVerified ::
+  RunOptions ->
+  Connection.Connection ->
+  [PlannedMigration] ->
+  [MigrationId] ->
+  [PlannedMigration] ->
+  IO (Either MigrationError MigrationReport)
+executeVerified options connection planned appliedIds pending = do
+  reportStartedAt <- getCurrentTime
+  reportStartedMonotonic <- getMonotonicTimeNSec
+  executed <- executePending Map.empty pending
+  case executed of
+    Left migrationError -> pure (Left migrationError)
+    Right executedById -> do
+      reportFinishedAt <- getCurrentTime
+      reportDuration <- elapsedSince reportStartedMonotonic
+      completedEvent <- invokeEvent options (MigrationPlanCompleted reportDuration)
+      case completedEvent of
+        Left eventError -> pure (Left eventError)
+        Right () ->
+          case NonEmpty.nonEmpty (resultsInPlanOrder executedById) of
+            Nothing -> error "migration plan unexpectedly produced no results"
+            Just results ->
+              pure
+                ( Right
+                    MigrationReport
+                      { startedAt = reportStartedAt,
+                        finishedAt = reportFinishedAt,
+                        results
+                      }
+                )
+  where
+    alreadyApplied =
+      Map.fromList
+        [ (identifier, MigrationResult identifier AlreadyApplied Nothing)
+        | identifier <- appliedIds
+        ]
+    resultsInPlanOrder executedById =
+      mapMaybe
+        (\migration -> Map.lookup (plannedId migration) (Map.union executedById alreadyApplied))
+        planned
+    executePending accumulated [] = pure (Right accumulated)
+    executePending accumulated (migration : rest) = do
+      executed <- executeTransactional options connection migration
+      case executed of
+        Left migrationError -> pure (Left migrationError)
+        Right result ->
+          executePending (Map.insert (plannedId migration) result accumulated) rest
+
+executeTransactional ::
+  RunOptions ->
+  Connection.Connection ->
+  PlannedMigration ->
+  IO (Either MigrationError MigrationResult)
+executeTransactional options connection planned = do
+  startedEvent <- invokeEvent options (MigrationStarted identifier)
+  case startedEvent of
+    Left eventError -> pure (Left eventError)
+    Right () -> do
+      startedAt <- getCurrentTime
+      startedMonotonic <- getMonotonicTimeNSec
+      case transactionalAction (runLedgerConfig options) planned startedAt of
+        Left migrationError -> finishFailure startedMonotonic migrationError
+        Right transaction -> do
+          attempted <- try @SomeException (Connection.use connection (runTransaction transaction))
+          case attempted of
+            Left exception
+              | isAsyncException exception -> throwIO exception
+              | otherwise -> finishFailure startedMonotonic (MigrationActionFailed exception)
+            Right (Left sessionError) ->
+              finishFailure startedMonotonic (DatabaseSessionFailed sessionError)
+            Right (Right ()) -> do
+              loaded <- runSession connection (loadLedger (runLedgerConfig options))
+              case loaded of
+                Left migrationError -> finishFailure startedMonotonic migrationError
+                Right snapshot
+                  | any ((== identifier) . storedMigrationId) (storedMigrations snapshot) ->
+                      finishSuccess startedMonotonic
+                  | otherwise -> finishFailure startedMonotonic (TransactionCondemned identifier)
+  where
+    identifier = plannedId planned
+    finishSuccess started = do
+      duration <- elapsedSince started
+      completed <- invokeEvent options (MigrationCompleted identifier duration)
+      pure $ case completed of
+        Left eventError -> Left eventError
+        Right () -> Right (MigrationResult identifier AppliedNow (Just duration))
+    finishFailure started primary = do
+      duration <- elapsedSince started
+      observed <-
+        invokeEventWithPrimary
+          options
+          primary
+          (MigrationFailureObserved identifier duration)
+      pure $ case observed of
+        Left eventError -> Left eventError
+        Right () -> Left primary
+
+transactionalAction ::
+  LedgerConfig ->
+  PlannedMigration ->
+  UTCTime ->
+  Either MigrationError (Transaction ())
+transactionalAction config PlannedMigration {plannedId, plannedPosition, plannedMigration} startedAt = do
+  action <- case migrationActionOf plannedMigration of
+    SqlAction bytes -> Right (Transaction.sql bytes)
+    TransactionAction transaction -> Right transaction
+    SessionAction _ -> Left (InvalidMigrationAction plannedId)
+  pure $ do
+    action
+    Transaction.statement
+      AppliedLedgerRow
+        { appliedMigrationId = plannedId,
+          appliedPosition = plannedPosition,
+          appliedChecksum = migrationChecksumOf plannedMigration,
+          appliedKind = migrationKindOf plannedMigration,
+          appliedTransactionMode = migrationModeOf plannedMigration,
+          appliedStartedAt = startedAt,
+          appliedRunnerVersion = libraryRunnerVersion
+        }
+      (insertAppliedMigrationStatement config)
+
+runTransaction :: Transaction () -> Session ()
+runTransaction =
+  Transaction.Sessions.transactionNoRetry
+    Transaction.Sessions.ReadCommitted
+    Transaction.Sessions.Write
+
+flattenPlan :: MigrationPlan -> [PlannedMigration]
+flattenPlan plan =
+  concatMap flattenComponent (toList (planComponentsOf plan))
+  where
+    flattenComponent component =
+      zipWith
+        ( \position migration ->
+            PlannedMigration
+              (MigrationId (componentNameOf component) (migrationNameOf migration))
+              position
+              migration
+        )
+        [1 ..]
+        (toList (componentMigrationsOf component))
+
+runSession ::
+  Connection.Connection ->
+  Session value ->
+  IO (Either MigrationError value)
+runSession connection session = do
+  result <- Connection.use connection session
+  pure (first DatabaseSessionFailed result)
+
+invokeEvent :: RunOptions -> MigrationEvent -> IO (Either MigrationError ())
+invokeEvent options = invokeEventWithMaybePrimary options Nothing
+
+invokeEventWithPrimary ::
+  RunOptions ->
+  MigrationError ->
+  MigrationEvent ->
+  IO (Either MigrationError ())
+invokeEventWithPrimary options primary =
+  invokeEventWithMaybePrimary options (Just primary)
+
+invokeEventWithMaybePrimary ::
+  RunOptions ->
+  Maybe MigrationError ->
+  MigrationEvent ->
+  IO (Either MigrationError ())
+invokeEventWithMaybePrimary options primary event = do
+  attempted <- try @SomeException (runEventHandler options event)
+  case attempted of
+    Left exception
+      | isAsyncException exception -> throwIO exception
+      | otherwise -> pure (Left (EventHandlerFailed primary exception))
+    Right () -> pure (Right ())
+
+validateOptions :: RunOptions -> Either MigrationError ()
+validateOptions options = do
+  case runLockWait options of
+    WaitFor timeout | timeout < 0 -> Left (InvalidLockWait timeout)
+    _ -> Right ()
+  case runStatementTimeout options of
+    Just timeout | timeout < 0 -> Left (InvalidStatementTimeout timeout)
+    _ -> Right ()
+
+elapsedSince :: Word64 -> IO NominalDiffTime
+elapsedSince started = do
+  finished <- getMonotonicTimeNSec
+  pure (realToFrac (fromIntegral (finished - started) / (1000000000 :: Double)))
+
+isAsyncException :: SomeException -> Bool
+isAsyncException exception = isJust (fromException exception :: Maybe AsyncException)
+
+libraryRunnerVersion :: Text
+libraryRunnerVersion = Text.pack (showVersion Package.version)

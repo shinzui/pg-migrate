@@ -5,11 +5,16 @@ module Database.PostgreSQL.Migrate.Ledger.Sql
     loadLedgerMetadataStatement,
     insertLedgerMetadataStatement,
     loadStoredMigrationsStatement,
+    AppliedLedgerRow (..),
+    insertAppliedMigrationStatement,
     ledgerVersionOneDdl,
   )
 where
 
+import Data.Functor.Contravariant (contramap)
+import Data.Int (Int32)
 import Data.Text qualified as Text
+import Data.Time (UTCTime)
 import Database.PostgreSQL.Migrate.Ledger.Types
 import Database.PostgreSQL.Migrate.Types
 import Hasql.Decoders qualified as Decoders
@@ -119,6 +124,64 @@ decodeMigrationStatus = \case
   "applied" -> Right Applied
   "failed" -> Right Failed
   value -> Left ("unsupported migration status: " <> value)
+
+data AppliedLedgerRow = AppliedLedgerRow
+  { appliedMigrationId :: !MigrationId,
+    appliedPosition :: !Int32,
+    appliedChecksum :: !MigrationChecksum,
+    appliedKind :: !MigrationKind,
+    appliedTransactionMode :: !TransactionMode,
+    appliedStartedAt :: !UTCTime,
+    appliedRunnerVersion :: !Text
+  }
+
+insertAppliedMigrationStatement :: LedgerConfig -> Statement AppliedLedgerRow ()
+insertAppliedMigrationStatement config =
+  Statement.unpreparable
+    ( Text.unwords
+        [ "INSERT INTO",
+          qualifiedLedgerTable config "migrations",
+          "(component, migration, position, checksum, kind, transaction_mode, status,",
+          "started_at, finished_at, execution_time_ms, error, runner_version)",
+          "VALUES ($1, $2, $3, $4, $5, $6, 'applied', $7, clock_timestamp(),",
+          "GREATEST(0, round(extract(epoch FROM (clock_timestamp() - $7)) * 1000))::bigint,",
+          "NULL, $8)"
+        ]
+    )
+    appliedLedgerRowEncoder
+    Decoders.noResult
+
+appliedLedgerRowEncoder :: Encoders.Params AppliedLedgerRow
+appliedLedgerRowEncoder =
+  mconcat
+    [ contramap appliedComponentText (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap appliedMigrationText (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap appliedPosition (Encoders.param (Encoders.nonNullable Encoders.int4)),
+      contramap appliedChecksumBytes (Encoders.param (Encoders.nonNullable Encoders.bytea)),
+      contramap (encodeMigrationKind . appliedKind) (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap (encodeTransactionMode . appliedTransactionMode) (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap appliedStartedAt (Encoders.param (Encoders.nonNullable Encoders.timestamptz)),
+      contramap appliedRunnerVersion (Encoders.param (Encoders.nonNullable Encoders.text))
+    ]
+
+appliedComponentText :: AppliedLedgerRow -> Text
+appliedComponentText = componentNameText . migrationIdComponent . appliedMigrationId
+
+appliedMigrationText :: AppliedLedgerRow -> Text
+appliedMigrationText = migrationNameText . migrationIdName . appliedMigrationId
+
+appliedChecksumBytes :: AppliedLedgerRow -> ByteString
+appliedChecksumBytes AppliedLedgerRow {appliedChecksum = MigrationChecksum bytes} = bytes
+
+encodeMigrationKind :: MigrationKind -> Text
+encodeMigrationKind = \case
+  SqlKind -> "sql"
+  HaskellKind -> "haskell"
+
+encodeTransactionMode :: TransactionMode -> Text
+encodeTransactionMode = \case
+  Transactional -> "transactional"
+  NonTransactional -> "nontransactional"
 
 ledgerVersionOneDdl :: LedgerConfig -> Text
 ledgerVersionOneDdl config =
