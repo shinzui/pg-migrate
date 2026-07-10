@@ -8,7 +8,7 @@ where
 import "base" Control.Monad as X (foldM, unless, when)
 import "base" Data.Bifunctor as X (first)
 import "base" Data.Either as X (partitionEithers)
-import "base" Data.Foldable as X (foldl', for_, toList, traverse_)
+import "base" Data.Foldable as X (for_, toList, traverse_)
 import "base" Data.Function as X ((&))
 import "base" Data.List as X (find, sortOn)
 import "base" Data.List.NonEmpty as X (NonEmpty (..))

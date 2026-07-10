@@ -126,7 +126,10 @@ operations required by later packages even though the illustrative export list i
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: the locally registered crypton 1.1.2 exposes SHA-256 digest conversion
+  through `ram`'s `Data.ByteArray`, not the older `memory` package. EP-1 therefore owns a
+  direct `ram >= 0.20 && < 0.23` dependency; EP-2 and EP-3 should consume the resulting
+  opaque 32-byte `MigrationChecksum` rather than add a competing conversion path.
 
 
 ## Decision Log

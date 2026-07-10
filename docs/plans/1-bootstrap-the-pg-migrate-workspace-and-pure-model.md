@@ -31,14 +31,23 @@ resolver changes only dependency-constrained order.
 - [x] (2026-07-10 10:12 PDT) Milestone 1: established the workspace, package, empty test
   harness, Nix override, Just recipes, and pre-release README; `nix develop -c cabal
   build all` succeeds with GHC 9.12.4.
-- [ ] Milestone 2: implement opaque names, migrations, components, and fingerprints.
-- [ ] Milestone 3: implement explicit and stable dependency-resolving plans.
-- [ ] Milestone 4: complete the focused unit and public-API tests.
+- [x] (2026-07-10 10:41 PDT) Milestone 2: implemented opaque validated names, identities,
+  constrained Hasql actions, components, and raw SHA-256 fingerprints.
+- [x] (2026-07-10 10:41 PDT) Milestone 3: implemented explicit plan validation, stable
+  topological resolution, distinct structured errors, and read-only plan descriptions.
+- [x] (2026-07-10 10:41 PDT) Milestone 4: completed 34 focused definition, ordering,
+  property, metadata, and public-API tests; the suite passes under GHC 9.12.4.
+- [ ] Run the final formatting, Mori, Cabal, repeated-test, and Nix-package acceptance
+  checks and record their evidence.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: crypton 1.1.2's `Digest` implements `ByteArrayAccess` from `ram`, not from
+  the older `memory` package despite the familiar `Data.ByteArray` module name.
+  Evidence: the first model build rejected `memory`'s `convert`; the registered crypton
+  source documents the `ram` instance in `Crypto/Hash/Types.hs`, and `ram` 0.20 provides
+  the matching `Data.ByteArray.convert`.
 
 
 ## Decision Log
@@ -54,6 +63,20 @@ resolver changes only dependency-constrained order.
   automatic ordering only through `resolveMigrationPlan`.
   Rationale: Unrelated component order belongs to the final executable, as required by
   sections 7 and 8 of `docs/initial-spec.md`.
+  Date: 2026-07-10
+
+- Decision: Depend directly on `ram` for raw SHA-256 digest conversion.
+  Rationale: crypton 1.1.2 derives its digest byte-array instance from `ram`; a direct
+  dependency is required to persist the exact 32 digest bytes without using crypton
+  internals or rendering hexadecimal text.
+  Date: 2026-07-10
+
+- Decision: Expose only read-only checksum and plan-description details from
+  `Database.PostgreSQL.Migrate.Internal` while keeping every validated input constructor
+  hidden.
+  Rationale: EP-3 needs exact ledger metadata and the unit suite needs deterministic plan
+  evidence, but neither requires a path to construct invalid names, migrations,
+  components, or plans.
   Date: 2026-07-10
 
 

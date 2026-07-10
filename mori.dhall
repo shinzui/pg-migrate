@@ -61,6 +61,7 @@ in  Schema.Project::{
           , thirdPartyDep "aeson"
           , thirdPartyDep "containers"
           , thirdPartyDep "crypton"
+          , thirdPartyDep "ram"
           , thirdPartyDep "text"
           , thirdPartyDep "bytestring"
           , thirdPartyDep "time"
@@ -143,6 +144,7 @@ in  Schema.Project::{
       ]
     , dependencies =
       [ "hasql/hasql"
+      , "jappeace/ram"
       , "shinzui/hasql-migration"
       , "mzabani/codd"
       , "pcapriotti/optparse-applicative"
