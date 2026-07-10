@@ -32,7 +32,9 @@ changing either the manifest or a listed file recompiles the embedding module.
   all 65 core unit tests pass.
 - [x] (2026-07-10 10:49 PDT) Milestone 2: implemented manifest checking and
   Template Haskell embedding; all 13 embed-package manifest tests pass.
-- [ ] Milestone 3: construct components from embedded manifest entries and add fixtures.
+- [x] (2026-07-10 10:55 PDT) Milestone 3: constructed components from embedded
+  manifest entries and proved manifest order, suffix-derived names, per-file transaction
+  modes, and structured error preservation; all 17 embed-package tests pass.
 - [ ] Milestone 4: implement crash-conservative migration authoring.
 - [ ] Milestone 5: prove manifest and SQL input changes trigger recompilation.
 - [ ] Run final formatting, builds, tests, and plan closeout.

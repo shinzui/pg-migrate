@@ -53,14 +53,17 @@ test-suite pg-migrate-embed-test
   main-is:         Main.hs
   other-modules:
     Paths_pg_migrate_embed
+    Test.Component
     Test.Manifest
 
   autogen-modules: Paths_pg_migrate_embed
   build-depends:
     , base              >=4.20 && <4.22
     , bytestring        >=0.12 && <0.13
+    , containers        >=0.7  && <0.8
     , directory         >=1.3  && <1.4
     , filepath          >=1.5  && <1.6
+    , pg-migrate
     , pg-migrate-embed
     , tasty             >=1.5  && <1.6
     , tasty-hunit       >=0.10 && <0.11
