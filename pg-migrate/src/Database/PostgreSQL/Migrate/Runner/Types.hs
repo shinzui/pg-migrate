@@ -100,6 +100,9 @@ data MigrationError
   | EventHandlerFailed !(Maybe MigrationError) !SomeException
   | MigrationActionFailed !SomeException
   | InvalidMigrationAction !MigrationId
+  | NonTransactionalMigrationFailed !MigrationId !Errors.SessionError
+  | LedgerTransitionDidNotMatch !MigrationId !MigrationStatus !MigrationStatus
+  | NonTransactionalFailureRecordingFailed !MigrationId !MigrationError !MigrationError
   | CleanupFailed !(Maybe MigrationError) !(NonEmpty CleanupIssue)
   deriving stock (Generic, Show)
 

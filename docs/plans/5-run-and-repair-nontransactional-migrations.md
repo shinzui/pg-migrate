@@ -28,7 +28,13 @@ audit trail.
 
 ## Progress
 
-(No implementation work has started.)
+- [x] (2026-07-10 13:17 PDT) Milestone 1: implemented exact metadata-guarded
+  Running/Applied/Failed transitions and single-statement/session dispatch in the existing
+  runner; all 85 unit tests and both focused PostgreSQL success/failure tests pass.
+- [ ] Milestone 2: add validated repair requests, mark-applied, retry, and append-only
+  repair audit records under the normal connection and lock bracket.
+- [ ] Milestone 3: prove success, observed failure, crash ambiguity, callback cleanup,
+  repair validation/auditing, and final workspace acceptance.
 
 
 ## Surprises & Discoveries
@@ -194,3 +200,10 @@ an unsupported-mode branch.
 
 2026-07-10: Updated the repair audit-table reference to the PostgreSQL-compatible default
 schema `pgmigrate`; PostgreSQL reserves the original draft's `pg_migrate` name.
+
+2026-07-10: Started implementation and expanded Progress into the three independently
+verifiable milestones from the plan of work.
+
+2026-07-10: Recorded the completed nontransactional state machine after a live
+`CREATE INDEX CONCURRENTLY` reached Applied and an observed server error durably reached
+Failed with diagnostic text.

@@ -7,15 +7,17 @@ where
 import Control.Exception
   ( AsyncException,
     SomeException,
+    displayException,
     fromException,
     mask,
     throwIO,
     try,
   )
-import Data.Int (Int32)
+import Data.Int (Int32, Int64)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text.Encoding
 import Data.Time (NominalDiffTime, UTCTime, getCurrentTime)
 import Data.Version (showVersion)
 import Data.Word (Word64)
@@ -31,7 +33,12 @@ import Database.PostgreSQL.Migrate.Types
 import GHC.Clock (getMonotonicTimeNSec)
 import Hasql.Connection qualified as Connection
 import Hasql.Connection.Settings qualified as Settings
+import Hasql.Decoders qualified as Decoders
+import Hasql.Encoders qualified as Encoders
+import Hasql.Errors qualified as Errors
 import Hasql.Session (Session)
+import Hasql.Session qualified as Session
+import Hasql.Statement qualified as Statement
 import Hasql.Transaction (Transaction)
 import Hasql.Transaction qualified as Transaction
 import Hasql.Transaction.Sessions qualified as Transaction.Sessions
@@ -188,20 +195,16 @@ runVerified options connection plan snapshot = do
       let planned = flattenPlan plan
           plannedById = Map.fromList ((\migration -> (plannedId migration, migration)) <$> planned)
           pending = mapMaybe (`Map.lookup` plannedById) pendingMigrations
-      case find ((== NonTransactional) . migrationModeOf . plannedMigration) pending of
-        Just unsupported ->
-          pure (Left (UnsupportedNonTransactionalMigration (plannedId unsupported)))
-        Nothing -> do
-          validatedEvent <-
-            invokeEvent
-              options
-              PlanValidated
-                { alreadyAppliedCount = length appliedMigrations,
-                  pendingCount = length pending
-                }
-          case validatedEvent of
-            Left eventError -> pure (Left eventError)
-            Right () -> executeVerified options connection planned appliedMigrations pending
+      validatedEvent <-
+        invokeEvent
+          options
+          PlanValidated
+            { alreadyAppliedCount = length appliedMigrations,
+              pendingCount = length pending
+            }
+      case validatedEvent of
+        Left eventError -> pure (Left eventError)
+        Right () -> executeVerified options connection planned appliedMigrations pending
 
 executeVerified ::
   RunOptions ->
@@ -246,11 +249,21 @@ executeVerified options connection planned appliedIds pending = do
         planned
     executePending accumulated [] = pure (Right accumulated)
     executePending accumulated (migration : rest) = do
-      executed <- executeTransactional options connection migration
+      executed <- executePlannedMigration options connection migration
       case executed of
         Left migrationError -> pure (Left migrationError)
         Right result ->
           executePending (Map.insert (plannedId migration) result accumulated) rest
+
+executePlannedMigration ::
+  RunOptions ->
+  Connection.Connection ->
+  PlannedMigration ->
+  IO (Either MigrationError MigrationResult)
+executePlannedMigration options connection planned =
+  case migrationModeOf (plannedMigration planned) of
+    Transactional -> executeTransactional options connection planned
+    NonTransactional -> executeNonTransactional options connection planned
 
 executeTransactional ::
   RunOptions ->
@@ -325,7 +338,182 @@ transactionalAction config PlannedMigration {plannedId, plannedPosition, planned
         }
       (insertAppliedMigrationStatement config)
 
-runTransaction :: Transaction () -> Session ()
+executeNonTransactional ::
+  RunOptions ->
+  Connection.Connection ->
+  PlannedMigration ->
+  IO (Either MigrationError MigrationResult)
+executeNonTransactional options connection planned = do
+  startedEvent <- invokeEvent options (MigrationStarted identifier)
+  case startedEvent of
+    Left eventError -> pure (Left eventError)
+    Right () -> do
+      startedAt <- getCurrentTime
+      startedMonotonic <- getMonotonicTimeNSec
+      let ledgerRow = appliedLedgerRow planned startedAt
+      inserted <-
+        runSession
+          connection
+          ( runTransaction
+              ( Transaction.statement
+                  ledgerRow
+                  (insertRunningMigrationStatement (runLedgerConfig options))
+              )
+          )
+      case inserted of
+        Left migrationError -> finishFailureEvent startedMonotonic migrationError
+        Right () -> do
+          action <- nonTransactionalAction connection planned
+          case action of
+            Left migrationError ->
+              recordObservedFailure ledgerRow startedMonotonic migrationError (renderMigrationError migrationError)
+            Right runAction -> do
+              attempted <- try @SomeException runAction
+              case attempted of
+                Left exception
+                  | isAsyncException exception -> throwIO exception
+                  | otherwise ->
+                      let primary = MigrationActionFailed exception
+                       in recordObservedFailure
+                            ledgerRow
+                            startedMonotonic
+                            primary
+                            (Text.pack (displayException exception))
+                Right (Left sessionError) ->
+                  let primary = NonTransactionalMigrationFailed identifier sessionError
+                   in recordObservedFailure
+                        ledgerRow
+                        startedMonotonic
+                        primary
+                        (Errors.toDetailedText sessionError)
+                Right (Right ()) -> do
+                  transitioned <- markRunningApplied options connection ledgerRow
+                  case transitioned of
+                    Left migrationError -> pure (Left migrationError)
+                    Right () -> finishSuccess startedMonotonic
+  where
+    identifier = plannedId planned
+    finishSuccess started = do
+      duration <- elapsedSince started
+      completed <- invokeEvent options (MigrationCompleted identifier duration)
+      pure $ case completed of
+        Left eventError -> Left eventError
+        Right () -> Right (MigrationResult identifier AppliedNow (Just duration))
+    finishFailureEvent started primary = do
+      duration <- elapsedSince started
+      observed <-
+        invokeEventWithPrimary
+          options
+          primary
+          (MigrationFailureObserved identifier duration)
+      pure $ case observed of
+        Left eventError -> Left eventError
+        Right () -> Left primary
+    recordObservedFailure ledgerRow started primary diagnostic = do
+      recorded <- markRunningFailed options connection ledgerRow diagnostic
+      case recorded of
+        Left recordingError ->
+          pure
+            ( Left
+                (NonTransactionalFailureRecordingFailed identifier primary recordingError)
+            )
+        Right () -> finishFailureEvent started primary
+
+nonTransactionalAction ::
+  Connection.Connection ->
+  PlannedMigration ->
+  IO
+    ( Either
+        MigrationError
+        (IO (Either Errors.SessionError ()))
+    )
+nonTransactionalAction connection PlannedMigration {plannedId, plannedMigration} =
+  pure $ case migrationActionOf plannedMigration of
+    SqlAction bytes ->
+      Right
+        ( Connection.use
+            connection
+            ( Session.statement
+                ()
+                ( Statement.unpreparable
+                    (Text.Encoding.decodeUtf8 bytes)
+                    Encoders.noParams
+                    Decoders.noResult
+                )
+            )
+        )
+    SessionAction session -> Right (Connection.use connection session)
+    TransactionAction _ -> Left (InvalidMigrationAction plannedId)
+
+markRunningApplied ::
+  RunOptions ->
+  Connection.Connection ->
+  AppliedLedgerRow ->
+  IO (Either MigrationError ())
+markRunningApplied options connection ledgerRow = do
+  transitioned <-
+    runSession
+      connection
+      ( runTransaction
+          ( Transaction.statement
+              ledgerRow
+              (markRunningMigrationAppliedStatement (runLedgerConfig options))
+          )
+      )
+  pure $ transitioned >>= expectOneTransition ledgerRow Applied
+
+markRunningFailed ::
+  RunOptions ->
+  Connection.Connection ->
+  AppliedLedgerRow ->
+  Text ->
+  IO (Either MigrationError ())
+markRunningFailed options connection ledgerRow diagnostic = do
+  transitioned <-
+    runSession
+      connection
+      ( runTransaction
+          ( Transaction.statement
+              FailedLedgerRow
+                { failedLedgerIdentity = ledgerRow,
+                  failedLedgerError = diagnostic
+                }
+              (markRunningMigrationFailedStatement (runLedgerConfig options))
+          )
+      )
+  pure $ transitioned >>= expectOneTransition ledgerRow Failed
+
+expectOneTransition ::
+  AppliedLedgerRow ->
+  MigrationStatus ->
+  Int64 ->
+  Either MigrationError ()
+expectOneTransition ledgerRow targetStatus affected
+  | affected == 1 = Right ()
+  | otherwise =
+      Left
+        ( LedgerTransitionDidNotMatch
+            (appliedMigrationId ledgerRow)
+            Running
+            targetStatus
+        )
+
+appliedLedgerRow :: PlannedMigration -> UTCTime -> AppliedLedgerRow
+appliedLedgerRow PlannedMigration {plannedId, plannedPosition, plannedMigration} startedAt =
+  AppliedLedgerRow
+    { appliedMigrationId = plannedId,
+      appliedPosition = plannedPosition,
+      appliedChecksum = migrationChecksumOf plannedMigration,
+      appliedKind = migrationKindOf plannedMigration,
+      appliedTransactionMode = migrationModeOf plannedMigration,
+      appliedStartedAt = startedAt,
+      appliedRunnerVersion = libraryRunnerVersion
+    }
+
+renderMigrationError :: MigrationError -> Text
+renderMigrationError = Text.pack . show
+
+runTransaction :: Transaction value -> Session value
 runTransaction =
   Transaction.Sessions.transactionNoRetry
     Transaction.Sessions.ReadCommitted

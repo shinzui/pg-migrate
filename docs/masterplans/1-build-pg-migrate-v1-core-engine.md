@@ -68,7 +68,7 @@ predecessor dependency or source-specific branch.
 | 2 | Validate SQL and embed ordered manifests | docs/plans/2-validate-sql-and-embed-ordered-manifests.md | EP-1 | None | Complete |
 | 3 | Build the versioned ledger and plan verification | docs/plans/3-build-the-versioned-ledger-and-plan-verification.md | EP-1 | EP-2 | Complete |
 | 4 | Run transactional migrations under a dedicated lock | docs/plans/4-run-transactional-migrations-under-a-dedicated-lock.md | EP-2, EP-3 | None | Complete |
-| 5 | Run and repair nontransactional migrations | docs/plans/5-run-and-repair-nontransactional-migrations.md | EP-4 | None | Not Started |
+| 5 | Run and repair nontransactional migrations | docs/plans/5-run-and-repair-nontransactional-migrations.md | EP-4 | None | In Progress |
 | 6 | Import migration history through the generic model | docs/plans/6-import-migration-history-through-the-generic-model.md | EP-3, EP-4 | EP-5 | Not Started |
 
 Status values: Not Started, In Progress, Complete, Cancelled.
@@ -236,6 +236,9 @@ read-only loading, and future-version refusal.
 2026-07-10: Marked EP-4 complete after the full workspace build, 85 unit tests, and 14
 PostgreSQL 17 integration tests passed; recorded the default infinite-wait polling change
 that prevents in-process libpq/RTS starvation.
+
+2026-07-10: Started EP-5 after EP-4's dedicated connection, lock, transactional runner,
+event, and cleanup contracts passed their complete acceptance gate.
 
 2026-07-10: Started EP-4 after its hard dependencies EP-2 and EP-3 passed their complete
 acceptance gates.

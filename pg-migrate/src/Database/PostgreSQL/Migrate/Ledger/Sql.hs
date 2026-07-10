@@ -6,13 +6,17 @@ module Database.PostgreSQL.Migrate.Ledger.Sql
     insertLedgerMetadataStatement,
     loadStoredMigrationsStatement,
     AppliedLedgerRow (..),
+    FailedLedgerRow (..),
     insertAppliedMigrationStatement,
+    insertRunningMigrationStatement,
+    markRunningMigrationAppliedStatement,
+    markRunningMigrationFailedStatement,
     ledgerVersionOneDdl,
   )
 where
 
 import Data.Functor.Contravariant (contramap)
-import Data.Int (Int32)
+import Data.Int (Int32, Int64)
 import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import Database.PostgreSQL.Migrate.Ledger.Types
@@ -135,6 +139,11 @@ data AppliedLedgerRow = AppliedLedgerRow
     appliedRunnerVersion :: !Text
   }
 
+data FailedLedgerRow = FailedLedgerRow
+  { failedLedgerIdentity :: !AppliedLedgerRow,
+    failedLedgerError :: !Text
+  }
+
 insertAppliedMigrationStatement :: LedgerConfig -> Statement AppliedLedgerRow ()
 insertAppliedMigrationStatement config =
   Statement.unpreparable
@@ -151,6 +160,52 @@ insertAppliedMigrationStatement config =
     appliedLedgerRowEncoder
     Decoders.noResult
 
+insertRunningMigrationStatement :: LedgerConfig -> Statement AppliedLedgerRow ()
+insertRunningMigrationStatement config =
+  Statement.unpreparable
+    ( Text.unwords
+        [ "INSERT INTO",
+          qualifiedLedgerTable config "migrations",
+          "(component, migration, position, checksum, kind, transaction_mode, status,",
+          "started_at, finished_at, execution_time_ms, error, runner_version)",
+          "VALUES ($1, $2, $3, $4, $5, $6, 'running', $7, NULL, NULL, NULL, $8)"
+        ]
+    )
+    appliedLedgerRowEncoder
+    Decoders.noResult
+
+markRunningMigrationAppliedStatement :: LedgerConfig -> Statement AppliedLedgerRow Int64
+markRunningMigrationAppliedStatement config =
+  Statement.unpreparable
+    ( Text.unwords
+        [ "UPDATE",
+          qualifiedLedgerTable config "migrations",
+          "SET status = 'applied', finished_at = clock_timestamp(),",
+          "execution_time_ms = GREATEST(0, round(extract(epoch FROM",
+          "(clock_timestamp() - started_at)) * 1000))::bigint, error = NULL",
+          "WHERE component = $1 AND migration = $2 AND position = $3 AND checksum = $4",
+          "AND kind = $5 AND transaction_mode = $6 AND status = 'running'"
+        ]
+    )
+    appliedLedgerIdentityEncoder
+    Decoders.rowsAffected
+
+markRunningMigrationFailedStatement :: LedgerConfig -> Statement FailedLedgerRow Int64
+markRunningMigrationFailedStatement config =
+  Statement.unpreparable
+    ( Text.unwords
+        [ "UPDATE",
+          qualifiedLedgerTable config "migrations",
+          "SET status = 'failed', finished_at = clock_timestamp(),",
+          "execution_time_ms = GREATEST(0, round(extract(epoch FROM",
+          "(clock_timestamp() - started_at)) * 1000))::bigint, error = $7",
+          "WHERE component = $1 AND migration = $2 AND position = $3 AND checksum = $4",
+          "AND kind = $5 AND transaction_mode = $6 AND status = 'running'"
+        ]
+    )
+    failedLedgerRowEncoder
+    Decoders.rowsAffected
+
 appliedLedgerRowEncoder :: Encoders.Params AppliedLedgerRow
 appliedLedgerRowEncoder =
   mconcat
@@ -163,6 +218,22 @@ appliedLedgerRowEncoder =
       contramap appliedStartedAt (Encoders.param (Encoders.nonNullable Encoders.timestamptz)),
       contramap appliedRunnerVersion (Encoders.param (Encoders.nonNullable Encoders.text))
     ]
+
+appliedLedgerIdentityEncoder :: Encoders.Params AppliedLedgerRow
+appliedLedgerIdentityEncoder =
+  mconcat
+    [ contramap appliedComponentText (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap appliedMigrationText (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap appliedPosition (Encoders.param (Encoders.nonNullable Encoders.int4)),
+      contramap appliedChecksumBytes (Encoders.param (Encoders.nonNullable Encoders.bytea)),
+      contramap (encodeMigrationKind . appliedKind) (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap (encodeTransactionMode . appliedTransactionMode) (Encoders.param (Encoders.nonNullable Encoders.text))
+    ]
+
+failedLedgerRowEncoder :: Encoders.Params FailedLedgerRow
+failedLedgerRowEncoder =
+  contramap failedLedgerIdentity appliedLedgerIdentityEncoder
+    <> contramap failedLedgerError (Encoders.param (Encoders.nonNullable Encoders.text))
 
 appliedComponentText :: AppliedLedgerRow -> Text
 appliedComponentText = componentNameText . migrationIdComponent . appliedMigrationId

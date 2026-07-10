@@ -63,7 +63,8 @@ tests settings =
       testCase "transactional plans apply once and then report applied" (testTransactionalRunner settings),
       testCase "transactional SQL failure rolls back action and ledger" (testTransactionalRollback settings),
       testCase "condemned Haskell transactions are detected" (testTransactionCondemn settings),
-      testCase "nontransactional preflight happens before every mutation" (testNonTransactionalPreflight settings),
+      testCase "nontransactional CREATE INDEX CONCURRENTLY applies" (testNonTransactionalSuccess settings),
+      testCase "nontransactional observed failure records Failed" (testNonTransactionalFailure settings),
       testCase "events follow durable migration boundaries" (testEventOrder settings),
       testCase "callback failure restores timeout and releases the lock" (testCallbackCleanup settings),
       testCase "two concurrent runners execute each effect once" (testConcurrentRunners settings),
@@ -202,7 +203,7 @@ testTransactionalRollback settings =
           sqlPlan
             "rollback"
             [ ( "0001-fail",
-                Text.unwords
+                Text.unlines
                   [ "CREATE TABLE",
                     quotedSchema config <> ".rolled_back (value integer);",
                     "SELECT 1 / 0"
@@ -234,28 +235,62 @@ testTransactionCondemn settings =
     snapshot <- useSession connection (loadLedger config)
     storedMigrations snapshot @?= []
 
-testNonTransactionalPreflight :: Settings.Settings -> IO ()
-testNonTransactionalPreflight settings =
-  withTestLedger settings "preflight" $ \connection config -> do
-    let transactional =
-          requireRight
-            ( sqlMigration
-                "0001-must-not-run"
-                (Text.Encoding.encodeUtf8 ("CREATE TABLE " <> quotedSchema config <> ".must_not_run (value integer)"))
-            )
-        nontransactional =
-          requireRight
-            ( sqlMigration
-                "0002-concurrent"
-                "-- pg-migrate: no-transaction\nCREATE INDEX CONCURRENTLY never_runs ON missing_table (value)"
-            )
-        plan = planFromMigrations "preflight" [transactional, nontransactional]
-    runMigrationPlan (withLedger config defaultRunOptions) settings plan
-      >>= assertUnsupportedNonTransactional
-    tableNames <- useSession connection (Session.statement (ledgerSchema config) tableNamesStatement)
-    assertBool "preflight allowed an earlier pending migration to run" ("must_not_run" `notElem` tableNames)
+testNonTransactionalSuccess :: Settings.Settings -> IO ()
+testNonTransactionalSuccess settings =
+  withTestLedger settings "nontransactional_success" $ \connection config -> do
+    let plan =
+          sqlPlan
+            "nontransactional-success"
+            [ ( "0001-table",
+                Text.unlines
+                  [ "CREATE TABLE",
+                    quotedSchema config <> ".indexed_values (value integer NOT NULL);",
+                    "INSERT INTO",
+                    quotedSchema config <> ".indexed_values (value) VALUES (1)"
+                  ]
+              ),
+              ( "0002-index",
+                Text.unlines
+                  [ "-- pg-migrate: no-transaction",
+                    "CREATE INDEX CONCURRENTLY idx_nontransactional ON",
+                    quotedSchema config <> ".indexed_values (value)"
+                  ]
+              )
+            ]
+    report <-
+      runMigrationPlan (withLedger config defaultRunOptions) settings plan
+        >>= requireRunRight
+    reportOutcomes report @?= [AppliedNow, AppliedNow]
+    indexExists <-
+      useSession connection (Session.statement (ledgerSchema config) indexExistsStatement)
+    indexExists @?= True
     snapshot <- useSession connection (loadLedger config)
-    storedMigrations snapshot @?= []
+    storedStatuses snapshot @?= [Applied, Applied]
+
+testNonTransactionalFailure :: Settings.Settings -> IO ()
+testNonTransactionalFailure settings =
+  withTestLedger settings "nontransactional_failure" $ \connection config -> do
+    let plan =
+          sqlPlan
+            "nontransactional-failure"
+            [ ("0001-table", "CREATE TABLE " <> quotedSchema config <> ".existing_values (value integer NOT NULL)"),
+              ( "0002-fail",
+                Text.unlines
+                  [ "-- pg-migrate: no-transaction",
+                    "CREATE INDEX CONCURRENTLY idx_missing ON",
+                    quotedSchema config <> ".missing_values (value)"
+                  ]
+              )
+            ]
+        options = withLedger config defaultRunOptions
+    runMigrationPlan options settings plan >>= assertNonTransactionalFailure
+    snapshot <- useSession connection (loadLedger config)
+    storedStatuses snapshot @?= [Applied, Failed]
+    case reverse (storedMigrations snapshot) of
+      StoredMigration {errorMessage = Just diagnostic} : _ ->
+        assertBool "Failed row did not preserve a diagnostic" (not (Text.null diagnostic))
+      rows -> assertFailure ("unexpected failed rows: " <> show rows)
+    runMigrationPlan options settings plan >>= assertPlanVerificationFailure
 
 testEventOrder :: Settings.Settings -> IO ()
 testEventOrder settings =
@@ -481,6 +516,21 @@ concurrentEffectCountStatement config =
     Encoders.noParams
     (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
 
+indexExistsStatement :: Statement.Statement Text Bool
+indexExistsStatement =
+  Statement.preparable
+    """
+    SELECT EXISTS
+    (
+      SELECT 1
+      FROM pg_indexes
+      WHERE schemaname = $1
+        AND indexname = 'idx_nontransactional'
+    )
+    """
+    (Encoders.param (Encoders.nonNullable Encoders.text))
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+
 setFutureVersionSql :: LedgerConfig -> Text
 setFutureVersionSql config =
   "UPDATE "
@@ -560,11 +610,17 @@ assertTransactionCondemned = \case
   Left migrationError -> assertFailure ("expected TransactionCondemned, received " <> show migrationError)
   Right report -> assertFailure ("expected TransactionCondemned, received " <> show report)
 
-assertUnsupportedNonTransactional :: Either MigrationError MigrationReport -> IO ()
-assertUnsupportedNonTransactional = \case
-  Left UnsupportedNonTransactionalMigration {} -> pure ()
-  Left migrationError -> assertFailure ("expected UnsupportedNonTransactionalMigration, received " <> show migrationError)
-  Right report -> assertFailure ("expected UnsupportedNonTransactionalMigration, received " <> show report)
+assertNonTransactionalFailure :: Either MigrationError MigrationReport -> IO ()
+assertNonTransactionalFailure = \case
+  Left NonTransactionalMigrationFailed {} -> pure ()
+  Left migrationError -> assertFailure ("expected NonTransactionalMigrationFailed, received " <> show migrationError)
+  Right report -> assertFailure ("expected NonTransactionalMigrationFailed, received " <> show report)
+
+assertPlanVerificationFailure :: Either MigrationError MigrationReport -> IO ()
+assertPlanVerificationFailure = \case
+  Left PlanVerificationFailed {} -> pure ()
+  Left migrationError -> assertFailure ("expected PlanVerificationFailed, received " <> show migrationError)
+  Right report -> assertFailure ("expected PlanVerificationFailed, received " <> show report)
 
 assertEventHandlerFailure :: Either MigrationError MigrationReport -> IO ()
 assertEventHandlerFailure = \case
@@ -620,6 +676,10 @@ uniqueLockKey = do
 reportOutcomes :: MigrationReport -> [MigrationOutcome]
 reportOutcomes MigrationReport {results} =
   (\MigrationResult {outcome} -> outcome) <$> toList results
+
+storedStatuses :: LedgerSnapshot -> [MigrationStatus]
+storedStatuses LedgerSnapshot {storedMigrations} =
+  (\StoredMigration {status} -> status) <$> storedMigrations
 
 sqlPlan :: Text -> [(Text, Text)] -> MigrationPlan
 sqlPlan component entries =
