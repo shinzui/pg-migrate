@@ -3,8 +3,16 @@ module Test.History (tests) where
 import Data.Aeson qualified as Aeson
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Data.Text (Text)
+import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text.Encoding
 import Database.PostgreSQL.Migrate
+import Database.PostgreSQL.Migrate.Internal
+  ( ResolvedHistoryMapping (..),
+    resolveHistoryImport,
+    stateVerifiedEvidence,
+  )
 import PgMigrate.Prelude ()
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertFailure, testCase, (@?=))
@@ -20,7 +28,14 @@ tests =
       testCase "mapping targets are unique" testUniqueTargets,
       testCase "requirements reference known evidence" testKnownRequirement,
       testCase "same-payload evidence participates in its requirement" testSamePayloadRequirement,
-      testCase "equivalent history is rejected by default" testEquivalentDefault
+      testCase "equivalent history is rejected by default" testEquivalentDefault,
+      testCase "same-payload prefixes resolve from target metadata" testResolvePrefix,
+      testCase "component gaps are rejected" testPrefixGap,
+      testCase "unknown targets are rejected" testUnknownTarget,
+      testCase "payload checksum mismatches are rejected" testChecksumMismatch,
+      testCase "same-payload cannot import Haskell migrations" testHaskellSamePayload,
+      testCase "equivalent state requires policy and verified evidence" testEquivalentState,
+      testCase "multiple satisfied AnyOf branches are ambiguous" testAmbiguousRequirement
     ]
 
 testEvidenceKey :: IO ()
@@ -86,6 +101,117 @@ testEquivalentDefault :: IO ()
 testEquivalentDefault =
   importEquivalentHistoryPolicy defaultImportOptions @?= RejectEquivalentHistory
 
+testResolvePrefix :: IO ()
+testResolvePrefix = do
+  let imported = requireHistoryImport prefixEvidence [prefixMapping 1, prefixMapping 2] []
+  resolved <- requireValidationRight (resolveHistoryImport RejectEquivalentHistory prefixPlan prefixEvidence imported)
+  (resolvedPosition <$> resolved) @?= (1 :| [2])
+  (resolvedChecksum <$> resolved)
+    @?= (migrationFingerprint "SELECT 1" :| [migrationFingerprint "SELECT 2"])
+
+testPrefixGap :: IO ()
+testPrefixGap = do
+  let imported = requireHistoryImport prefixEvidence [prefixMapping 1, prefixMapping 3] []
+  resolveHistoryImport RejectEquivalentHistory prefixPlan prefixEvidence imported
+    @?= Left (HistoryComponentPrefixGap (requireRight (componentName "history-prefix")) 2)
+
+testUnknownTarget :: IO ()
+testUnknownTarget = do
+  let unknown = requireRight (migrationId "history-prefix" "9999-unknown")
+      imported =
+        requireRight
+          ( historyImport
+              "legacy"
+              prefixEvidence
+              []
+              (historyMapping unknown (Evidence (prefixKey 1)) (SamePayload (prefixKey 1)) :| [])
+              "cutover"
+          )
+  resolveHistoryImport RejectEquivalentHistory prefixPlan prefixEvidence imported
+    @?= Left (HistoryTargetUnknown unknown)
+
+testChecksumMismatch :: IO ()
+testChecksumMismatch = do
+  let mismatchedEvidence =
+        Map.singleton
+          (prefixKey 1)
+          ( requireRight
+              ( sourceManifestVerifiedEvidence
+                  "legacy/0001.sql"
+                  Nothing
+                  (Just (migrationFingerprint "SELECT changed"))
+                  Aeson.Null
+              )
+          )
+      imported = requireHistoryImport mismatchedEvidence [prefixMapping 1] []
+  resolveHistoryImport RejectEquivalentHistory prefixPlan mismatchedEvidence imported
+    @?= Left (HistoryPayloadChecksumMismatch (prefixTarget 1) (prefixKey 1))
+
+testHaskellSamePayload :: IO ()
+testHaskellSamePayload = do
+  let target = requireRight (migrationId "history-haskell" "0001-action")
+      checksum = migrationFingerprint "haskell-v1"
+      sourceEvidence =
+        Map.singleton
+          key
+          (requireRight (sourceManifestVerifiedEvidence "legacy-action" Nothing (Just checksum) Aeson.Null))
+      imported =
+        requireRight
+          ( historyImport
+              "legacy"
+              sourceEvidence
+              []
+              (historyMapping target (Evidence key) (SamePayload key) :| [])
+              "cutover"
+          )
+      migration = requireRight (transactionMigration "0001-action" checksum (pure ()))
+      component = requireRight (migrationComponent "history-haskell" Set.empty (migration :| []))
+      plan = requireRight (migrationPlan (component :| []))
+  resolveHistoryImport RejectEquivalentHistory plan sourceEvidence imported
+    @?= Left (HistorySamePayloadForHaskell target)
+
+testEquivalentState :: IO ()
+testEquivalentState = do
+  let target = prefixTarget 1
+      verified = stateVerifiedEvidence key (Aeson.object ["table" Aeson..= ("ready" :: Text)])
+      available = Map.singleton key verified
+      validator = stateValidator key (pure (Right Aeson.Null))
+      imported =
+        requireRight
+          ( historyImport
+              "legacy"
+              Map.empty
+              [validator]
+              (historyMapping target (Evidence key) EquivalentState :| [])
+              "cutover"
+          )
+  resolveHistoryImport RejectEquivalentHistory prefixPlan available imported
+    @?= Left (HistoryEquivalentStateDisallowed target)
+  _ <- requireValidationRight (resolveHistoryImport AllowEquivalentHistory prefixPlan available imported)
+  pure ()
+
+testAmbiguousRequirement :: IO ()
+testAmbiguousRequirement = do
+  let secondKey = requireEvidenceKey "legacy:second"
+      available = Map.fromList [(key, prefixEvidence Map.! prefixKey 1), (secondKey, prefixEvidence Map.! prefixKey 1)]
+      target = prefixTarget 1
+      imported =
+        requireRight
+          ( historyImport
+              "legacy"
+              available
+              []
+              ( historyMapping
+                  target
+                  (AnyOf (Evidence key :| [Evidence secondKey]))
+                  (SamePayload key)
+                  :| []
+              )
+              "cutover"
+          )
+  resolveHistoryImport RejectEquivalentHistory prefixPlan available imported
+    @?= Left (HistoryRequirementAmbiguous target)
+
 key :: EvidenceKey
 key = requireEvidenceKey "legacy:0001"
 
@@ -106,6 +232,75 @@ evidenceMap = Map.singleton key staticEvidence
 mapping :: HistoryMapping
 mapping = historyMapping targetId (Evidence key) (SamePayload key)
 
+prefixPlan :: MigrationPlan
+prefixPlan =
+  requireRight
+    ( migrationPlan
+        ( requireRight
+            ( migrationComponent
+                "history-prefix"
+                Set.empty
+                ( requireRight (sqlMigration "0001-one" "SELECT 1")
+                    :| [ requireRight (sqlMigration "0002-two" "SELECT 2"),
+                         requireRight (sqlMigration "0003-three" "SELECT 3")
+                       ]
+                )
+            )
+            :| []
+        )
+    )
+
+prefixEvidence :: Map.Map EvidenceKey ImportEvidence
+prefixEvidence =
+  Map.fromList
+    [ ( prefixKey number,
+        requireRight
+          ( sourceManifestVerifiedEvidence
+              ("legacy/000" <> showText number <> ".sql")
+              Nothing
+              (Just (migrationFingerprint (Text.Encoding.encodeUtf8 ("SELECT " <> showText number))))
+              Aeson.Null
+          )
+      )
+    | number <- [1 .. 3]
+    ]
+
+prefixKey :: Int -> EvidenceKey
+prefixKey number = requireEvidenceKey ("legacy:000" <> showText number)
+
+prefixTarget :: Int -> MigrationId
+prefixTarget number =
+  requireRight (migrationId "history-prefix" ("000" <> showText number <> "-" <> suffix number))
+  where
+    suffix 1 = "one"
+    suffix 2 = "two"
+    suffix _ = "three"
+
+prefixMapping :: Int -> HistoryMapping
+prefixMapping number =
+  historyMapping
+    (prefixTarget number)
+    (Evidence (prefixKey number))
+    (SamePayload (prefixKey number))
+
+requireHistoryImport ::
+  Map.Map EvidenceKey ImportEvidence ->
+  [HistoryMapping] ->
+  [StateValidator] ->
+  HistoryImport
+requireHistoryImport available importedMappings importedValidators =
+  requireRight
+    ( historyImport
+        "legacy"
+        available
+        importedValidators
+        (case importedMappings of firstMapping : rest -> firstMapping :| rest; [] -> error "empty mappings")
+        "cutover"
+    )
+
+showText :: (Show value) => value -> Text
+showText = Text.pack . show
+
 requireEvidenceKey :: Text -> EvidenceKey
 requireEvidenceKey = requireRight . evidenceKey
 
@@ -121,3 +316,10 @@ assertDefinitionError ::
 assertDefinitionError expected = \case
   Left actual -> actual @?= expected
   Right _ -> assertFailure ("expected " <> show expected <> ", received Right")
+
+requireValidationRight ::
+  Either HistoryValidationError value ->
+  IO value
+requireValidationRight = \case
+  Left err -> assertFailure (show err) >> error "assertFailure returned"
+  Right value -> pure value

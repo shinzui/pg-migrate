@@ -40,9 +40,17 @@ module Database.PostgreSQL.Migrate.Internal
     applyStatementTimeout,
     restoreStatementTimeout,
     readStatementTimeout,
+    ResolvedHistoryMapping (..),
+    resolveHistoryImport,
+    stateVerifiedEvidence,
   )
 where
 
+import Database.PostgreSQL.Migrate.History.Validation
+  ( ResolvedHistoryMapping (..),
+    resolveHistoryImport,
+    stateVerifiedEvidence,
+  )
 import Database.PostgreSQL.Migrate.Ledger
   ( comparePlanWithLedger,
     loadLedger,

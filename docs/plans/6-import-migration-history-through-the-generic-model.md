@@ -30,7 +30,9 @@ Haskell-migration restrictions without any Codd or `hasql-migration` dependency 
 - [x] (2026-07-10 13:42 PDT) Milestone 1: defined opaque evidence/import inputs,
   safe static evidence and state validators, validated requirements/mappings, conservative
   options, structured errors/reports, and the public facade; all 95 unit tests pass.
-- [ ] Milestone 2: resolve target prefixes and deterministic normalized evidence purely.
+- [x] (2026-07-10 13:46 PDT) Milestone 2: resolved target metadata only from the current
+  plan, enforced per-component prefixes and exact payload/Haskell/equivalent-state rules,
+  and built deterministic mapping-complete audit JSON; all 15 focused history tests pass.
 - [ ] Milestone 3: import target rows and matching audit rows atomically through the
   shared dedicated-connection lifecycle.
 - [ ] Milestone 4: prove live import, idempotency, conflict, rollback, state validation,
@@ -213,3 +215,7 @@ independently verifiable milestones.
 
 2026-07-10: Recorded the validated source-agnostic history model and public facade after
 all 95 unit tests passed without exposing a constructor that can forge StateVerified.
+
+2026-07-10: Recorded pure target resolution after prefix gaps, unknown targets, checksum
+mismatches, Haskell payload claims, equivalent-state policy, and ambiguous requirements
+all received focused coverage.

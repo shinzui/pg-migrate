@@ -240,10 +240,10 @@ historyImport source evidence validators mappings reason = do
   validateUnique target DuplicateHistoryTarget (toList mappings)
   let knownKeys = Map.keysSet evidence <> Set.fromList (validatorEvidenceKey <$> validators)
   for_ mappings $ \mapping -> do
-    used <- validateRequirement knownKeys (requirement mapping)
+    validateRequirementReferences knownKeys (requirement mapping)
     case payload mapping of
       SamePayload key ->
-        unless (Set.member key used) (Left (SamePayloadEvidenceNotRequired key))
+        unless (requirementContains key (requirement mapping)) (Left (SamePayloadEvidenceNotRequired key))
       EquivalentState -> Right ()
   Right HistoryImport {source, evidence, validators, mappings, reason}
 
@@ -262,21 +262,23 @@ validateUnique keyOf duplicateError = go Set.empty
       where
         key = keyOf value
 
-validateRequirement ::
+validateRequirementReferences ::
   Set EvidenceKey ->
   EvidenceRequirement ->
-  Either HistoryDefinitionError (Set EvidenceKey)
-validateRequirement knownKeys requirement =
+  Either HistoryDefinitionError ()
+validateRequirementReferences knownKeys requirement =
   case requirement of
     Evidence key
-      | Set.member key knownKeys -> Right (Set.singleton key)
+      | Set.member key knownKeys -> Right ()
       | otherwise -> Left (UnknownRequirementEvidence key)
-    AllOf requirements -> Set.unions <$> traverse (validateRequirement knownKeys) requirements
-    AnyOf requirements -> do
-      satisfied <- traverse (validateRequirement knownKeys) requirements
-      case toList satisfied of
-        [keys] -> Right keys
-        _ -> Left (AmbiguousEvidenceRequirement requirement)
+    AllOf requirements -> traverse_ (validateRequirementReferences knownKeys) requirements
+    AnyOf requirements -> traverse_ (validateRequirementReferences knownKeys) requirements
+
+requirementContains :: EvidenceKey -> EvidenceRequirement -> Bool
+requirementContains wanted = \case
+  Evidence key -> key == wanted
+  AllOf requirements -> any (requirementContains wanted) requirements
+  AnyOf requirements -> any (requirementContains wanted) requirements
 
 defaultImportOptions :: ImportOptions
 defaultImportOptions =

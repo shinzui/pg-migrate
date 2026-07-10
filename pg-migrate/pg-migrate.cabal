@@ -33,6 +33,7 @@ library
   other-modules:
     Database.PostgreSQL.Migrate.Definition
     Database.PostgreSQL.Migrate.History.Types
+    Database.PostgreSQL.Migrate.History.Validation
     Database.PostgreSQL.Migrate.Ledger
     Database.PostgreSQL.Migrate.Ledger.Migrations
     Database.PostgreSQL.Migrate.Ledger.Sql
