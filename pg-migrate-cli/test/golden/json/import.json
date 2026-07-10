@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "command": "import",
+  "ok": true,
+  "data": {
+    "source": "codd",
+    "results": [
+      {
+        "id": "accounts/0001",
+        "outcome": "imported"
+      },
+      {
+        "id": "accounts/0002",
+        "outcome": "alreadyImported"
+      }
+    ]
+  }
+}

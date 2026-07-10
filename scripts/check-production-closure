@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+build_dir=".dev/production-closure"
+plan_file="$build_dir/cache/plan.json"
+
+cabal build \
+  --dry-run \
+  --disable-tests \
+  --builddir="$build_dir" \
+  lib:pg-migrate \
+  lib:pg-migrate-embed \
+  lib:pg-migrate-cli \
+  lib:pg-migrate-import-codd \
+  lib:pg-migrate-import-hasql-migration \
+  >/dev/null
+
+closure_packages() {
+  local roots="$1"
+  jq -r \
+    --argjson roots "$roots" \
+    '."install-plan" as $plan
+     | INDEX($plan[]; .id) as $index
+     | def deps($id): $id, ($index[$id].depends[]? | deps(.));
+       [$plan[] | select(."component-name" == "lib" and (."pkg-name" as $name | $roots | index($name))) | .id] as $root_ids
+     | [$root_ids[] | deps(.) | $index[.]."pkg-name"]
+     | unique[]' \
+    "$plan_file"
+}
+
+assert_absent() {
+  local label="$1"
+  local roots="$2"
+  shift 2
+  local packages
+  packages="$(closure_packages "$roots")"
+  local forbidden
+  for forbidden in "$@"; do
+    if rg --fixed-strings --line-regexp --quiet "$forbidden" <<<"$packages"; then
+      echo "$label production closure unexpectedly contains $forbidden" >&2
+      return 1
+    fi
+  done
+}
+
+extra_forbidden="${CHECK_PRODUCTION_CLOSURE_EXTRA_FORBIDDEN:-}"
+
+assert_absent \
+  "core/embed/cli" \
+  '["pg-migrate", "pg-migrate-embed", "pg-migrate-cli"]' \
+  ephemeral-pg codd codd-extras hasql-migration postgresql-simple \
+  pg-migrate-import-codd pg-migrate-import-hasql-migration pg-migrate-test-support \
+  ${extra_forbidden:+"$extra_forbidden"}
+
+assert_absent \
+  "Codd adapter" \
+  '["pg-migrate-import-codd"]' \
+  ephemeral-pg codd codd-extras hasql-migration postgresql-simple pg-migrate-test-support \
+  ${extra_forbidden:+"$extra_forbidden"}
+
+assert_absent \
+  "hasql-migration adapter" \
+  '["pg-migrate-import-hasql-migration"]' \
+  ephemeral-pg codd codd-extras hasql-migration postgresql-simple pg-migrate-test-support \
+  ${extra_forbidden:+"$extra_forbidden"}
+
+echo "production dependency closure: PASS"

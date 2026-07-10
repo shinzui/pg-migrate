@@ -30,6 +30,7 @@ tests =
       goldenCase "up" upOutcome,
       goldenCase "repair" repairOutcome,
       goldenCase "error" errorOutcome,
+      testCase "import matches its golden contract" testImportGolden,
       testCase "rendering is byte-for-byte stable" testStableRendering
     ]
 
@@ -43,6 +44,16 @@ goldenCase name outcome =
         Left decodeError -> assertFailure ("invalid golden JSON: " <> decodeError)
         Right value -> pure value
     renderMigrationCommandJson outcome @?= expected
+
+testImportGolden :: Assertion
+testImportGolden = do
+  goldenPath <- Paths.getDataFileName "test/golden/json/import.json"
+  goldenBytes <- ByteString.readFile goldenPath
+  expected <-
+    case Aeson.eitherDecodeStrict' goldenBytes of
+      Left decodeError -> assertFailure ("invalid golden JSON: " <> decodeError)
+      Right value -> pure value
+  renderHistoryImportJson "codd" importReport @?= expected
 
 testStableRendering :: Assertion
 testStableRendering =
@@ -135,6 +146,13 @@ fixtureStartedAt = read "2026-07-10 12:00:00 UTC"
 
 fixtureFinishedAt :: UTCTime
 fixtureFinishedAt = read "2026-07-10 12:00:01 UTC"
+
+importReport :: HistoryImportReport
+importReport =
+  HistoryImportReport
+    ( HistoryImportResult migrationIdentifier Imported
+        :| [HistoryImportResult (expectRight (migrationId "accounts" "0002")) AlreadyImported]
+    )
 
 expectRight :: (Show error) => Either error value -> value
 expectRight = either (error . show) id

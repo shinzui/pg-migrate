@@ -26,12 +26,33 @@ CI command demonstrates all fifteen acceptance groups from `docs/initial-spec.md
 
 ## Progress
 
-(No implementation work has started.)
+- [x] (2026-07-10 15:38 PDT) Milestone 1: Added `pg-migrate-test-support` with simple,
+  options-aware, and configuration-aware helpers plus structured startup, migration,
+  callback acquisition, callback, cleanup, and combined callback/cleanup failures.
+- [x] (2026-07-10 15:38 PDT) Milestone 2: Proved a migrated table is visible through a
+  freshly acquired callback connection whose backend PID differs from the migration
+  connection; startup, migration, and callback failure paths are fixture-tested.
+- [x] (2026-07-10 15:38 PDT) Milestone 3: Added `just acceptance`, the executable mapping
+  of all fifteen initial-spec groups, and an explicit schema-v1 import JSON golden.
+- [x] (2026-07-10 15:38 PDT) Milestone 4: Added unmanaged PostgreSQL 17/18 Nix shells and
+  matching CI matrix jobs. The aggregate command passes against PostgreSQL 17.10 and 18.4;
+  pure classifier tests continue to reject 16 and 19.
+- [x] (2026-07-10 15:38 PDT) Milestone 5: Added a Cabal-plan graph closure checker for
+  core/embed/CLI and both adapters. Its normal path passes, and injecting `base` as an
+  extra forbidden package makes it fail as intended.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: the existing live server assertion hard-coded PostgreSQL 17 even though the
+  core classifier already accepted 17 and 18. The real 18 matrix exposed it immediately;
+  the test now asserts membership in the supported pair while the aggregate command prints
+  the exact active major.
+
+- Observation: Cabal's generated plan contains unrelated local packages when the whole
+  multi-package project is configured. Closure isolation must recursively walk `depends`
+  edges from the requested library roots rather than grep every package listed in
+  `install-plan`.
 
 
 ## Decision Log
@@ -50,7 +71,23 @@ CI command demonstrates all fifteen acceptance groups from `docs/initial-spec.md
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+Downstream tests can now bracket a fresh `ephemeral-pg` database, apply a validated plan,
+and inspect it through a distinct Hasql connection without flattening expected failures to
+text or leaking the callback connection. The package remains an explicit optional library.
+
+`just acceptance` builds all packages, runs eleven test suites covering the fifteen named
+groups, checks production closures, and rejects an unsupported active server. The same
+command passed on explicit PostgreSQL 17.10 and 18.4 shells. CI runs those shells as
+separate matrix jobs. The closure checker passed for core/embed/CLI and both adapter roots,
+and its injected-negative path failed. JSON schema v1 now includes a byte-for-byte import
+report golden in addition to the command goldens.
+
+
+## Revision Note
+
+2026-07-10: Implemented and completed EP-10 with the public ephemeral database helper,
+fresh-connection and error-path tests, fifteen-group aggregate command, PostgreSQL 17/18
+Nix and CI matrix, import JSON golden, and graph-aware production closure gate.
 
 
 ## Context and Orientation

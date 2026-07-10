@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  acceptance:
+    name: PostgreSQL ${{ matrix.postgresql }} acceptance
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        postgresql: [17, 18]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: DeterminateSystems/determinate-nix-action@v3
+
+      - uses: cachix/cachix-action@v17
+        with:
+          name: shinzui
+
+      - name: Build and run all 15 acceptance groups
+        run: |
+          nix develop ".#postgresql${{ matrix.postgresql }}" -c bash -euo pipefail -c '
+            pg_ctl start -w -l "$PGLOG" -o "--unix_socket_directories=$PGHOST" -o "-c listen_addresses="
+            trap '\''pg_ctl stop -D "$PGDATA"'\'' EXIT
+            cabal update
+            just create-database
+            just acceptance
+          '

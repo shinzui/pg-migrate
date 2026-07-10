@@ -163,7 +163,7 @@ testConnectionLifecycle :: Settings.Settings -> IO ()
 testConnectionLifecycle settings =
   withConnection settings $ \connection -> do
     majorVersion <- checkServerVersion connection >>= requireMigrationRight
-    majorVersion @?= 17
+    assertBool ("unsupported accepted server major: " <> show majorVersion) (majorVersion `elem` [17, 18])
     before <- readStatementTimeout connection >>= requireMigrationRight
     saved <- applyStatementTimeout connection (Just 0.075) >>= requireMigrationRight
     saved @?= Just before

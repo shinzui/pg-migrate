@@ -60,7 +60,7 @@ package.
 | 7 | Build the reusable migration CLI and JSON contracts | docs/plans/7-build-the-reusable-migration-cli-and-json-contracts.md | None | None | Complete |
 | 8 | Import Codd history through the adapter | docs/plans/8-import-codd-history-through-the-adapter.md | None | EP-7 | Complete |
 | 9 | Import hasql-migration history through the adapter | docs/plans/9-import-hasql-migration-history-through-the-adapter.md | None | EP-7 | Complete |
-| 10 | Provide ephemeral PostgreSQL test support and acceptance matrix | docs/plans/10-provide-ephemeral-postgresql-test-support-and-acceptance-matrix.md | EP-7, EP-8, EP-9 | None | Not Started |
+| 10 | Provide ephemeral PostgreSQL test support and acceptance matrix | docs/plans/10-provide-ephemeral-postgresql-test-support-and-acceptance-matrix.md | EP-7, EP-8, EP-9 | None | Complete |
 | 11 | Publish v1 API operations and compatibility documentation | docs/plans/11-publish-v1-api-operations-and-compatibility-documentation.md | EP-10 | None | Not Started |
 
 Status values: Not Started, In Progress, Complete, Cancelled.
@@ -121,6 +121,10 @@ and schema constants remain defined in code by their implementation plans.
   evidence, local timestamp preservation, direct and validator-backed alternative routes,
   and generic atomic target import. Thirteen pure and six live tests pass with the full
   workspace matrix and predecessor-free production closure.
+- [x] EP-10: Added the public ephemeral PostgreSQL helper, fresh callback-connection and
+  structured failure proofs, all fifteen acceptance-group owners, schema-v1 import JSON,
+  graph-aware production closure checking, and explicit PostgreSQL 17/18 Nix/CI jobs.
+  `just acceptance` passes against PostgreSQL 17.10 and 18.4.
 
 
 ## Surprises & Discoveries
@@ -138,6 +142,10 @@ and schema constants remain defined in code by their implementation plans.
 - Observation: the current registered `hasql-migration` fork uses `ram`, not `memory`, for
   byte-array encoding. EP-9 follows that actual source dependency so crypton MD5 digests
   and base64 encoding share one `ByteArrayAccess` class.
+
+- Observation: the first actual PostgreSQL 18 run found a live test that asserted major 17
+  even though the version classifier accepted both supported majors. The matrix converted
+  that latent assumption into a failing acceptance case before release documentation.
 
 
 ## Decision Log
@@ -191,3 +199,7 @@ full-workspace gates passed.
 2026-07-10: Marked EP-9 complete after qualified-table, MD5/SHA-256, local timestamp,
 direct/equivalent history, read-only validator, source-preservation, conflict,
 dependency-closure, and full-workspace gates passed.
+
+2026-07-10: Marked EP-10 complete after the test-support API, fifteen-group aggregate,
+import JSON golden, closure gate and negative test, and real PostgreSQL 17/18 acceptance
+jobs passed.

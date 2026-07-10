@@ -13,3 +13,4 @@ result
 result-*
 .pre-commit-config.yaml
 .mina/
+.dev/

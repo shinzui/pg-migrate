@@ -7,6 +7,7 @@ module Database.PostgreSQL.Migrate.CLI
     renderMigrationCommandText,
     jsonSchemaVersion,
     renderMigrationCommandJson,
+    renderHistoryImportJson,
     ExitClass (..),
     CheckedMigration (..),
     CliPayload (..),
@@ -37,6 +38,7 @@ import Database.PostgreSQL.Migrate.CLI.Handler
   )
 import Database.PostgreSQL.Migrate.CLI.Json
   ( jsonSchemaVersion,
+    renderHistoryImportJson,
     renderMigrationCommandJson,
   )
 import Database.PostgreSQL.Migrate.CLI.Outcome

@@ -1,56 +1,29 @@
-{ inputs, lib, ... }:
+{ ... }:
 {
   perSystem =
-    { pkgs, ... }:
+    { pkgs, config, ... }:
     let
-      haskellPackages = pkgs.haskell.packages.ghc9124.override {
-        overrides = hself: _hsuper: {
-          crypton = pkgs.haskell.lib.dontCheck (
-            hself.callHackageDirect
-              {
-                pkg = "crypton";
-                ver = "1.1.2";
-                sha256 = "sha256-lkVJJTjyIlSOTpkfPXfKivxGDd0YJLvkWgEOGlnFzVM=";
-              }
-              { }
-          );
-          hasql = pkgs.haskell.lib.dontCheck (
-            hself.callHackageDirect
-              {
-                pkg = "hasql";
-                ver = "1.10.3.5";
-                sha256 = "sha256-HrDp+FRgzhfBgXYwZPeRA18w8FYFFESe1sqOZhQptLs=";
-              }
-              { }
-          );
-          hasql-transaction = pkgs.haskell.lib.dontCheck (
-            hself.callHackageDirect
-              {
-                pkg = "hasql-transaction";
-                ver = "1.2.2";
-                sha256 = "sha256-o53h6ly2Kukhw9dcyAOvywzwlZDdgb+b/jqbw72lLHg=";
-              }
-              { }
-          );
-          postgresql-binary = pkgs.haskell.lib.dontCheck (
-            hself.callHackageDirect
-              {
-                pkg = "postgresql-binary";
-                ver = "0.15.0.1";
-                sha256 = "sha256-q5t2OgiDxyt8WU+zHVxpyVhFF9PtDu2BlQRfuPpBkgk=";
-              }
-              { }
-          );
-        };
-      };
+      matrixShell = name: postgres:
+        config.devShells.ghc9124.overrideAttrs (old: {
+          shellHook = ''
+            export PATH="${postgres}/bin:$PATH"
+            ${old.shellHook or ""}
+
+            export PGHOST="$PWD/.dev/${name}"
+            export PGDATA="$PGHOST/data"
+            export PGLOG="$PGHOST/postgres.log"
+            export PGDATABASE=pg-migrate
+            export PG_CONNECTION_STRING=postgresql://$(jq -rn --arg x "$PGHOST" '$x|@uri')/$PGDATABASE
+
+            mkdir -p "$PGHOST"
+            if [ ! -d "$PGDATA" ]; then
+              initdb --auth=trust --no-locale --encoding=UTF8
+            fi
+          '';
+        });
     in
     {
-      packages = lib.mkForce {
-        default =
-          haskellPackages.callCabal2nix
-            "pg-migrate"
-            (inputs.self + "/pg-migrate")
-            { };
-      };
+      devShells.postgresql17 = matrixShell "postgresql17" pkgs.postgresql_17;
+      devShells.postgresql18 = matrixShell "postgresql18" pkgs.postgresql_18;
     };
 }

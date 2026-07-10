@@ -1,6 +1,7 @@
 module Database.PostgreSQL.Migrate.CLI.Json
   ( jsonSchemaVersion,
     renderMigrationCommandJson,
+    renderHistoryImportJson,
   )
 where
 
@@ -31,6 +32,26 @@ renderMigrationCommandJson CliOutcome {command, exitClass, payload} =
           Left cliError -> ["error" .= errorValue cliError]
           Right cliPayload -> ["data" .= payloadValue cliPayload]
     )
+
+renderHistoryImportJson :: Text -> HistoryImportReport -> Value
+renderHistoryImportJson sourceName HistoryImportReport {importResults} =
+  object
+    [ "schemaVersion" .= jsonSchemaVersion,
+      "command" .= ("import" :: Text),
+      "ok" .= True,
+      "data"
+        .= object
+          [ "source" .= sourceName,
+            "results" .= (historyImportResultValue <$> NonEmpty.toList importResults)
+          ]
+    ]
+
+historyImportResultValue :: HistoryImportResult -> Value
+historyImportResultValue HistoryImportResult {importedMigration, importOutcome} =
+  object
+    [ "id" .= migrationIdText importedMigration,
+      "outcome" .= case importOutcome of Imported -> ("imported" :: Text); AlreadyImported -> "alreadyImported"
+    ]
 
 payloadValue :: CliPayload -> Value
 payloadValue cliPayload =
