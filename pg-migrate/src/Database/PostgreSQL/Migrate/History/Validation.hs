@@ -49,6 +49,7 @@ resolveHistoryImport policy plan availableEvidence history = do
   targets <- resolveTargets plan (mappings history)
   traverse (resolveMapping policy availableEvidence history) targets
 
+-- | Validate that mappings name known, gap-free target prefixes before source reads.
 validateHistoryMappingTargets ::
   MigrationPlan ->
   NonEmpty HistoryMapping ->

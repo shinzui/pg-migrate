@@ -23,6 +23,7 @@ import Hasql.Statement (Statement)
 import Hasql.Statement qualified as Statement
 import PgMigrate.History.Codd.Prelude
 
+-- | Read and verify selected legacy rows without mutating source objects.
 readCoddHistory :: CoddSourceConfig -> IO (Either CoddImportError CoddHistory)
 readCoddHistory config = withLockedCoddHistory config (readCoddHistoryOnConnection config)
 

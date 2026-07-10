@@ -52,15 +52,18 @@ data CliConnection
   = SettingsConnection !Settings.Settings
   | ProviderConnection !ConnectionProvider
 
+-- | Application-supplied plan, runner defaults, and connection ownership boundary.
 data CliEnvironment = CliEnvironment
   { defaultConnection :: !CliConnection,
     migrationPlan :: !MigrationPlan,
     runnerOptions :: !RunOptions
   }
 
+-- | Construct a CLI environment from concrete Hasql settings.
 cliEnvironment :: Settings.Settings -> MigrationPlan -> RunOptions -> CliEnvironment
 cliEnvironment settings = CliEnvironment (SettingsConnection settings)
 
+-- | Construct a CLI environment from an application connection provider.
 cliEnvironmentWithConnectionProvider ::
   ConnectionProvider ->
   MigrationPlan ->
@@ -68,6 +71,7 @@ cliEnvironmentWithConnectionProvider ::
   CliEnvironment
 cliEnvironmentWithConnectionProvider provider = CliEnvironment (ProviderConnection provider)
 
+-- | Dispatch a parsed command without writing streams or exiting the process.
 runMigrationCommand :: CliEnvironment -> MigrationCommand -> IO CliOutcome
 runMigrationCommand environment commandValue =
   case commandValue of

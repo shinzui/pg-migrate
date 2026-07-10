@@ -33,6 +33,7 @@ import Hasql.Connection qualified as Connection
 import Hasql.Errors qualified as Errors
 import PgMigrate.Prelude
 
+-- | Immutable runner configuration; construct with 'defaultRunOptions' and modifiers.
 data RunOptions = RunOptions
   { ledger :: !LedgerConfig,
     lockWait :: !LockWait,
@@ -41,12 +42,14 @@ data RunOptions = RunOptions
     emit :: !(MigrationEvent -> IO ())
   }
 
+-- | Advisory-lock acquisition policy.
 data LockWait
   = WaitIndefinitely
   | WaitFor !NominalDiffTime
   | NoWait
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | Ordered lifecycle observation emitted only at defined durable boundaries.
 data MigrationEvent
   = LockWaitStarted !LockWait
   | LockAcquired !NominalDiffTime
@@ -60,11 +63,13 @@ data MigrationEvent
   | MigrationPlanCompleted !NominalDiffTime
   deriving stock (Generic, Eq, Show)
 
+-- | Whether a migration pre-existed or committed during this run.
 data MigrationOutcome
   = AlreadyApplied
   | AppliedNow
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | Outcome and optional execution duration for one migration.
 data MigrationResult = MigrationResult
   { migration :: !MigrationId,
     outcome :: !MigrationOutcome,
@@ -72,6 +77,7 @@ data MigrationResult = MigrationResult
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Successful whole-plan execution report.
 data MigrationReport = MigrationReport
   { startedAt :: !UTCTime,
     finishedAt :: !UTCTime,
@@ -79,12 +85,14 @@ data MigrationReport = MigrationReport
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Resource restoration failure observed while leaving the runner lifecycle.
 data CleanupIssue
   = AdvisoryUnlockReturnedFalse
   | AdvisoryUnlockFailed !Errors.SessionError
   | StatementTimeoutRestoreFailed !Errors.SessionError
   deriving stock (Generic, Show)
 
+-- | Structured acquisition, validation, execution, event, or cleanup failure.
 data MigrationError
   = ConnectionAcquisitionFailed !Errors.ConnectionError
   | DatabaseSessionFailed !Errors.SessionError
@@ -106,6 +114,7 @@ data MigrationError
   | CleanupFailed !(Maybe MigrationError) !(NonEmpty CleanupIssue)
   deriving stock (Generic, Show)
 
+-- | Rank-2 provider that brackets one dedicated PostgreSQL connection per operation.
 newtype ConnectionProvider = ConnectionProvider
   { useDedicatedConnection ::
       forall a.
@@ -113,6 +122,7 @@ newtype ConnectionProvider = ConnectionProvider
       IO (Either Errors.ConnectionError a)
   }
 
+-- | Strict defaults with the standard ledger, indefinite lock wait, and no events.
 defaultRunOptions :: RunOptions
 defaultRunOptions =
   RunOptions
@@ -123,19 +133,24 @@ defaultRunOptions =
       emit = const (pure ())
     }
 
+-- | Select a validated ledger configuration.
 withLedger :: LedgerConfig -> RunOptions -> RunOptions
 withLedger ledger options = options {ledger}
 
+-- | Select the advisory-lock wait policy.
 withLockWait :: LockWait -> RunOptions -> RunOptions
 withLockWait lockWait options = options {lockWait}
 
+-- | Set or disable the temporary PostgreSQL statement timeout.
 withStatementTimeout :: Maybe NominalDiffTime -> RunOptions -> RunOptions
 withStatementTimeout statementTimeout options = options {statementTimeout}
 
+-- | Select how inspection treats unknown stored migrations.
 withUnknownMigrationsPolicy :: UnknownMigrationsPolicy -> RunOptions -> RunOptions
 withUnknownMigrationsPolicy unknownMigrations RunOptions {ledger, lockWait, statementTimeout, emit} =
   RunOptions {ledger, lockWait, statementTimeout, unknownMigrations, emit}
 
+-- | Install an observational lifecycle callback.
 withEventHandler :: (MigrationEvent -> IO ()) -> RunOptions -> RunOptions
 withEventHandler emit options = options {emit}
 
@@ -154,6 +169,7 @@ runUnknownMigrationsPolicy RunOptions {unknownMigrations} = unknownMigrations
 runEventHandler :: RunOptions -> MigrationEvent -> IO ()
 runEventHandler RunOptions {emit} = emit
 
+-- | Construct a provider from an application-owned connection bracket.
 connectionProvider ::
   ( forall a.
     (Connection.Connection -> IO a) ->

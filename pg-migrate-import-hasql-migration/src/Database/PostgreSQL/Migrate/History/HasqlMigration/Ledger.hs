@@ -27,6 +27,7 @@ import Hasql.Statement (Statement)
 import Hasql.Statement qualified as Statement
 import PgMigrate.History.HasqlMigration.Prelude
 
+-- | Read source rows and reproduce their base64 MD5 without source mutation.
 readHasqlMigrationHistory :: HasqlMigrationSourceConfig -> IO (Either HasqlMigrationImportError HasqlMigrationHistory)
 readHasqlMigrationHistory config@HasqlMigrationSourceConfig {sourceProvider, sourceTable} = do
   acquired <-

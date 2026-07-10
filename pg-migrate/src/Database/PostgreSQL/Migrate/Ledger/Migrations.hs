@@ -1,6 +1,7 @@
 module Database.PostgreSQL.Migrate.Ledger.Migrations
   ( LedgerMigration,
     currentLedgerVersion,
+    ledgerSchemaVersion,
     ledgerMigrationVersions,
     ledgerUpgradePath,
     initializeOrUpgradeLedger,
@@ -25,6 +26,10 @@ data LedgerMigration = LedgerMigration
 
 currentLedgerVersion :: Int32
 currentLedgerVersion = 1
+
+-- | Publicly supported on-disk ledger contract version.
+ledgerSchemaVersion :: Int
+ledgerSchemaVersion = fromIntegral currentLedgerVersion
 
 ledgerMigrationVersions :: [Int32]
 ledgerMigrationVersions = [1]

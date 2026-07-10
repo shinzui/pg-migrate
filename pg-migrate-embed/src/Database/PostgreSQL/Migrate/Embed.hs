@@ -1,5 +1,8 @@
+-- | Manifest format v1 validation, exact-byte Template Haskell embedding, and exclusive
+-- migration authoring helpers.
 module Database.PostgreSQL.Migrate.Embed
-  ( ManifestError (..),
+  ( manifestFormatVersion,
+    ManifestError (..),
     checkMigrationManifest,
     embedMigrationManifest,
     NewMigrationOptions,
@@ -19,4 +22,5 @@ import Database.PostgreSQL.Migrate.Embed.Manifest
   ( ManifestError (..),
     checkMigrationManifest,
     embedMigrationManifest,
+    manifestFormatVersion,
   )

@@ -13,6 +13,7 @@ import Data.Text qualified as Text
 import Database.PostgreSQL.Migrate.Types (TransactionMode (..))
 import PgMigrate.Prelude
 
+-- | Exact reason SQL bytes are unsafe or invalid for the migration contract.
 data SqlError
   = InvalidUtf8
       { byteOffset :: !Int

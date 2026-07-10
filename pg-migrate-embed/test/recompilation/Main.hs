@@ -1,7 +1,8 @@
 module Main (main) where
 
 import Control.Exception qualified as Exception
-import Control.Monad (unless, when)
+import Control.Monad (filterM, unless, when)
+import Data.List (isPrefixOf)
 import Data.Time.Clock qualified as Time
 import Paths_pg_migrate_embed qualified as Paths
 import System.Directory qualified as Directory
@@ -21,11 +22,11 @@ main = do
               (FilePath.takeDirectory (FilePath.takeDirectory fixtureSource))
           )
       repositoryRoot = FilePath.takeDirectory packageRoot
+  corePackageRoot <- resolvePackageRoot repositoryRoot "pg-migrate" "pg-migrate.cabal"
   assertFileExists (packageRoot FilePath.</> "pg-migrate-embed.cabal")
-  assertFileExists (repositoryRoot FilePath.</> "cabal.project")
   withTemporaryDirectory $ \workspace -> do
     copyDirectory fixtureSource workspace
-    writeProjectFile repositoryRoot workspace
+    writeProjectFile corePackageRoot packageRoot workspace
     prepareProbe workspace
     moduleTimestamp <- Directory.getModificationTime (workspace FilePath.</> "app/Main.hs")
 
@@ -116,19 +117,37 @@ writeTrackedFile path contents = do
   now <- Time.getCurrentTime
   Directory.setModificationTime path (Time.addUTCTime 2 now)
 
-writeProjectFile :: FilePath -> FilePath -> IO ()
-writeProjectFile repositoryRoot workspace =
+writeProjectFile :: FilePath -> FilePath -> FilePath -> IO ()
+writeProjectFile corePackageRoot embedPackageRoot workspace =
   writeFile
     (workspace FilePath.</> "cabal.project")
     ( unlines
         [ "packages:",
           "  .",
-          "  " <> (repositoryRoot FilePath.</> "pg-migrate"),
-          "  " <> (repositoryRoot FilePath.</> "pg-migrate-embed"),
+          "  " <> corePackageRoot,
+          "  " <> embedPackageRoot,
           "tests: False",
           "benchmarks: False"
         ]
     )
+
+resolvePackageRoot :: FilePath -> FilePath -> FilePath -> IO FilePath
+resolvePackageRoot parent packageName cabalFile = do
+  let exact = parent FilePath.</> packageName
+  exactExists <- Directory.doesFileExist (exact FilePath.</> cabalFile)
+  if exactExists
+    then pure exact
+    else do
+      entries <- Directory.listDirectory parent
+      let candidates =
+            [ parent FilePath.</> entry
+            | entry <- entries,
+              (packageName <> "-") `isPrefixOf` entry
+            ]
+      matching <- filterM (Directory.doesFileExist . (FilePath.</> cabalFile)) candidates
+      case matching of
+        [resolved] -> pure resolved
+        _ -> fail ("could not resolve source distribution for " <> packageName)
 
 copyDirectory :: FilePath -> FilePath -> IO ()
 copyDirectory source destination = do

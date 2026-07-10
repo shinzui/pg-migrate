@@ -28,6 +28,7 @@ import System.IO qualified as IO
 import System.IO.Error qualified as IO.Error
 import System.Posix.IO qualified as Posix
 
+-- | Validated exclusive-create settings for one new migration file.
 data NewMigrationOptions = NewMigrationOptions
   { manifestPath :: !FilePath,
     explicitName :: !(Maybe FilePath),
@@ -35,6 +36,7 @@ data NewMigrationOptions = NewMigrationOptions
   }
   deriving stock (Eq, Show)
 
+-- | Structured option, filesystem, or manifest replacement failure.
 data AuthoringError
   = InvalidAuthoringManifestPath !FilePath
   | InvalidNewMigrationName !ManifestError
@@ -46,6 +48,7 @@ data AuthoringError
   | AuthoringCleanupError !FilePath !Text.Text
   deriving stock (Eq, Show)
 
+-- | Validate manifest path and optional explicit migration name.
 newMigrationOptions ::
   FilePath ->
   Maybe FilePath ->
@@ -59,6 +62,7 @@ newMigrationOptions manifestPath requestedName initialSql
       explicitName <- traverse normalizeExplicitName requestedName
       Right NewMigrationOptions {manifestPath, explicitName, initialSql}
 
+-- | Exclusively create a SQL file and atomically append its manifest entry.
 newMigration :: NewMigrationOptions -> IO (Either AuthoringError FilePath)
 newMigration = newMigrationWithRename Directory.renameFile
 

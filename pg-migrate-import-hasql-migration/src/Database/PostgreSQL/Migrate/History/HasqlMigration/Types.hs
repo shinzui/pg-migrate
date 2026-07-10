@@ -26,12 +26,14 @@ import Hasql.Connection.Settings qualified as Settings
 import Hasql.Errors qualified as Errors
 import PgMigrate.History.HasqlMigration.Prelude
 
+-- | Validated schema-qualified predecessor ledger table.
 data QualifiedTable = QualifiedTable
   { tableSchema :: !PostgresIdentifier,
     tableName :: !PostgresIdentifier
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Validated source settings, table, payload selection, and mapping policy.
 data HasqlMigrationSourceConfig = HasqlMigrationSourceConfig
   { sourceProvider :: !ConnectionProvider,
     sourceTable :: !QualifiedTable,
@@ -42,6 +44,7 @@ data HasqlMigrationSourceConfig = HasqlMigrationSourceConfig
     importReason :: !Text
   }
 
+-- | Normalized immutable hasql-migration row with verified payload bytes.
 data HasqlMigrationRow = HasqlMigrationRow
   { filename :: !FilePath,
     storedMd5 :: !Text,
@@ -49,12 +52,14 @@ data HasqlMigrationRow = HasqlMigrationRow
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Selected verified rows and any unselected source extras.
 data HasqlMigrationHistory = HasqlMigrationHistory
   { selectedRows :: !(NonEmpty HasqlMigrationRow),
     unselectedRows :: ![HasqlMigrationRow]
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Invalid qualified name, mappings, or source configuration.
 data HasqlMigrationDefinitionError
   = InvalidQualifiedTable !Text
   | InvalidQualifiedTableIdentifier !Text !PostgresIdentifierError
@@ -66,6 +71,7 @@ data HasqlMigrationDefinitionError
   | HasqlMigrationEvidenceDefinitionError !HistoryDefinitionError
   deriving stock (Generic, Eq, Show)
 
+-- | Structured source-read, checksum, validation, or target-import failure.
 data HasqlMigrationImportError
   = HasqlMigrationDefinitionFailed !HasqlMigrationDefinitionError
   | HasqlMigrationConnectionFailed !Errors.ConnectionError
@@ -80,6 +86,7 @@ data HasqlMigrationImportError
   | HasqlMigrationTargetImportFailed !HistoryImportError
   deriving stock (Generic, Show)
 
+-- | Parsed, application-dispatchable hasql-migration import command.
 data HasqlMigrationImportCommand = HasqlMigrationImportCommand
   { sourceSettings :: !(Maybe Settings.Settings),
     table :: !QualifiedTable,
@@ -91,6 +98,7 @@ data HasqlMigrationImportCommand = HasqlMigrationImportCommand
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Parse and validate a schema-qualified table name.
 qualifiedTable :: Text -> Either HasqlMigrationDefinitionError QualifiedTable
 qualifiedTable input =
   case Text.splitOn "." input of
@@ -107,9 +115,11 @@ qualifiedTable input =
           Left (InvalidQualifiedTableIdentifier value postgresIdentifierReason)
         Left _ -> Left (InvalidQualifiedTable value)
 
+-- | The predecessor's conventional @public.schema_migrations@ table.
 defaultHasqlMigrationTable :: QualifiedTable
 defaultHasqlMigrationTable = either (error . show) id (qualifiedTable "public.schema_migrations")
 
+-- | Validate a complete hasql-migration source configuration.
 hasqlMigrationSourceConfig ::
   ConnectionProvider ->
   QualifiedTable ->
@@ -131,6 +141,7 @@ hasqlMigrationSourceConfig sourceProvider sourceTable selectedFilenames strictSo
   if Text.null (Text.strip importReason) then Left EmptyHasqlMigrationImportReason else pure ()
   Right HasqlMigrationSourceConfig {sourceProvider, sourceTable, selectedFilenames, strictSource, sourcePayloads, stateValidators, importReason}
 
+-- | Derive the canonical evidence key for one selected payload file.
 hasqlMigrationEvidenceKey :: FilePath -> Either HasqlMigrationDefinitionError EvidenceKey
 hasqlMigrationEvidenceKey migrationFilename
   | null migrationFilename = Left EmptyHasqlMigrationFilename

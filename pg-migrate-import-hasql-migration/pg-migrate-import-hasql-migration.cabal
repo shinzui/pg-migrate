@@ -1,13 +1,16 @@
-cabal-version: 3.8
-name:          pg-migrate-import-hasql-migration
-version:       0.1.0.0
-synopsis:      Import hasql-migration history into pg-migrate
+cabal-version:   3.8
+name:            pg-migrate-import-hasql-migration
+version:         1.0.0.0
+synopsis:        Import hasql-migration history into pg-migrate
+category:        Database
+maintainer:      nadeem@gmail.com
 description:
   Reads qualified hasql-migration ledgers with Hasql, verifies legacy
   base64 MD5 evidence, and delegates target writes to pg-migrate.
 
-license:       BSD-3-Clause
-build-type:    Simple
+license:         BSD-3-Clause
+build-type:      Simple
+extra-doc-files: CHANGELOG.md
 
 common common
   default-language:   GHC2024
@@ -42,8 +45,8 @@ library
     , crypton               >=1.1  && <1.2
     , hasql                 >=1.10 && <1.11
     , optparse-applicative  >=0.19 && <0.20
-    , pg-migrate
-    , pg-migrate-cli
+    , pg-migrate            >=1.0  && <1.1
+    , pg-migrate-cli        >=1.0  && <1.1
     , ram                   >=0.20 && <0.23
     , text                  >=2.1  && <2.2
     , time                  >=1.12 && <1.15

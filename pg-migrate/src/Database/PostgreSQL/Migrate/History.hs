@@ -1,3 +1,6 @@
+-- | Source-agnostic history import. The importer validates evidence and target prefixes
+-- under the normal runner lock, then atomically records applied target metadata and audit
+-- evidence without executing migration actions.
 module Database.PostgreSQL.Migrate.History
   ( EvidenceKey,
     evidenceKey,
@@ -62,6 +65,7 @@ data ClassifiedImport
   = ImportPending !ResolvedHistoryMapping
   | ImportExisting !ResolvedHistoryMapping
 
+-- | Validate and atomically record imported target rows without executing actions.
 importMigrationHistory ::
   ImportOptions ->
   ConnectionProvider ->

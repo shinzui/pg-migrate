@@ -15,21 +15,25 @@ import Database.PostgreSQL.Migrate.Runner.Types
 import Database.PostgreSQL.Migrate.Types
 import PgMigrate.Prelude
 
+-- | Explicit recovery action for one nontransactional migration.
 data RepairOperation
   = MarkApplied
   | Retry
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | Required acknowledgement for destructive operational intent.
 data Confirmation
   = NotConfirmed
   | Confirmed
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | Invalid confirmation or audit reason.
 data RepairDefinitionError
   = RepairNotConfirmed
   | EmptyRepairReason
   deriving stock (Generic, Eq, Show)
 
+-- | Validated target, operation, and durable audit reason.
 data RepairRequest = RepairRequest
   { repairMigrationId :: !MigrationId,
     repairOperation :: !RepairOperation,
@@ -37,6 +41,7 @@ data RepairRequest = RepairRequest
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Structured reason an attempted repair could not complete.
 data RepairError
   = RepairRunnerError !MigrationError
   | RepairTargetMissing !MigrationId
@@ -48,6 +53,7 @@ data RepairError
   | RepairTransitionFailed !MigrationId
   deriving stock (Generic, Show)
 
+-- | Durable status transition produced by a successful repair.
 data RepairReport = RepairReport
   { repairedMigration :: !MigrationId,
     operation :: !RepairOperation,
@@ -56,6 +62,7 @@ data RepairReport = RepairReport
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Require explicit confirmation and a non-empty audit reason.
 repairRequest ::
   MigrationId ->
   RepairOperation ->

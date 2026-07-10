@@ -1,4 +1,5 @@
 {-# LANGUAGE PackageImports #-}
+{-# OPTIONS_HADDOCK hide #-}
 
 module PgMigrate.History.Codd.Prelude
   ( module X,

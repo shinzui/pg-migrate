@@ -36,23 +36,27 @@ newtype PostgresIdentifier = PostgresIdentifier
   }
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | Validated ledger schema and advisory-lock identity.
 data LedgerConfig = LedgerConfig
   { schema :: !PostgresIdentifier,
     lockKey :: !Int64
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Durable state recorded for a migration attempt.
 data MigrationStatus
   = Running
   | Applied
   | Failed
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | Whether inspection accepts ledger rows absent from the declared plan.
 data UnknownMigrationsPolicy
   = RejectUnknownMigrations
   | AllowUnknownMigrations
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | Immutable view of one migration ledger row.
 data StoredMigration = StoredMigration
   { storedMigrationId :: !MigrationId,
     position :: !Int,
@@ -80,6 +84,7 @@ data LedgerSnapshot = LedgerSnapshot
   }
   deriving stock (Generic, Eq, Show)
 
+-- | A declared-plan versus ledger inconsistency.
 data VerificationIssue
   = DuplicateStoredMigration !MigrationId
   | DuplicateStoredPosition !ComponentName !Int
@@ -94,6 +99,7 @@ data VerificationIssue
   | PendingMigration !MigrationId
   deriving stock (Generic, Eq, Show)
 
+-- | Complete strict verification result.
 data VerificationReport = VerificationReport
   { issues :: ![VerificationIssue],
     appliedMigrations :: ![MigrationId],
@@ -102,6 +108,7 @@ data VerificationReport = VerificationReport
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Operational status summary for applied, pending, and unknown rows.
 data StatusReport = StatusReport
   { issues :: ![VerificationIssue],
     appliedMigrations :: ![MigrationId],
@@ -118,6 +125,7 @@ data LedgerError
   | InvalidLedgerVersion !Int32
   deriving stock (Generic, Eq, Show)
 
+-- | Use schema @pgmigrate@ and the project-defined advisory lock key.
 defaultLedgerConfig :: LedgerConfig
 defaultLedgerConfig =
   LedgerConfig
@@ -125,6 +133,7 @@ defaultLedgerConfig =
       lockKey = 0x70675F6D69677261
     }
 
+-- | Construct a ledger configuration after validating the schema identifier.
 ledgerConfig :: Text -> Int64 -> Either DefinitionError LedgerConfig
 ledgerConfig schemaInput lockKey = do
   schema <- postgresIdentifier schemaInput

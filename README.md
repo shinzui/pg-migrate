@@ -1,5 +1,46 @@
 # pg-migrate
 
+`pg-migrate` is a Hasql-native PostgreSQL migration toolkit for applications that own an
+explicit, compile-time migration plan. Libraries export ordered components; applications
+compose them, configure the database connection, and mount the reusable CLI. The runner is
+forward-only, uses ledger schema v1, and supports PostgreSQL 17 and 18.
+
+The 1.0 package set is:
+
+- `pg-migrate`: validated plans, runner, ledger, repair, inspection, and generic import.
+- `pg-migrate-embed`: manifest v1 validation, exact-byte embedding, and authoring.
+- `pg-migrate-cli`: reusable command parser, dispatcher, text output, and JSON schema v1.
+- `pg-migrate-import-codd`: Codd V1–V5 source adapter.
+- `pg-migrate-import-hasql-migration`: base64-MD5 predecessor adapter.
+- `pg-migrate-test-support`: opt-in `ephemeral-pg` test helper.
+
+Start with the [quickstart](docs/user/quickstart.md) and the runnable
+[`examples/basic`](examples/basic). The remaining documentation is organized by audience:
+
+- Library authors: [component](docs/user/component-authoring.md),
+  [manifest](docs/user/manifest-authoring.md), and
+  [plan composition](docs/user/plan-composition.md).
+- Application owners: [CLI integration](docs/user/cli-integration.md) and
+  [testing](docs/user/testing.md).
+- Operators: [deployment](docs/operations/deployment.md),
+  [locks/timeouts](docs/operations/locking-and-timeouts.md),
+  [repair](docs/operations/nontransactional-repair.md), and
+  [history import](docs/operations/history-import.md).
+- Contract consumers: [public API](docs/reference/public-api.md),
+  [ledger v1](docs/reference/ledger-v1.md),
+  [manifest v1](docs/reference/manifest-v1.md),
+  [JSON v1](docs/reference/json-v1.md), and
+  [compatibility](docs/reference/compatibility.md).
+
+`verify` compares the declared plan with the migration ledger. It is not a schema snapshot
+or database-state equivalence checker. Back up the database before deployment or history
+import, use a maintenance window for predecessor cutovers, and treat `Running` after a
+crash as operationally ambiguous until an operator inspects the database.
+
+The release-blocking command is `just acceptance`; CI runs it independently on PostgreSQL
+17 and 18. See the [acceptance matrix](docs/acceptance-matrix.md) and
+[release checklist](docs/release-checklist.md).
+
 `pg-migrate` is a planned Hasql-native PostgreSQL migration library for Haskell.
 Libraries own and embed named migration components; applications compose those
 components into an explicit, deterministic migration plan and run it through one

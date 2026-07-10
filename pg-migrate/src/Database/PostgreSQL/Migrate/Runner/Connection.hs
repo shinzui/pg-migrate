@@ -16,6 +16,7 @@ import Hasql.Session qualified as Session
 import Hasql.Statement (Statement)
 import Hasql.Statement qualified as Statement
 
+-- | Acquire and release a fresh Hasql connection from concrete settings.
 connectionProviderFromSettings :: Settings.Settings -> ConnectionProvider
 connectionProviderFromSettings settings =
   ConnectionProvider $ \action ->

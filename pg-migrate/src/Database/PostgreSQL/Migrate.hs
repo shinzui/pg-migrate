@@ -1,3 +1,6 @@
+-- | Safe common facade for defining, inspecting, running, repairing, and importing
+-- PostgreSQL migration plans. Smart constructors reject invalid definitions before
+-- acquisition; reports and errors describe durable outcomes without exposing actions.
 module Database.PostgreSQL.Migrate
   ( ComponentName,
     componentName,
@@ -20,6 +23,7 @@ module Database.PostgreSQL.Migrate
     LedgerConfig,
     defaultLedgerConfig,
     ledgerConfig,
+    ledgerSchemaVersion,
     MigrationStatus (..),
     UnknownMigrationsPolicy (..),
     StoredMigration (..),
@@ -153,6 +157,7 @@ import Database.PostgreSQL.Migrate.Inspection
     verifyMigrationPlan,
     verifyMigrationPlanWith,
   )
+import Database.PostgreSQL.Migrate.Ledger.Migrations (ledgerSchemaVersion)
 import Database.PostgreSQL.Migrate.Ledger.Types
   ( LedgerConfig,
     MigrationStatus (..),

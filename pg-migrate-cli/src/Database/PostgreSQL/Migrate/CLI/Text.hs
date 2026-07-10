@@ -13,6 +13,7 @@ import Database.PostgreSQL.Migrate.Internal
 import Numeric qualified
 import PgMigrate.CLI.Prelude
 
+-- | Render a stable human-oriented outcome.
 renderMigrationCommandText :: CliOutcome -> Text
 renderMigrationCommandText CliOutcome {command, payload = Left cliError} =
   command <> ": error: " <> renderCliError cliError

@@ -23,6 +23,7 @@ import Options.Applicative
 import PgMigrate.CLI.Prelude
 import Text.Read qualified as Read
 
+-- | Build the reusable parser, using the plan for target-aware choices.
 migrationCommandParser :: MigrationPlan -> Parser MigrationCommand
 migrationCommandParser _ =
   subparser (commandGroup "Inspection" <> inspectionCommands)

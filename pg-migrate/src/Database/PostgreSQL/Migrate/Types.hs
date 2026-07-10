@@ -29,22 +29,26 @@ import Hasql.Session qualified as Hasql.Session
 import Hasql.Transaction qualified as Hasql.Transaction
 import PgMigrate.Prelude
 
+-- | Validated, application-stable component identifier.
 newtype ComponentName = ComponentName
   { unComponentName :: Text
   }
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | Validated migration identifier local to one component.
 newtype MigrationName = MigrationName
   { unMigrationName :: Text
   }
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | Globally unique migration identity: component plus local name.
 data MigrationId = MigrationId
   { component :: !ComponentName,
     name :: !MigrationName
   }
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | SHA-256 fingerprint of the immutable migration payload.
 newtype MigrationChecksum = MigrationChecksum
   { unMigrationChecksum :: ByteString
   }
@@ -65,6 +69,7 @@ data MigrationAction
   | TransactionAction !(Hasql.Transaction.Transaction ())
   | SessionAction !(Hasql.Session.Session ())
 
+-- | Validated migration definition with an immutable action and fingerprint.
 data Migration = Migration
   { name :: !MigrationName,
     description :: !(Maybe Text),
@@ -74,12 +79,14 @@ data Migration = Migration
     action :: !MigrationAction
   }
 
+-- | Ordered, non-empty migrations owned by one library component.
 data MigrationComponent = MigrationComponent
   { name :: !ComponentName,
     dependencies :: !(Set ComponentName),
     migrations :: !(NonEmpty Migration)
   }
 
+-- | Validated dependency-ordered composition of components.
 newtype MigrationPlan = MigrationPlan
   { components :: NonEmpty MigrationComponent
   }

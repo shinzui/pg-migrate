@@ -1,13 +1,16 @@
-cabal-version: 3.8
-name:          pg-migrate-test-support
-version:       0.1.0.0
-synopsis:      Ephemeral PostgreSQL helpers for pg-migrate tests
+cabal-version:   3.8
+name:            pg-migrate-test-support
+version:         1.0.0.0
+synopsis:        Ephemeral PostgreSQL helpers for pg-migrate tests
+category:        Database
+maintainer:      nadeem@gmail.com
 description:
   Brackets an ephemeral PostgreSQL instance, applies a validated migration
   plan, and supplies a fresh Hasql connection to a test callback.
 
-license:       BSD-3-Clause
-build-type:    Simple
+license:         BSD-3-Clause
+build-type:      Simple
+extra-doc-files: CHANGELOG.md
 
 common common
   default-language:   GHC2024
@@ -28,7 +31,7 @@ library
     , base          >=4.20 && <4.22
     , ephemeral-pg  >=0.2  && <0.3
     , hasql         >=1.10 && <1.11
-    , pg-migrate
+    , pg-migrate    >=1.0  && <1.1
 
 test-suite pg-migrate-test-support-test
   import:         common

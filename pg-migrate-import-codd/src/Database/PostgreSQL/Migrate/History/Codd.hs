@@ -1,3 +1,5 @@
+-- | Hasql-only reader and importer for exact Codd V1–V5 ledger shapes. Source objects are
+-- read under the configured cooperating legacy lock and are never modified.
 module Database.PostgreSQL.Migrate.History.Codd
   ( CoddSourceConfig,
     CoddManifest,

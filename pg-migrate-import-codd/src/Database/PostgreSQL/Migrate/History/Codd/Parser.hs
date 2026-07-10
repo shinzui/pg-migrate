@@ -16,6 +16,7 @@ import Options.Applicative
 import PgMigrate.History.Codd.Prelude
 import Text.Read qualified as Read
 
+-- | Build the reusable, target-aware Codd import parser.
 coddImportCommandParser :: MigrationPlan -> Parser CoddImportCommand
 coddImportCommandParser _ =
   CoddImportCommand

@@ -20,6 +20,7 @@ import Database.PostgreSQL.Migrate.Internal (migrationChecksumBytes)
 import Numeric qualified
 import PgMigrate.History.Codd.Prelude
 
+-- | Read Codd under its source lock, then atomically import target metadata.
 importCoddHistory ::
   ImportOptions ->
   CoddSourceConfig ->

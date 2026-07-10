@@ -1,5 +1,6 @@
 module Database.PostgreSQL.Migrate.Embed.Manifest
-  ( ManifestError (..),
+  ( manifestFormatVersion,
+    ManifestError (..),
     checkMigrationManifest,
     embedMigrationManifest,
     validateManifestEntry,
@@ -24,6 +25,11 @@ import Language.Haskell.TH.Syntax qualified as TH.Syntax
 import System.Directory qualified as Directory
 import System.FilePath qualified as FilePath
 
+-- | Supported ordered-manifest contract version.
+manifestFormatVersion :: Int
+manifestFormatVersion = 1
+
+-- | Exact manifest syntax, path, membership, or SQL validation failure.
 data ManifestError
   = ManifestIoError !FilePath !Text.Text
   | ManifestInvalidUtf8 !FilePath !Text.Text
@@ -41,6 +47,7 @@ data ManifestError
   | UnlistedSqlFiles ![FilePath]
   deriving stock (Eq, Show)
 
+-- | Validate a manifest and return ordered exact SQL bytes at runtime.
 checkMigrationManifest ::
   FilePath ->
   IO (Either ManifestError (NonEmpty (FilePath, ByteString.ByteString)))
@@ -53,6 +60,7 @@ checkMigrationManifest manifestPath = do
         Left err -> pure (Left err)
         Right entries -> checkManifestFiles manifestPath entries
 
+-- | Validate and embed an ordered migration manifest at compile time.
 embedMigrationManifest :: FilePath -> Q Exp
 embedMigrationManifest inputPath = do
   manifestPath <- TH.Syntax.makeRelativeToProject inputPath

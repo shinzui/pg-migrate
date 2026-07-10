@@ -18,9 +18,11 @@ import Database.PostgreSQL.Migrate.Internal
 import Numeric qualified
 import PgMigrate.CLI.Prelude
 
+-- | Supported machine-readable CLI schema version.
 jsonSchemaVersion :: Int
 jsonSchemaVersion = 1
 
+-- | Render a command outcome using JSON schema v1.
 renderMigrationCommandJson :: CliOutcome -> Value
 renderMigrationCommandJson CliOutcome {command, exitClass, payload} =
   object
@@ -33,6 +35,7 @@ renderMigrationCommandJson CliOutcome {command, exitClass, payload} =
           Right cliPayload -> ["data" .= payloadValue cliPayload]
     )
 
+-- | Render an adapter import report using JSON schema v1.
 renderHistoryImportJson :: Text -> HistoryImportReport -> Value
 renderHistoryImportJson sourceName HistoryImportReport {importResults} =
   object

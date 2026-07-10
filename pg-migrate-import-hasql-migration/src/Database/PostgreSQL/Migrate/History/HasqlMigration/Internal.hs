@@ -1,3 +1,5 @@
+{-# OPTIONS_HADDOCK hide #-}
+
 module Database.PostgreSQL.Migrate.History.HasqlMigration.Internal
   ( buildHasqlMigrationEvidence,
     renderQualifiedTable,

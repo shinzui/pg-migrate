@@ -1,3 +1,5 @@
+-- | Reusable parser, dispatcher, and text/JSON rendering boundary. Applications retain
+-- ownership of their plan, connection configuration, streams, logging, and process exit.
 module Database.PostgreSQL.Migrate.CLI
   ( migrationCommandParser,
     CliEnvironment,

@@ -61,7 +61,7 @@ package.
 | 8 | Import Codd history through the adapter | docs/plans/8-import-codd-history-through-the-adapter.md | None | EP-7 | Complete |
 | 9 | Import hasql-migration history through the adapter | docs/plans/9-import-hasql-migration-history-through-the-adapter.md | None | EP-7 | Complete |
 | 10 | Provide ephemeral PostgreSQL test support and acceptance matrix | docs/plans/10-provide-ephemeral-postgresql-test-support-and-acceptance-matrix.md | EP-7, EP-8, EP-9 | None | Complete |
-| 11 | Publish v1 API operations and compatibility documentation | docs/plans/11-publish-v1-api-operations-and-compatibility-documentation.md | EP-10 | None | Not Started |
+| 11 | Publish v1 API operations and compatibility documentation | docs/plans/11-publish-v1-api-operations-and-compatibility-documentation.md | EP-10 | None | Complete |
 
 Status values: Not Started, In Progress, Complete, Cancelled.
 Hard Deps and Soft Deps reference other rows by their # prefix (e.g., EP-1, EP-3).
@@ -125,6 +125,10 @@ and schema constants remain defined in code by their implementation plans.
   structured failure proofs, all fifteen acceptance-group owners, schema-v1 import JSON,
   graph-aware production closure checking, and explicit PostgreSQL 17/18 Nix/CI jobs.
   `just acceptance` passes against PostgreSQL 17.10 and 18.4.
+- [x] EP-11: Froze the six-package `1.0.0.0` API and version contracts, brought all public
+  facades to complete Haddock coverage, published user/operator/reference documentation and
+  a runnable two-component example, registered the six packages and docs with Mori, and
+  proved checkout and unpacked-sdist suites on PostgreSQL 17 and 18 without publishing.
 
 
 ## Surprises & Discoveries
@@ -146,6 +150,10 @@ and schema constants remain defined in code by their implementation plans.
 - Observation: the first actual PostgreSQL 18 run found a live test that asserted major 17
   even though the version classifier accepted both supported majors. The matrix converted
   that latent assumption into a failing acceptance case before release documentation.
+
+- Observation: testing unpacked source distributions found both Hackage-invalid fixture
+  globs and a recompilation test coupled to checkout directory names. The release gate now
+  proves the actual tarball layouts on both supported PostgreSQL majors.
 
 
 ## Decision Log
@@ -170,7 +178,16 @@ and schema constants remain defined in code by their implementation plans.
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+The integrations-and-release initiative is complete. Applications can mount the reusable
+CLI and consume stable JSON v1; operators can import Codd V1–V5 and `hasql-migration`
+history through source-preserving Hasql adapters; tests can use the isolated
+`ephemeral-pg` support package; and all six packages expose coherent `1.0.0.0` contracts.
+
+The final acceptance boundary covers fifteen ownership groups on PostgreSQL 17 and 18,
+including production dependency closure and versioned goldens. Public facades have complete
+Haddock coverage, source distributions build and test from versioned unpacked directories,
+and Mori resolves all packages and release docs. No Hackage upload, tag, GitHub release, or
+production database mutation was performed.
 
 
 ## Revision Note
@@ -203,3 +220,7 @@ dependency-closure, and full-workspace gates passed.
 2026-07-10: Marked EP-10 complete after the test-support API, fifteen-group aggregate,
 import JSON golden, closure gate and negative test, and real PostgreSQL 17/18 acceptance
 jobs passed.
+
+2026-07-10: Marked EP-11 and this MasterPlan complete after the API/documentation freeze,
+warning-free package checks, complete public Haddocks, example and link checks, Mori
+registration, unpacked-sdist tests, production closure, and PostgreSQL 17/18 acceptance.

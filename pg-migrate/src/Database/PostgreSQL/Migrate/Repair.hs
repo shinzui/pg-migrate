@@ -23,6 +23,7 @@ import Hasql.Transaction.Sessions qualified as Transaction.Sessions
 import Paths_pg_migrate qualified as Package
 import PgMigrate.Prelude
 
+-- | Repair one verified nontransactional row under the normal runner lifecycle.
 repairMigration ::
   RunOptions ->
   ConnectionProvider ->

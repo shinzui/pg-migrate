@@ -27,51 +27,60 @@ import Database.PostgreSQL.Migrate
 import Hasql.Connection.Settings qualified as Settings
 import PgMigrate.CLI.Prelude
 
+-- | Human-readable or versioned JSON rendering.
 data OutputFormat
   = TextOutput
   | JsonOutput
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | Optional command-line database connection override.
 newtype ConnectionOptions = ConnectionOptions
   { databaseSettings :: Maybe Settings.Settings
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Shared lock and statement-timeout flags.
 data ExecutionOptions = ExecutionOptions
   { lockWait :: !LockWait,
     statementTimeout :: !(Maybe NominalDiffTime)
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Shared output selection.
 newtype OutputOptions = OutputOptions
   { outputFormat :: OutputFormat
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Shared read-only command options.
 data InspectionOptions = InspectionOptions
   { component :: !(Maybe ComponentName),
     migration :: !(Maybe MigrationName)
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Shared local plan-rendering options.
 data PlanOptions = PlanOptions
   { inspection :: !InspectionOptions,
     output :: !OutputOptions
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Parsed @list@ command options.
 data ListOptions = ListOptions
   { inspection :: !InspectionOptions,
     output :: !OutputOptions
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Parsed @check@ command options.
 data CheckOptions = CheckOptions
   { manifestPath :: !FilePath,
     output :: !OutputOptions
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Parsed @status@ command options.
 data StatusOptions = StatusOptions
   { inspection :: !InspectionOptions,
     connection :: !ConnectionOptions,
@@ -79,6 +88,7 @@ data StatusOptions = StatusOptions
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Parsed strict @verify@ command options.
 data VerifyOptions = VerifyOptions
   { inspection :: !InspectionOptions,
     connection :: !ConnectionOptions,
@@ -86,6 +96,7 @@ data VerifyOptions = VerifyOptions
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Parsed @up@ command options.
 data UpOptions = UpOptions
   { connection :: !ConnectionOptions,
     execution :: !ExecutionOptions,
@@ -93,6 +104,7 @@ data UpOptions = UpOptions
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Parsed confirmed @repair@ command options.
 data RepairOptions = RepairOptions
   { target :: !MigrationId,
     operation :: !RepairOperation,
@@ -104,6 +116,7 @@ data RepairOptions = RepairOptions
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Parsed migration-authoring command options.
 data NewOptions = NewOptions
   { manifestPath :: !FilePath,
     description :: !Text,
@@ -112,6 +125,7 @@ data NewOptions = NewOptions
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Complete reusable command algebra mounted by an application executable.
 data MigrationCommand
   = Plan !PlanOptions
   | Status !StatusOptions

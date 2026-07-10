@@ -29,6 +29,7 @@ import Hasql.Connection.Settings qualified as Settings
 import Hasql.Errors qualified as Errors
 import PgMigrate.History.Codd.Prelude
 
+-- | Validated source connection, ledger names, manifest, and cooperating lock.
 data CoddSourceConfig = CoddSourceConfig
   { sourceProvider :: !ConnectionProvider,
     sourceLockKey :: !Int64,
@@ -40,11 +41,13 @@ data CoddSourceConfig = CoddSourceConfig
     confirmation :: !Confirmation
   }
 
+-- | Ordered exact source filenames selected for import.
 newtype CoddManifest = CoddManifest
   { manifestChecksums :: Map FilePath Text
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Recognized Codd ledger shape from V1 through V5.
 data CoddSchemaVersion
   = CoddV1
   | CoddV2
@@ -53,6 +56,7 @@ data CoddSchemaVersion
   | CoddV5
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | Normalized immutable row read from a supported Codd ledger.
 data CoddHistoryRow = CoddHistoryRow
   { filename :: !FilePath,
     migrationTimestamp :: !UTCTime,
@@ -62,6 +66,7 @@ data CoddHistoryRow = CoddHistoryRow
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Selected rows, schema shape, evidence, and unselected extras.
 data CoddHistory = CoddHistory
   { schemaVersion :: !CoddSchemaVersion,
     selectedRows :: !(NonEmpty CoddHistoryRow),
@@ -69,6 +74,7 @@ data CoddHistory = CoddHistory
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Invalid source identifiers, manifest, mappings, or adapter options.
 data CoddDefinitionError
   = EmptyCoddSelection
   | EmptyCoddFilename
@@ -80,6 +86,7 @@ data CoddDefinitionError
   | CoddEvidenceDefinitionError !HistoryDefinitionError
   deriving stock (Generic, Eq, Show)
 
+-- | Structured source-read, validation, lock, or target-import failure.
 data CoddImportError
   = CoddDefinitionFailed !CoddDefinitionError
   | CoddConnectionFailed !Errors.ConnectionError
@@ -103,6 +110,7 @@ data CoddImportError
   | CoddTargetImportFailed !HistoryImportError
   deriving stock (Generic, Show)
 
+-- | Parsed, application-dispatchable Codd import command.
 data CoddImportCommand = CoddImportCommand
   { sourceSettings :: !(Maybe Settings.Settings),
     lockKey :: !Int64,
@@ -115,9 +123,11 @@ data CoddImportCommand = CoddImportCommand
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Default advisory lock used to cooperate with Codd writers.
 defaultCoddLockKey :: Int64
 defaultCoddLockKey = 0x6B69726F6B754D67
 
+-- | Validate a complete Codd source configuration.
 coddSourceConfig ::
   ConnectionProvider ->
   NonEmpty FilePath ->
@@ -146,9 +156,11 @@ coddSourceConfig sourceProvider selectedFilenames strictSource sourcePayloads so
         confirmation
       }
 
+-- | Override the cooperating source advisory lock key.
 withCoddLockKey :: Int64 -> CoddSourceConfig -> CoddSourceConfig
 withCoddLockKey sourceLockKey config = config {sourceLockKey}
 
+-- | Derive the canonical evidence key for one manifest filename.
 coddEvidenceKey :: FilePath -> Either CoddDefinitionError EvidenceKey
 coddEvidenceKey filename
   | null filename = Left EmptyCoddFilename

@@ -24,6 +24,7 @@ import Database.PostgreSQL.Migrate.Internal
   )
 import PgMigrate.CLI.Prelude
 
+-- | Stable process-exit classification chosen by the application.
 data ExitClass
   = ExitSuccess
   | ExitVerificationFailed
@@ -31,12 +32,14 @@ data ExitClass
   | ExitExecutionFailed
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | One migration summarized by local plan checking.
 data CheckedMigration = CheckedMigration
   { file :: !FilePath,
     checksum :: !MigrationChecksum
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Successful command-specific structured payload.
 data CliPayload
   = PlanPayload ![ComponentDescription]
   | ListPayload ![MigrationDescription]
@@ -48,6 +51,7 @@ data CliPayload
   | NewPayload !FilePath
   deriving stock (Generic, Eq, Show)
 
+-- | Structured CLI definition, runner, repair, authoring, or import failure.
 data CliError
   = CliMigrationError !MigrationError
   | CliRepairDefinitionError !RepairDefinitionError
@@ -56,6 +60,7 @@ data CliError
   | CliAuthoringError !AuthoringError
   deriving stock (Generic, Show)
 
+-- | Renderable command result with stable exit classification.
 data CliOutcome = CliOutcome
   { command :: !Text,
     exitClass :: !ExitClass,

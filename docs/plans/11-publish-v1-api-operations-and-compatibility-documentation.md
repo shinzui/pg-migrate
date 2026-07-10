@@ -27,12 +27,38 @@ validated before the v1 contract is declared ready.
 
 ## Progress
 
-(No implementation work has started.)
+- [x] Audited every public facade, added module and per-symbol Haddocks, exposed the
+  independent ledger, manifest, and JSON version constants, and hid internal bridge
+  modules from user documentation. All seven public modules report 100% coverage.
+- [x] Added the README map, six user guides, six operator/import runbooks, seven contract
+  references, release policy, and a checked release checklist.
+- [x] Added and ran the two-component example through help, first apply, idempotent second
+  apply, and strict verify against PostgreSQL 17.
+- [x] Set all six production packages to `1.0.0.0`, bounded internal dependencies, added
+  changelogs and distribution metadata, and made the example and recompilation fixture
+  source-distribution-safe.
+- [x] Passed warning-free `cabal check`, 100%-coverage public Haddocks, offline link checks,
+  source distribution generation and unpacked build/test on PostgreSQL 17 and 18, Mori
+  validation/registration, production closure, and both fifteen-group acceptance gates.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: the initial Haddock build succeeded while reporting only one or two percent
+  coverage for the main facades. Treating that output as a release defect produced
+  per-symbol public documentation and explicit hiding for internal bridge modules.
+
+- Observation: `cabal check` rejected extensionless fixture globs even though checkout
+  builds accepted them. Enumerating manifests and extension-bearing files made the embed
+  package portable to Hackage tooling.
+
+- Observation: the recompilation test assumed checkout directory names and failed from
+  versioned source-distribution directories. It now resolves either layout and both server
+  matrices build and test solely from unpacked tarballs.
+
+- Observation: full parallel acceptance could delay the crash helper beyond its original
+  five-second observation window. A fifteen-second bounded poll preserves the same durable
+  `Running` assertion while removing scheduler-dependent flakiness.
 
 
 ## Decision Log
@@ -51,7 +77,18 @@ validated before the v1 contract is declared ready.
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+The six-package v1 surface is release-ready but not published. Each package is versioned
+`1.0.0.0`, its public facade has complete Haddock coverage, and the three independent
+machine/on-disk contracts expose version 1 from code. Users have a runnable application
+example and task-oriented guides; operators have deployment, locking, repair, and both
+history-import runbooks; contract consumers have ledger, manifest, JSON, compatibility,
+error/event, and release-policy references.
+
+The strongest release proof came from checking distribution artifacts rather than only the
+checkout: that found and fixed both invalid Cabal globs and a repository-layout assumption.
+Fresh unpacked tarballs passed their full suites on PostgreSQL 17 and 18. Mori now resolves
+all six packages and the release documentation through `mori://shinzui/pg-migrate`.
+Publishing remains a separate explicitly authorized operator action.
 
 
 ## Context and Orientation
@@ -202,3 +239,10 @@ manifestFormatVersion :: Int
 
 If the manifest remains an implicit v1 format with no marker in each file, expose and
 document the library-supported format version rather than adding an unrequested header.
+
+
+## Revision Note
+
+2026-07-10: Completed the public API audit, documentation map, guides, runbooks, references,
+example, coherent `1.0.0.0` package metadata, source-distribution portability fixes, Mori
+registration, and the PostgreSQL 17/18 release gates without publishing artifacts.

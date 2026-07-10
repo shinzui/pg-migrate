@@ -1,3 +1,5 @@
+-- | Hasql-only reader and importer for qualified hasql-migration ledgers. Selected exact
+-- payload bytes must reproduce the predecessor's base64 MD5 before evidence is emitted.
 module Database.PostgreSQL.Migrate.History.HasqlMigration
   ( QualifiedTable,
     qualifiedTable,

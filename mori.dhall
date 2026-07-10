@@ -34,7 +34,7 @@ in  Schema.Project::{
       , namespace = "shinzui"
       , type = Schema.PackageType.Library
       , language = Schema.Language.Haskell
-      , lifecycle = Schema.Lifecycle.Experimental
+      , lifecycle = Schema.Lifecycle.Active
       , description = Some
           "Hasql-native PostgreSQL migration library: libraries own embedded migration components, applications compose them in explicit order"
       , domains = [ "PostgreSQL", "Migrations", "Backend" ]
@@ -188,6 +188,41 @@ in  Schema.Project::{
         , location =
             Schema.DocLocation.Canonical
               "mori://shinzui/haskell-jitsurei/docs/core-standards"
+        }
+      , Schema.DocRef::{
+        , key = "quickstart"
+        , kind = Schema.DocKind.Guide
+        , audience = Schema.DocAudience.User
+        , description = Some "Build and operate a first application-owned migration plan"
+        , location = Schema.DocLocation.LocalFile "./docs/user/quickstart.md"
+        }
+      , Schema.DocRef::{
+        , key = "operations"
+        , kind = Schema.DocKind.Guide
+        , audience = Schema.DocAudience.User
+        , description = Some "Deployment, locking, repair, and import runbooks"
+        , location = Schema.DocLocation.LocalFile "./docs/operations/deployment.md"
+        }
+      , Schema.DocRef::{
+        , key = "public-api"
+        , kind = Schema.DocKind.Reference
+        , audience = Schema.DocAudience.User
+        , description = Some "Stable package facades and atomicity contracts"
+        , location = Schema.DocLocation.LocalFile "./docs/reference/public-api.md"
+        }
+      , Schema.DocRef::{
+        , key = "compatibility"
+        , kind = Schema.DocKind.Reference
+        , audience = Schema.DocAudience.User
+        , description = Some "PostgreSQL and versioned format compatibility"
+        , location = Schema.DocLocation.LocalFile "./docs/reference/compatibility.md"
+        }
+      , Schema.DocRef::{
+        , key = "release-policy"
+        , kind = Schema.DocKind.Reference
+        , audience = Schema.DocAudience.User
+        , description = Some "PVP and independent contract versioning policy"
+        , location = Schema.DocLocation.LocalFile "./docs/reference/release-policy.md"
         }
       ]
     }

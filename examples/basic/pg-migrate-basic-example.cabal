@@ -1,0 +1,39 @@
+cabal-version:      3.8
+name:               pg-migrate-basic-example
+version:            1.0.0.0
+synopsis:           Runnable two-component pg-migrate example
+category:           Database
+maintainer:         nadeem@gmail.com
+description:
+  Demonstrates compile-time manifests, dependency-ordered component composition,
+  application-owned connection configuration, and reusable CLI integration.
+
+license:            BSD-3-Clause
+build-type:         Simple
+extra-source-files:
+  migrations/accounts/*.sql
+  migrations/accounts/manifest
+  migrations/billing/*.sql
+  migrations/billing/manifest
+
+executable pg-migrate-basic-example
+  main-is:            Main.hs
+  hs-source-dirs:     app
+  default-language:   GHC2024
+  default-extensions:
+    DuplicateRecordFields
+    OverloadedStrings
+    TemplateHaskell
+
+  ghc-options:        -Wall -Wcompat
+  build-depends:
+    , aeson                 >=2.2  && <2.3
+    , base                  >=4.20 && <4.22
+    , bytestring            >=0.12 && <0.13
+    , containers            >=0.7  && <0.8
+    , hasql                 >=1.10 && <1.11
+    , optparse-applicative  >=0.19 && <0.20
+    , pg-migrate            >=1.0  && <1.1
+    , pg-migrate-cli        >=1.0  && <1.1
+    , pg-migrate-embed      >=1.0  && <1.1
+    , text                  >=2.1  && <2.2

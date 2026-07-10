@@ -24,6 +24,7 @@ import Hasql.Connection qualified as Connection
 import Hasql.Connection.Settings qualified as Settings
 import Hasql.Session (Session)
 
+-- | Read operational plan status using concrete Hasql settings.
 migrationStatus ::
   RunOptions ->
   Settings.Settings ->
@@ -32,6 +33,7 @@ migrationStatus ::
 migrationStatus options settings =
   migrationStatusWith options (connectionProviderFromSettings settings)
 
+-- | Read operational plan status using an application connection provider.
 migrationStatusWith ::
   RunOptions ->
   ConnectionProvider ->
@@ -42,6 +44,7 @@ migrationStatusWith options provider plan =
     provider
     (loadStatus (runLedgerConfig options) (runUnknownMigrationsPolicy options) plan)
 
+-- | Strictly compare the declared plan with the ledger using concrete settings.
 verifyMigrationPlan ::
   RunOptions ->
   Settings.Settings ->
@@ -50,6 +53,7 @@ verifyMigrationPlan ::
 verifyMigrationPlan options settings =
   verifyMigrationPlanWith options (connectionProviderFromSettings settings)
 
+-- | Strictly compare the declared plan with the ledger using a provider.
 verifyMigrationPlanWith ::
   RunOptions ->
   ConnectionProvider ->

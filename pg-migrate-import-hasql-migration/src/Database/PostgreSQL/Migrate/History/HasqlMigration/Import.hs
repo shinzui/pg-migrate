@@ -13,6 +13,7 @@ import Database.PostgreSQL.Migrate.History.HasqlMigration.Ledger (readHasqlMigra
 import Database.PostgreSQL.Migrate.History.HasqlMigration.Types
 import PgMigrate.History.HasqlMigration.Prelude
 
+-- | Verify source payloads, then atomically import matching target metadata.
 importHasqlMigrationHistory ::
   ImportOptions ->
   HasqlMigrationSourceConfig ->

@@ -7,6 +7,7 @@ import Database.PostgreSQL.Migrate
     MigrationComponent,
     MigrationPlan,
     PlanError,
+    ledgerSchemaVersion,
     migrationComponent,
     migrationFingerprint,
     migrationPlan,
@@ -31,7 +32,8 @@ tests =
             length (show plan) `seq`
               migrationStatus `seq`
                 verifyMigrationPlan `seq`
-                  pure ()
+                  ledgerSchemaVersion `seq`
+                    pure ()
     ]
 
 publicPlan :: Either DefinitionError (Either PlanError MigrationPlan)

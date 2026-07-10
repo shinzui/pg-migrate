@@ -1,13 +1,16 @@
-cabal-version: 3.8
-name:          pg-migrate
-version:       0.1.0.0
-synopsis:      Hasql-native PostgreSQL migration engine
+cabal-version:   3.8
+name:            pg-migrate
+version:         1.0.0.0
+synopsis:        Hasql-native PostgreSQL migration engine
+category:        Database
+maintainer:      nadeem@gmail.com
 description:
   Libraries own ordered migration components and applications compose them into
-  validated plans. This package is pre-release and its API may change.
+  validated plans with stable v1 ledger and public API contracts.
 
-license:       BSD-3-Clause
-build-type:    Simple
+extra-doc-files: CHANGELOG.md
+license:         BSD-3-Clause
+build-type:      Simple
 
 common common
   default-language:   GHC2024

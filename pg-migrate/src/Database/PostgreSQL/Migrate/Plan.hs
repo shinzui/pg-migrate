@@ -15,6 +15,7 @@ import Data.Set qualified as Set
 import Database.PostgreSQL.Migrate.Types
 import PgMigrate.Prelude
 
+-- | Structural reason a component composition is not a valid plan.
 data PlanError
   = DuplicateComponentName !ComponentName
   | DuplicateMigrationName !ComponentName !MigrationName
@@ -45,6 +46,7 @@ newtype PlanDescription = PlanDescription
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Validate an already dependency-ordered component sequence.
 migrationPlan :: NonEmpty MigrationComponent -> Either PlanError MigrationPlan
 migrationPlan components = do
   validateUniqueNames components
@@ -53,6 +55,7 @@ migrationPlan components = do
   validateExplicitOrder components
   pure (MigrationPlan components)
 
+-- | Stably topologically order and validate a component sequence.
 resolveMigrationPlan :: NonEmpty MigrationComponent -> Either PlanError MigrationPlan
 resolveMigrationPlan components = do
   validateUniqueNames components

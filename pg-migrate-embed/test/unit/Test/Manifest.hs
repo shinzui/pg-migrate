@@ -17,7 +17,8 @@ tests :: TestTree
 tests =
   testGroup
     "manifest"
-    [ testCase "valid entries and exact bytes follow manifest order" $ do
+    [ testCase "the supported format version is one" (manifestFormatVersion @?= 1),
+      testCase "valid entries and exact bytes follow manifest order" $ do
         result <- checkMigrationManifest =<< fixture "valid/migrations/manifest"
         result @?= Right validEmbedded,
       testCase "blank lines are rejected" $

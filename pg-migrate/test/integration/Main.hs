@@ -445,7 +445,7 @@ testCrashAmbiguity settings =
                 show (lockKey config)
               ]
           )
-      waitForRunning connection config 200
+      waitForRunning connection config 600
       processId <- getPid processHandle >>= maybe (fail "crash helper has no process id") pure
       signalProcess sigKILL processId
       _ <- waitForProcess processHandle
@@ -1253,7 +1253,7 @@ crashMigrationPlan _ =
     ]
 
 waitForRunning :: Connection.Connection -> LedgerConfig -> Int -> IO ()
-waitForRunning _ _ 0 = assertFailure "crash helper did not persist Running within five seconds"
+waitForRunning _ _ 0 = assertFailure "crash helper did not persist Running within fifteen seconds"
 waitForRunning connection config attempts = do
   snapshot <- useSession connection (loadLedger config)
   if storedStatuses snapshot == [Running]

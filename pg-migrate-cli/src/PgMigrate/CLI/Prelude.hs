@@ -1,4 +1,5 @@
 {-# LANGUAGE PackageImports #-}
+{-# OPTIONS_HADDOCK hide #-}
 
 module PgMigrate.CLI.Prelude
   ( module X,

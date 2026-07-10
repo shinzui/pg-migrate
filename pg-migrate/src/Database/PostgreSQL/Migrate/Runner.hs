@@ -54,6 +54,7 @@ data PlannedMigration = PlannedMigration
     plannedMigration :: !Migration
   }
 
+-- | Run a plan with a freshly acquired connection from concrete settings.
 runMigrationPlan ::
   RunOptions ->
   Settings.Settings ->
@@ -62,6 +63,7 @@ runMigrationPlan ::
 runMigrationPlan options settings =
   runMigrationPlanWith options (connectionProviderFromSettings settings)
 
+-- | Run a plan under the lock and timeout lifecycle using a provider.
 runMigrationPlanWith ::
   RunOptions ->
   ConnectionProvider ->

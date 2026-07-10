@@ -1,4 +1,5 @@
 {-# LANGUAGE PackageImports #-}
+{-# OPTIONS_HADDOCK hide #-}
 
 module PgMigrate.History.HasqlMigration.Prelude
   ( module X,
