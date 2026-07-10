@@ -40,6 +40,9 @@ validated before the v1 contract is declared ready.
 - [x] Passed warning-free `cabal check`, 100%-coverage public Haddocks, offline link checks,
   source distribution generation and unpacked build/test on PostgreSQL 17 and 18, Mori
   validation/registration, production closure, and both fifteen-group acceptance gates.
+- [x] Updated `agents/skills/release/SKILL.md` from its original three-package,
+  pre-1.0 workflow to the six-package dependency order, independent contract policy,
+  complete local release gate, and separate commit/publication approvals.
 
 
 ## Surprises & Discoveries
@@ -60,6 +63,15 @@ validated before the v1 contract is declared ready.
   five-second observation window. A fifteen-second bounded poll preserves the same durable
   `Running` assertion while removing scheduler-dependent flakiness.
 
+- Observation: the repository release skill predated both adapters and test support, and
+  still prescribed an incomplete three-package workflow. Synchronizing it with the checked
+  release policy prevents future automation from bypassing the v1 artifact and matrix
+  gates.
+
+- Observation: the generated `packages.default` assumes a Cabal package at the repository
+  root, so `nix flake check` does not model this multi-package workspace. The synchronized
+  skill uses the actual Cabal, unpacked-sdist, closure, and two-major gates instead.
+
 
 ## Decision Log
 
@@ -72,6 +84,11 @@ validated before the v1 contract is declared ready.
 - Decision: Describe `verify` only as declared-plan versus ledger verification.
   Rationale: Schema snapshot equality is an explicit non-goal and misleading wording would
   create an unsafe operator expectation.
+  Date: 2026-07-10
+
+- Decision: Require separate approval for the release commit and for external publication.
+  Rationale: A locally verified candidate does not itself authorize tags, pushes, Hackage
+  uploads, documentation uploads, or a GitHub release.
   Date: 2026-07-10
 
 
@@ -88,7 +105,8 @@ The strongest release proof came from checking distribution artifacts rather tha
 checkout: that found and fixed both invalid Cabal globs and a repository-layout assumption.
 Fresh unpacked tarballs passed their full suites on PostgreSQL 17 and 18. Mori now resolves
 all six packages and the release documentation through `mori://shinzui/pg-migrate`.
-Publishing remains a separate explicitly authorized operator action.
+Publishing remains a separate explicitly authorized operator action. The invocable release
+skill now enforces the same six-package scope and evidence boundary.
 
 
 ## Context and Orientation
@@ -246,3 +264,7 @@ document the library-supported format version rather than adding an unrequested 
 2026-07-10: Completed the public API audit, documentation map, guides, runbooks, references,
 example, coherent `1.0.0.0` package metadata, source-distribution portability fixes, Mori
 registration, and the PostgreSQL 17/18 release gates without publishing artifacts.
+
+2026-07-10: Synchronized the disabled-by-default release skill with the completed v1
+package graph, contract policy, local gates, approval boundaries, and six-package Hackage
+publication order.

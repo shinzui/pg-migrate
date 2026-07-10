@@ -1,249 +1,368 @@
 ---
 name: release
-description: Release the pg-migrate packages to Hackage following PVP
-argument-hint: "[major|minor|patch]"
+description: Release all six pg-migrate packages to Hackage following PVP and the v1 release gates
+argument-hint: "[initial|major|minor|patch]"
 disable-model-invocation: true
 allowed-tools: Read, Bash, Edit, Glob, Grep, Write, AskUserQuestion
 ---
 
 # pg-migrate Release Skill
 
-Release the `pg-migrate` packages to [Hackage](https://hackage.haskell.org/)
-using the Haskell **PVP** version scheme (`A.B.C.D`). This is a Nix +
-`cabal` project (GHC 9.12.4); the format and check gates go through the flake.
+Release the six `pg-migrate` packages to Hackage using the Haskell PVP version
+scheme (`A.B.C.D`). This is a Nix and Cabal project using GHC 9.12.4. The public
+Haskell API, ledger schema, ordered manifest, JSON schema, PostgreSQL support
+matrix, and history-import evidence semantics are separate compatibility
+surfaces. Read these checked-in contracts before proposing a release:
 
-## Versioning Strategy
+- `docs/reference/release-policy.md`
+- `docs/reference/compatibility.md`
+- `docs/release-checklist.md`
+- the six package `CHANGELOG.md` files
 
-All three packages share the **same version number** and are released
-together. A single annotated git tag `v<version>` marks each release.
+Publishing, pushing, tagging, and creating a GitHub release are external
+mutations. Preparing and validating a release does not authorize them. Obtain
+explicit user confirmation at the approval points below.
 
-The Haskell PVP version format is `A.B.C.D`:
+## Versioning strategy
 
-- `A.B` — **major**: breaking API changes (removed/renamed exports, changed
-  types, changed semantics).
-- `C` — **minor**: backwards-compatible API additions (new exports, new
-  modules, new instances).
-- `D` — **patch**: bug fixes, docs, internal-only changes, performance work.
+All six published packages use the same version and are released as one
+coherent set. A single annotated git tag, `v<version>`, marks the release.
 
-## Packages (in dependency order)
+The PVP version format is `A.B.C.D`:
 
-Publish in this order — each package depends on the ones before it:
+- `A.B` is the major version. Increment `B` for breaking API or semantic
+  changes and reset `C` and `D` to zero.
+- `C` is the minor version. Increment it for backward-compatible API additions,
+  a newly supported PostgreSQL major, or compatibility-removal notice, and
+  reset `D` to zero.
+- `D` is the patch version. Increment it for fixes, documentation, tests,
+  performance, or internal-only work that preserves every public contract.
 
-1. **pg-migrate** (`pg-migrate/`) — Hasql-native PostgreSQL migration engine.
-   No internal dependencies.
-2. **pg-migrate-embed** (`pg-migrate-embed/`) — compile-time ordered SQL
-   manifests. Depends on `pg-migrate`.
-3. **pg-migrate-cli** (`pg-migrate-cli/`) — reusable command parsers and
-   renderers. Depends on `pg-migrate` **and** `pg-migrate-embed`.
+Ledger, manifest, and JSON version constants change only when their respective
+contracts change. Never bump all three merely because a package version changes.
+Import mapping/evidence semantics and the supported PostgreSQL majors are also
+public contracts; update their reference documents and acceptance evidence when
+they change.
 
-The following are **NOT released** to Hackage:
+## Published packages, in dependency order
 
-- **pg-migrate-crash-helper** — an internal `executable` component of the
-  `pg-migrate` package used only by its integration test suite.
-- **recompilation-probe** (`pg-migrate-embed/test/recompilation/fixture/`) — a
-  test fixture cabal package; it is not listed in `cabal.project` and exists
-  only to exercise `pg-migrate-embed`'s recompilation behavior.
+Publish in this order. A package must not be uploaded until every new internal
+dependency it needs is live on Hackage:
+
+1. `pg-migrate` (`pg-migrate/`) — core plan model, ledger, runner, repair,
+   inspection, and generic history importer. No internal dependency.
+2. `pg-migrate-embed` (`pg-migrate-embed/`) — ordered manifest validation,
+   exact-byte Template Haskell embedding, and migration authoring. Depends on
+   `pg-migrate`.
+3. `pg-migrate-cli` (`pg-migrate-cli/`) — reusable parsers, dispatch, text,
+   completion, and JSON contracts. Depends on `pg-migrate` and
+   `pg-migrate-embed`.
+4. `pg-migrate-import-codd` (`pg-migrate-import-codd/`) — Codd V1–V5 history
+   adapter. Depends on `pg-migrate` and `pg-migrate-cli`.
+5. `pg-migrate-import-hasql-migration`
+   (`pg-migrate-import-hasql-migration/`) — qualified-table
+   `hasql-migration` history adapter. Depends on `pg-migrate` and
+   `pg-migrate-cli`.
+6. `pg-migrate-test-support` (`pg-migrate-test-support/`) — public
+   `ephemeral-pg` test helper. Depends on `pg-migrate`. It could technically be
+   uploaded immediately after core, but publishing it last keeps the primary
+   runtime chain together.
+
+The following components are not published as independent Hackage packages:
+
+- `pg-migrate-basic-example` (`examples/basic/`) is a runnable repository and
+  source-distribution example, not part of the six-package release set.
+- `pg-migrate-crash-helper` is an internal executable component used by core
+  integration tests.
+- `recompilation-probe`
+  (`pg-migrate-embed/test/recompilation/fixture/`) is a source fixture used to
+  prove Template Haskell recompilation behavior.
 
 ## Arguments
 
 `$ARGUMENTS` is optional:
 
-- `major`, `minor`, or `patch` — the bump level.
-- If omitted, determine the bump level from the changes (see step 2).
+- `initial` publishes the already prepared coherent version when no release tag
+  exists.
+- `major`, `minor`, or `patch` forces that bump proposal.
+- If omitted, infer whether this is the initial publication or which bump the
+  committed changes require.
 
 ## Steps
 
-### 1. Determine what changed since the last release
+### 1. Inspect the current release state
 
-- Read the current version from `pg-migrate/pg-migrate.cabal` (all packages
-  share the same version).
-- Find the latest git tag matching `v*` (`git tag --list 'v*'`) to identify
-  the last release point. There may be none yet (this is a pre-1.0 project).
-- Run `git log --oneline <last-tag>..HEAD` (or `git log --oneline` if there is
-  no tag) to list commits since the last release.
-- If there are no commits since the last tag, tell the user there is nothing
-  to release and stop.
+Run from the repository root:
 
-Present a summary showing:
+```bash
+mori show --full
+git status --short
+git tag --list 'v*' --sort=-version:refname
+git log --oneline --decorate
+```
 
-- Current version
-- Last release tag (or "none")
-- Number of commits since last release
-- Which package directories (`pg-migrate/`, `pg-migrate-embed/`,
-  `pg-migrate-cli/`) have changes
+Read the version from every production cabal file, not just core:
 
-### 2. Determine the next version using PVP
+```text
+pg-migrate/pg-migrate.cabal
+pg-migrate-embed/pg-migrate-embed.cabal
+pg-migrate-cli/pg-migrate-cli.cabal
+pg-migrate-import-codd/pg-migrate-import-codd.cabal
+pg-migrate-import-hasql-migration/pg-migrate-import-hasql-migration.cabal
+pg-migrate-test-support/pg-migrate-test-support.cabal
+```
 
-Rules:
+All six versions must agree. Find the latest `v*` tag and inspect commits and
+file changes since it. If no tag exists, this may be the initial 1.0
+publication; do not mechanically bump an already prepared `1.0.0.0` candidate
+to `1.0.0.1`. If a current version is already newer than the latest tag, treat
+it as the prepared release candidate and verify that its bump is sufficient.
 
-- If `$ARGUMENTS` is `major`, `minor`, or `patch`, use that bump level.
-- Otherwise, analyze the commits (Conventional Commits are used in this repo)
-  to determine the appropriate bump:
-  - `feat!:` / `BREAKING CHANGE:` / "remove"/"rename"/"change type" → **major**
-  - `feat:` / "add"/"new export"/"new module" → **minor**
-  - `fix:` / `docs:` / `refactor:` / `test:` / `chore:` / internal-only → **patch**
-- Present the proposed bump to the user and ask for confirmation before
-  proceeding.
+Present the current version, last tag or `none`, commit count, changed package
+directories, changed compatibility surfaces, and whether the worktree contains
+unrelated changes. Preserve unrelated user changes throughout the workflow.
 
-Increment the version:
+### 2. Propose the release version
 
-- **major**: increment `B`, reset `C` and `D` to 0 (e.g. `0.1.0.0` → `0.2.0.0`)
-- **minor**: increment `C`, reset `D` to 0 (e.g. `0.1.0.0` → `0.1.1.0`)
-- **patch**: increment `D` (e.g. `0.1.0.0` → `0.1.0.1`)
+If the argument is `initial`, require that no release tag exists and propose the
+coherent current version. If the argument forces a bump, apply it. Otherwise use
+Conventional Commits plus the actual API/contract diff:
 
-### 3. Update versions, internal bounds, and changelogs
+- `feat!:`, `BREAKING CHANGE:`, removed/renamed exports, changed types, or
+  incompatible semantics require a major bump.
+- Backward-compatible exports/modules, a new tested PostgreSQL major, or
+  advance removal notice require a minor bump.
+- `fix:`, `docs:`, `refactor:`, `test:`, `chore:`, and internal changes that
+  preserve all contracts require a patch bump.
 
-#### Version update
+Examples from `1.0.0.0` are `1.1.0.0` for major, `1.0.1.0` for minor, and
+`1.0.0.1` for patch.
 
-Edit all three package cabal files to set the new version:
+Explain the evidence for the proposed level and ask the user to confirm the
+version before editing files. This is the first mandatory approval point.
 
-- `pg-migrate/pg-migrate.cabal`
-- `pg-migrate-embed/pg-migrate-embed.cabal`
-- `pg-migrate-cli/pg-migrate-cli.cabal`
+### 3. Update versions, bounds, contracts, and changelogs
 
-Note: an upstream cabal's version may already have been bumped mid-cycle (e.g.
-so a downstream's lower bound can be declared). Verify all three cabals are at
-the target version before committing.
+Set the approved version in all six production cabal files. The example may
+track the coherent repository version for source-distribution testing, but it
+is not published.
 
-#### Internal dependency bound update
+Keep internal library dependency bounds PVP-compatible. The v1 series uses
+`>= 1.0 && < 1.1`. For a new `A.B` series use `>= A.B && < A.(B+1)`. Raise a
+lower bound to the exact new version only when downstream code truly consumes
+same-cycle upstream API or behavior; do not tighten bounds mechanically. Audit
+these library edges:
 
-Set PVP-compatible bounds matching the new version everywhere an internal
-package appears in a downstream cabal:
+```text
+pg-migrate-embed -> pg-migrate
+pg-migrate-cli -> pg-migrate, pg-migrate-embed
+pg-migrate-import-codd -> pg-migrate, pg-migrate-cli
+pg-migrate-import-hasql-migration -> pg-migrate, pg-migrate-cli
+pg-migrate-test-support -> pg-migrate
+```
 
-- `pg-migrate-embed/pg-migrate-embed.cabal` — `pg-migrate` in the `library`
-  and the `pg-migrate-embed-test` test-suite.
-- `pg-migrate-cli/pg-migrate-cli.cabal` — `pg-migrate` and `pg-migrate-embed`
-  in the `library`, and `pg-migrate` in the `pg-migrate-cli-test` test-suite.
+Test-suite references to workspace packages may remain unbounded because Cabal
+resolves the local packages; the published library stanzas are the consumer
+contract.
 
-Use `<pkg> ^>=A.B.C.D` for the new version. (Today these internal
-dependencies are declared without a bound; add the bounds as part of the
-release.)
+For each of the six packages, add a dated section to its `CHANGELOG.md`, above
+older entries, and ensure the cabal file includes
+`extra-doc-files: CHANGELOG.md`. Move any Unreleased notes into the versioned
+section. Group material changes under Breaking Changes, New Features, Bug
+Fixes, and Other Changes, omitting empty groups.
 
-#### Changelog update
+Update every affected compatibility artifact:
 
-- For each published package, maintain a `CHANGELOG.md` in its package
-  directory (`pg-migrate/CHANGELOG.md`, `pg-migrate-embed/CHANGELOG.md`,
-  `pg-migrate-cli/CHANGELOG.md`). Create it if missing. Add a new section for
-  the new version above previous entries, using today's date in `YYYY-MM-DD`
-  format.
-- If a package cabal does not yet reference its changelog, add
-  `extra-doc-files: CHANGELOG.md` so it ships in the sdist and renders on
-  Hackage.
-- Move any "Unreleased" content into the new version section.
-- Summarize commits since the last release, grouped by (include only
-  non-empty categories):
-  - **Breaking Changes** (major)
-  - **New Features** (minor or major)
-  - **Bug Fixes**
-  - **Other Changes** (docs, refactoring, tests, internal)
-- Also maintain a root `CHANGELOG.md` covering the release as a whole; create
-  it if it does not exist.
+- `docs/reference/compatibility.md` for toolchain, dependency, or PostgreSQL
+  support changes.
+- `docs/reference/release-policy.md` if version policy changes.
+- `docs/reference/ledger-v1.md`, `manifest-v1.md`, or `json-v1.md` only when
+  that independent contract changes.
+- the relevant user/operator guides for behavior changes.
+- `docs/release-checklist.md` to name the candidate version and reset evidence
+  items until the new run proves them.
+- `mori.dhall` when packages, dependencies, lifecycle, or registered docs
+  change.
 
-Show the user ALL changes (version bumps, the internal bounds in
-`pg-migrate-embed` and `pg-migrate-cli`, and changelog entries) for review
-before committing.
+Show the complete version, bound, contract, checklist, and changelog diff to the
+user before committing anything.
 
-### 4. Verify — format, build, test, flake check
+### 4. Run the complete local release gate
 
-Run these from the repo root inside the Nix dev shell. Stop and fix on any
-failure before proceeding.
+Stop and fix every failure. Do not silently skip PostgreSQL-backed or
+source-distribution tests.
 
-1. `nix fmt` — format (nixpkgs-fmt + fourmolu + cabal-fmt). Re-review the diff
-   afterward.
-2. `cabal build all` — build every package and component.
-3. Unit tests (no database required):
-   - `cabal test pg-migrate:pg-migrate-unit`
-   - `cabal test pg-migrate-embed:pg-migrate-embed-test`
-   - `cabal test pg-migrate-embed:pg-migrate-embed-recompilation`
-   - `cabal test pg-migrate-cli:pg-migrate-cli-test`
-4. Integration tests (**Postgres-backed**, strongly recommended): the dev
-   shell exports `PGHOST`/`PGDATA`/`PGDATABASE`. Ensure a database exists
-   (`just create-database`, starting Postgres first if needed), then run
-   `cabal test pg-migrate:pg-migrate-integration` (or `cabal test all`). If a
-   database is genuinely unavailable, note explicitly to the user that the
-   integration suite was skipped — do not silently omit it.
-5. `nix flake check` — treefmt + pre-commit gates.
-   - The flake exposes `packages.default`, `checks`, `devShells`, and
-     `formatter`.
-   - **Newly created files (e.g. a new `CHANGELOG.md`) must be `git add`-ed
-     before nix evaluation will see them**, since nix reads the git tree.
-   - If any check fails, fix it before proceeding.
+First format, validate package metadata, build, document, and create source
+distributions:
 
-### 5. Commit, tag, and push
+```bash
+nix fmt
+nix develop -c bash -euo pipefail -c 'for dir in pg-migrate pg-migrate-embed pg-migrate-cli pg-migrate-import-codd pg-migrate-import-hasql-migration pg-migrate-test-support examples/basic; do (cd "$dir" && cabal check); done'
+nix develop -c cabal build all
+nix develop -c cabal haddock all
+nix develop -c cabal sdist all
+```
 
-- Stage all modified `.cabal` and `CHANGELOG.md` files.
-- Create a single commit using a Conventional Commits message:
-  `chore(release): <new-version>` (repo convention). The body should summarize
-  what's in the release and why this bump level was chosen.
-- Create a single annotated tag: `git tag -a v<version> -m "Release <version>"`.
-- Push the commit and tag: `git push && git push --tags`.
+Treat missing documentation on any public facade as a release defect. The
+expected facades are:
 
-### 6. Publish to Hackage (in dependency order)
+```text
+Database.PostgreSQL.Migrate
+Database.PostgreSQL.Migrate.History
+Database.PostgreSQL.Migrate.Embed
+Database.PostgreSQL.Migrate.CLI
+Database.PostgreSQL.Migrate.History.Codd
+Database.PostgreSQL.Migrate.History.HasqlMigration
+Database.PostgreSQL.Migrate.Test
+```
 
-For EACH package, in dependency order
-(**pg-migrate → pg-migrate-embed → pg-migrate-cli**):
+Unpack the newly generated tarballs into a fresh directory under `.dev/`, make
+a temporary `cabal.project` that lists all six unpacked packages plus the
+unpacked example, and set `tests: True`. From that project, run `cabal build
+all` and `cabal test all` once in `.#postgresql17` and once in
+`.#postgresql18`. This is mandatory: it proves manifests, fixtures, and the
+recompilation test do not depend on checkout-only files or directory names.
 
-1. `cd <pkg-dir>`.
-2. `cabal check` — verify no packaging issues.
-3. `cabal sdist`, then `cabal upload --publish <tarball-path>` to publish the
-   source distribution.
-4. `cabal haddock --haddock-for-hackage --haddock-hyperlink-source --haddock-quickjump`,
-   then `cabal upload --publish --documentation <docs-tarball-path>` to publish
-   docs.
-5. Report the Hackage URL:
-   `https://hackage.haskell.org/package/<pkg>-<version>`.
+Run the checkout acceptance matrix against both real server majors. Start and
+stop each server explicitly so the selected shell and data directory agree:
 
-**Do not** upload a package until every package it depends on has uploaded
-successfully — a downstream's bound requires the new upstream to already be on
-Hackage. So `pg-migrate` must be live before `pg-migrate-embed`, and both must
-be live before `pg-migrate-cli`.
+```bash
+nix develop .#postgresql17 -c process-compose up -D
+nix develop .#postgresql17 -c just acceptance
+nix develop .#postgresql17 -c process-compose down
 
-After all packages are published, present a summary:
+nix develop .#postgresql18 -c process-compose up -D
+nix develop .#postgresql18 -c just acceptance
+nix develop .#postgresql18 -c process-compose down
+```
+
+Each acceptance run must end with `PASS (15 groups)`. It includes the graph-
+aware production dependency closure. Also prove that the closure checker's
+negative path fails:
+
+```bash
+CHECK_PRODUCTION_CLOSURE_EXTRA_FORBIDDEN=base scripts/check-production-closure
+```
+
+The negative command must exit nonzero and report that `base` unexpectedly
+appears; a zero exit is a release failure.
+
+Run the documented example and documentation/registry checks:
+
+```bash
+nix develop -c cabal run pg-migrate-basic-example -- --help
+lychee --offline README.md docs
+mori validate
+mori show --full
+mori register
+mori registry show shinzui/pg-migrate --full
+```
+
+`mori registry show` must resolve all six packages and the checked-in release
+docs. Run `mori register` only after any `mori.dhall` changes are final.
+`nix flake check` is not a v1 release gate: the generated `packages.default`
+models a single Cabal package at the repository root and does not represent this
+multi-package workspace. The explicit Cabal, artifact, closure, and two-major
+matrix gates above are authoritative.
+
+Finally review `docs/release-checklist.md` line by line. Mark an item complete
+only from evidence produced by this candidate. Re-run `git diff --check` and
+review the full diff after all formatters and generated artifacts finish.
+
+### 5. Approve and commit the release candidate
+
+Present a compact evidence report containing:
+
+- the approved version and PVP rationale;
+- all six package versions and internal bounds;
+- warning-free Cabal checks and public Haddock coverage;
+- unpacked-sdist results for PostgreSQL 17 and 18;
+- checkout acceptance results for PostgreSQL 17 and 18;
+- example, link, Mori, and closure results;
+- the final changelog and release-checklist diff;
+- any unrelated worktree changes that will remain unstaged.
+
+Ask the user to approve the candidate commit. After approval, stage only the
+release files and create one Conventional Commit:
+
+```text
+chore(release): <version>
+```
+
+The body must summarize the release and explain the bump. Do not tag, push, or
+upload yet.
+
+### 6. Approve publication, then tag and push
+
+Ask separately for authorization to publish the approved commit. This is the
+second mandatory approval point and must explicitly cover creating the tag,
+pushing the commit/tag, six Hackage uploads, documentation uploads, and the
+GitHub release.
+
+After approval, create and verify the annotated tag, then push only the intended
+branch and tag:
+
+```bash
+git tag -a v<version> -m "Release <version>"
+git show --stat v<version>
+git push
+git push origin v<version>
+```
+
+### 7. Publish all six packages to Hackage
+
+For each package in the dependency order above:
+
+1. Enter its package directory.
+2. Run `cabal check` again.
+3. Run `cabal sdist` and inspect the printed tarball path.
+4. Upload it with `cabal upload --publish <tarball-path>`.
+5. Build Hackage documentation with
+   `cabal haddock --haddock-for-hackage --haddock-hyperlink-source --haddock-quickjump`.
+6. Upload the generated documentation tarball with
+   `cabal upload --publish --documentation <docs-tarball-path>`.
+7. Verify and report
+   `https://hackage.haskell.org/package/<package>-<version>` before continuing.
+
+If an upload fails, do not upload anything that depends on it. A core failure
+blocks all five downstream packages; an embed failure blocks CLI and both
+adapters; a CLI failure blocks both adapters. Test support has no downstream
+package in this release set.
+
+Report all six results:
 
 | Package | Version | Hackage URL |
 |---------|---------|-------------|
 | pg-migrate | X.Y.Z.W | https://hackage.haskell.org/package/pg-migrate-X.Y.Z.W |
 | pg-migrate-embed | X.Y.Z.W | https://hackage.haskell.org/package/pg-migrate-embed-X.Y.Z.W |
 | pg-migrate-cli | X.Y.Z.W | https://hackage.haskell.org/package/pg-migrate-cli-X.Y.Z.W |
+| pg-migrate-import-codd | X.Y.Z.W | https://hackage.haskell.org/package/pg-migrate-import-codd-X.Y.Z.W |
+| pg-migrate-import-hasql-migration | X.Y.Z.W | https://hackage.haskell.org/package/pg-migrate-import-hasql-migration-X.Y.Z.W |
+| pg-migrate-test-support | X.Y.Z.W | https://hackage.haskell.org/package/pg-migrate-test-support-X.Y.Z.W |
 
-### 7. Create GitHub release
+### 8. Create the GitHub release
 
-After all Hackage uploads succeed, create a GitHub release for the tag
-(`gh` is available):
+Only after all six package and documentation uploads are verified, create a
+GitHub release for `v<version>`. Build its notes from the six package changelog
+sections and include the six-row Hackage table. Attach or link source artifacts
+only if the user requested them. Report the GitHub release URL and re-check that
+the tag points at the approved release commit.
 
-```bash
-gh release create v<version> --title "v<version>" --notes "$(cat <<'EOF'
-## Packages
+## Non-negotiable rules
 
-| Package | Hackage |
-|---------|---------|
-| pg-migrate | https://hackage.haskell.org/package/pg-migrate-X.Y.Z.W |
-| pg-migrate-embed | https://hackage.haskell.org/package/pg-migrate-embed-X.Y.Z.W |
-| pg-migrate-cli | https://hackage.haskell.org/package/pg-migrate-cli-X.Y.Z.W |
-
-## What's Changed
-
-<changelog entries for this version from the root CHANGELOG.md>
-EOF
-)"
-```
-
-- Use the root `CHANGELOG.md` entries for the release notes body.
-- Include the Hackage links table so each package is easily discoverable.
-- Report the GitHub release URL when done.
-
-## Important
-
-- Always ask the user to confirm the version bump and changelogs before
-  committing.
-- Always publish in dependency order:
-  **pg-migrate → pg-migrate-embed → pg-migrate-cli**.
-- Never skip `cabal check`, the test suites, or `nix flake check`.
-- If any step fails (including `nix flake check`), stop and report the error
-  rather than continuing.
-- If any Hackage upload fails, do **NOT** upload packages that depend on it
-  (e.g. a `pg-migrate` failure blocks both `pg-migrate-embed` and
-  `pg-migrate-cli`; a `pg-migrate-embed` failure blocks `pg-migrate-cli`).
-- Run `nix fmt` before committing, and `git add` any new files before
-  `nix flake check` so nix's git-tree evaluation sees them.
-- The commit and tag should only be created AFTER user approval of all changes.
+- Keep all six package versions coherent.
+- Never weaken or conflate the independent API, ledger, manifest, JSON,
+  PostgreSQL, or import-evidence contracts to simplify a release.
+- Never skip warning-free `cabal check`, complete public Haddocks, unpacked
+  sdists, the production closure and negative proof, or either PostgreSQL
+  acceptance matrix.
+- Never publish a downstream package before the required upstream version is
+  live.
+- Never include `pg-migrate-basic-example`, crash helper, or recompilation probe
+  as independent Hackage uploads.
+- Preserve unrelated user changes and stage only the release candidate.
+- Require explicit approval before the release commit and separate explicit
+  approval before any tag, push, Hackage upload, documentation upload, or GitHub
+  release.
+- Stop on any failed gate or external mutation and report the exact state before
+  continuing.

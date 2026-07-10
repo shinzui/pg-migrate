@@ -127,8 +127,9 @@ and schema constants remain defined in code by their implementation plans.
   `just acceptance` passes against PostgreSQL 17.10 and 18.4.
 - [x] EP-11: Froze the six-package `1.0.0.0` API and version contracts, brought all public
   facades to complete Haddock coverage, published user/operator/reference documentation and
-  a runnable two-component example, registered the six packages and docs with Mori, and
-  proved checkout and unpacked-sdist suites on PostgreSQL 17 and 18 without publishing.
+  a runnable two-component example, synchronized the explicit release skill, registered the
+  six packages and docs with Mori, and proved checkout and unpacked-sdist suites on
+  PostgreSQL 17 and 18 without publishing.
 
 
 ## Surprises & Discoveries
@@ -155,6 +156,11 @@ and schema constants remain defined in code by their implementation plans.
   globs and a recompilation test coupled to checkout directory names. The release gate now
   proves the actual tarball layouts on both supported PostgreSQL majors.
 
+- Observation: the generated Nix `packages.default` assumes a single Cabal package at the
+  repository root and therefore is not an aggregate release gate for this multi-package
+  workspace. Cabal checks, unpacked sdists, production closure, and both PostgreSQL matrix
+  runs are the authoritative release evidence.
+
 
 ## Decision Log
 
@@ -173,6 +179,13 @@ and schema constants remain defined in code by their implementation plans.
 - Decision: Make JSON schema version 1 and the PostgreSQL 17/18 matrix release blockers.
   Rationale: Machine consumers and server-version rejection are public contracts, so they
   must be proven before documentation declares v1 stable.
+  Date: 2026-07-10
+
+- Decision: Keep candidate approval distinct from publication approval in the release
+  skill.
+  Rationale: Versioning and local evidence can be reviewed safely before separately
+  authorizing tags, pushes, six Hackage uploads, documentation uploads, and GitHub release
+  creation.
   Date: 2026-07-10
 
 
@@ -224,3 +237,7 @@ jobs passed.
 2026-07-10: Marked EP-11 and this MasterPlan complete after the API/documentation freeze,
 warning-free package checks, complete public Haddocks, example and link checks, Mori
 registration, unpacked-sdist tests, production closure, and PostgreSQL 17/18 acceptance.
+
+2026-07-10: Updated the release skill after completion auditing found its original
+three-package, pre-1.0 workflow did not cover the adapters, test support, independent
+contracts, artifact checks, Mori registry, or explicit publication approval boundary.
