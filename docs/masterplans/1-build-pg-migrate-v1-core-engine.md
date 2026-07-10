@@ -66,7 +66,7 @@ predecessor dependency or source-specific branch.
 |---|-------|------|-----------|-----------|--------|
 | 1 | Bootstrap the pg-migrate workspace and pure model | docs/plans/1-bootstrap-the-pg-migrate-workspace-and-pure-model.md | None | None | Complete |
 | 2 | Validate SQL and embed ordered manifests | docs/plans/2-validate-sql-and-embed-ordered-manifests.md | EP-1 | None | Complete |
-| 3 | Build the versioned ledger and plan verification | docs/plans/3-build-the-versioned-ledger-and-plan-verification.md | EP-1 | EP-2 | Not Started |
+| 3 | Build the versioned ledger and plan verification | docs/plans/3-build-the-versioned-ledger-and-plan-verification.md | EP-1 | EP-2 | In Progress |
 | 4 | Run transactional migrations under a dedicated lock | docs/plans/4-run-transactional-migrations-under-a-dedicated-lock.md | EP-2, EP-3 | None | Not Started |
 | 5 | Run and repair nontransactional migrations | docs/plans/5-run-and-repair-nontransactional-migrations.md | EP-4 | None | Not Started |
 | 6 | Import migration history through the generic model | docs/plans/6-import-migration-history-through-the-generic-model.md | EP-3, EP-4 | EP-5 | Not Started |
@@ -195,3 +195,6 @@ clarified the internal read-only boundary that EP-2 and EP-3 must consume.
 
 2026-07-10: Marked EP-2 complete after its final formatting, package builds, 65 core
 tests, 24 embed tests, and tracked-input recompilation test all passed.
+
+2026-07-10: Started EP-3 after confirming its hard dependency EP-1 and soft dependency
+EP-2 are complete.

@@ -1,5 +1,6 @@
 module Database.PostgreSQL.Migrate.Definition
   ( IdentifierError (..),
+    PostgresIdentifierError (..),
     DefinitionError (..),
     componentName,
     migrationName,
@@ -41,6 +42,15 @@ data IdentifierError
   | IdentifierContainsNonPrintableAscii !Char
   deriving stock (Generic, Eq, Show)
 
+data PostgresIdentifierError
+  = EmptyPostgresIdentifier
+  | PostgresIdentifierContainsNul
+  | PostgresIdentifierTooLong
+      { actualBytes :: !Int,
+        maximumBytes :: !Int
+      }
+  deriving stock (Generic, Eq, Show)
+
 data DefinitionError
   = InvalidComponentName
       { input :: !Text,
@@ -53,6 +63,10 @@ data DefinitionError
   | InvalidSql !SqlError
   | InvalidEmbeddedMigrationFile
       { file :: !FilePath
+      }
+  | InvalidLedgerSchema
+      { input :: !Text,
+        postgresIdentifierReason :: !PostgresIdentifierError
       }
   deriving stock (Generic, Eq, Show)
 

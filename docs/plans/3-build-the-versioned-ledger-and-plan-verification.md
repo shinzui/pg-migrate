@@ -26,7 +26,14 @@ fresh initialization and every mismatch as structured data rather than rendered 
 
 ## Progress
 
-(No implementation work has started.)
+- [x] (2026-07-10 11:57 PDT) Milestone 1: added an opaque PostgreSQL identifier and
+  ledger configuration, immutable stored-row/report/error types, and five focused
+  configuration tests; all 70 core unit tests pass.
+- [ ] Milestone 2: implement the versioned ledger DDL and transactional initialization
+  and upgrade sessions.
+- [ ] Milestone 3: load typed ledger snapshots and compare them with declared plans.
+- [ ] Milestone 4: expose status and strict verification behavior, add PostgreSQL
+  integration coverage, and complete final validation.
 
 
 ## Surprises & Discoveries
@@ -45,6 +52,18 @@ fresh initialization and every mismatch as structured data rather than rendered 
 - Decision: Separate pure plan/row comparison from Hasql loading.
   Rationale: Prefix, checksum, position, kind, mode, status, and unknown-row behavior can
   be exhaustively tested without a database and reused by run, status, verify, and import.
+  Date: 2026-07-10
+
+- Decision: Validate ledger schema names as PostgreSQL quoted identifiers: non-empty,
+  NUL-free UTF-8 of at most 63 bytes, with escaping deferred to the SQL builder.
+  Rationale: quoted identifiers legitimately include spaces, Unicode, and double quotes;
+  rejecting them would make the advertised safe quoting contract artificially narrow.
+  Date: 2026-07-10
+
+- Decision: Use hexadecimal `0x70675F6D69677261` as the stable default advisory lock
+  key.
+  Rationale: the bytes read as the recognizable prefix `pg_migra`, fit in signed `Int64`,
+  and give this engine a project-owned constant rather than relying on runtime hashing.
   Date: 2026-07-10
 
 
@@ -187,3 +206,12 @@ verifyFromSnapshot :: MigrationPlan -> LedgerSnapshot -> VerificationReport
 lock; `docs/plans/4-run-transactional-migrations-under-a-dedicated-lock.md` supplies that
 bracket. No function in this plan writes stdout, reads environment variables, or exits the
 process.
+
+
+## Revision Note
+
+2026-07-10: Started implementation and expanded Progress into the four independently
+verifiable milestones from the plan of work.
+
+2026-07-10: Recorded the completed validated configuration and immutable ledger model,
+including the quoted-identifier and stable-lock-key decisions.

@@ -17,7 +17,17 @@ module Database.PostgreSQL.Migrate
     MigrationPlan,
     migrationPlan,
     resolveMigrationPlan,
+    LedgerConfig,
+    defaultLedgerConfig,
+    ledgerConfig,
+    MigrationStatus (..),
+    UnknownMigrationsPolicy (..),
+    StoredMigration (..),
+    VerificationIssue (..),
+    VerificationReport (..),
+    StatusReport (..),
     IdentifierError (..),
+    PostgresIdentifierError (..),
     SqlError (..),
     DefinitionError (..),
     PlanError (..),
@@ -27,6 +37,7 @@ where
 import Database.PostgreSQL.Migrate.Definition
   ( DefinitionError (..),
     IdentifierError (..),
+    PostgresIdentifierError (..),
     componentName,
     migrationComponent,
     migrationComponentFromEmbeddedSql,
@@ -36,6 +47,17 @@ import Database.PostgreSQL.Migrate.Definition
     sessionMigration,
     sqlMigration,
     transactionMigration,
+  )
+import Database.PostgreSQL.Migrate.Ledger.Types
+  ( LedgerConfig,
+    MigrationStatus (..),
+    StatusReport (..),
+    StoredMigration (..),
+    UnknownMigrationsPolicy (..),
+    VerificationIssue (..),
+    VerificationReport (..),
+    defaultLedgerConfig,
+    ledgerConfig,
   )
 import Database.PostgreSQL.Migrate.Plan
   ( PlanError (..),

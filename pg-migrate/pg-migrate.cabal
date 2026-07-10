@@ -30,6 +30,7 @@ library
 
   other-modules:
     Database.PostgreSQL.Migrate.Definition
+    Database.PostgreSQL.Migrate.Ledger.Types
     Database.PostgreSQL.Migrate.Plan
     Database.PostgreSQL.Migrate.Sql
     Database.PostgreSQL.Migrate.Sql.Scanner
@@ -44,6 +45,7 @@ library
     , hasql-transaction  >=1.2  && <1.3
     , ram                >=0.20 && <0.23
     , text               >=2.1  && <2.2
+    , time               >=1.12 && <1.15
 
 test-suite pg-migrate-unit
   import:         common
@@ -52,6 +54,7 @@ test-suite pg-migrate-unit
   main-is:        Main.hs
   other-modules:
     Test.Definition
+    Test.Ledger
     Test.Plan
     Test.PublicApi
     Test.Sql
@@ -65,3 +68,4 @@ test-suite pg-migrate-unit
     , tasty-hunit       >=0.10 && <0.11
     , tasty-quickcheck  >=0.11 && <0.13
     , text              >=2.1  && <2.2
+    , time              >=1.12 && <1.15
