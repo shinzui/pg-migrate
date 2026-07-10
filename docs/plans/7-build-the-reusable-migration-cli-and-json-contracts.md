@@ -31,9 +31,16 @@ text/JSON for every command without requiring migration discovery.
   model, grouped parser, and parser-focused tests. All 8 parser tests pass, including
   grouped help, narrow verify wording, duration and conflict rejection, repair
   confirmation, validated targets, and absent implicit database settings.
-- [ ] (2026-07-10 14:28 PDT) Milestone 2: Add the consumer-supplied handler environment,
-  typed outcomes and exit classes, database inspection operations, execution dispatch,
-  manifest checking, authoring, and stable text rendering.
+- [ ] (2026-07-10 15:01 PDT) Milestone 2: Added the consumer-supplied handler environment,
+  typed outcomes and exit classes, public core inspection operations, execution dispatch,
+  manifest checking, authoring, filters, and stable text rendering. Pure handler coverage
+  passes; live status, strict verify, up, and repair acceptance remains.
+- [x] (2026-07-10 15:01 PDT) Milestone 3: Added JSON schema version 1 with ordered arrays,
+  lowercase SHA-256, UTC timestamps, integer milliseconds, constructor-derived error
+  tags, six checked-in golden contracts, and repeat-render stability coverage.
+- [ ] (2026-07-10 15:01 PDT) Milestone 4: Grouped top-level and subcommand help plus plain
+  and enriched parser-derived completion proofs pass. Live PostgreSQL command coverage
+  remains before this milestone is complete.
 
 
 ## Surprises & Discoveries
@@ -47,6 +54,10 @@ text/JSON for every command without requiring migration discovery.
   internally, but the public `migrationStatus` and `verifyMigrationPlan` operations named
   by `docs/initial-spec.md` are absent. Milestone 2 must close that public integration gap
   rather than reach through the opaque `ConnectionProvider` from the CLI package.
+
+- Observation: inspection filters must not change strict verification semantics. The
+  handler filters displayed applied, pending, and unknown arrays but retains the complete
+  issue list and computes `ExitVerificationFailed` from the unfiltered report.
 
 
 ## Decision Log
@@ -69,6 +80,13 @@ text/JSON for every command without requiring migration discovery.
   API reports `ExplicitMigrationNameRequired`.
   Date: 2026-07-10
 
+- Decision: Represent verification disagreement as `ok: false` with a structured `data`
+  report instead of an operational `error` object.
+  Rationale: pending or mismatched history is the successful result of running strict
+  verification, while connection, session, and runner failures are errors. Consumers can
+  inspect every issue without parsing an error message.
+  Date: 2026-07-10
+
 
 ## Outcomes & Retrospective
 
@@ -83,6 +101,11 @@ declared `pg-migrate-cli/` package directory is absent.
 2026-07-10: Completed Milestone 1 with the optional package, public command types, grouped
 parser, and eight passing parser contract tests; recorded Hasql connection-string behavior
 and the missing public core inspection operations for Milestone 2.
+
+2026-07-10: Added the public core inspection operations, typed handlers, stable text,
+inspection filters, JSON schema version 1, six golden contracts, and real plain/enriched
+completion protocol tests. Live PostgreSQL command acceptance remains for Milestones 2
+and 4.
 
 
 ## Context and Orientation

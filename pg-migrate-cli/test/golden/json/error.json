@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "command": "check",
+  "ok": false,
+  "error": {
+    "type": "manifest.invalid",
+    "message": "EmptyManifest"
+  }
+}

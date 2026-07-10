@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "command": "repair",
+  "ok": true,
+  "data": {
+    "id": "accounts/0001",
+    "operation": "markApplied",
+    "oldStatus": "failed",
+    "newStatus": "applied"
+  }
+}

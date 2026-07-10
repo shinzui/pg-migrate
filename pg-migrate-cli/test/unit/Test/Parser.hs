@@ -1,6 +1,7 @@
 module Test.Parser (tests) where
 
 import Data.ByteString.Char8 qualified as ByteString
+import Data.Foldable (traverse_)
 import Data.List (isInfixOf)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Set qualified as Set
@@ -21,7 +22,9 @@ tests =
       testCase "lock wait flags conflict" testConflictingWaitFlags,
       testCase "repair requires an operation and confirmation" testRepairConfirmation,
       testCase "repair validates the component/migration target" testRepairTarget,
-      testCase "parsing does not imply database settings" testNoImplicitDatabaseSettings
+      testCase "parsing does not imply database settings" testNoImplicitDatabaseSettings,
+      testCase "plain completion derives all commands from the parser" testPlainCompletion,
+      testCase "enriched completion derives execution flags and descriptions" testEnrichedCompletion
     ]
 
 testGroupedHelp :: Assertion
@@ -83,6 +86,37 @@ testNoImplicitDatabaseSettings =
   case parseSuccess ["status"] of
     Status StatusOptions {connection = ConnectionOptions {databaseSettings = Nothing}} -> pure ()
     result -> assertFailure ("expected status without database settings, received: " <> show result)
+
+testPlainCompletion :: Assertion
+testPlainCompletion = do
+  completion <- completionOutput False 0 []
+  traverse_ (\commandName -> assertContains commandName completion) expectedCommands
+
+testEnrichedCompletion :: Assertion
+testEnrichedCompletion = do
+  commands <- completionOutput True 0 []
+  assertContains "verify\tStrictly compare" commands
+  flags <- completionOutput True 2 ["test-migrate", "up"]
+  assertContains "--database-url\tPostgreSQL URI" flags
+  assertContains "--lock-timeout\tWait at most" flags
+  assertContains "--no-wait\tFail immediately" flags
+  assertContains "--statement-timeout\tPositive PostgreSQL" flags
+  assertContains "--json\tEmit JSON schema version 1" flags
+
+completionOutput :: Bool -> Int -> [String] -> IO String
+completionOutput enriched index wordsBeforeCursor =
+  case execParserPure defaultPrefs commandInfo arguments of
+    CompletionInvoked completion -> execCompletion completion "test-migrate"
+    Failure failure -> assertFailure (fst (renderFailure failure "test-migrate"))
+    Success parsedCommand -> assertFailure ("expected completion, received command: " <> show parsedCommand)
+  where
+    arguments =
+      ["--bash-completion-enriched" | enriched]
+        <> ["--bash-completion-index", show index]
+        <> concatMap (\word -> ["--bash-completion-word", word]) wordsBeforeCursor
+
+expectedCommands :: [String]
+expectedCommands = ["plan", "status", "verify", "list", "check", "up", "repair", "new"]
 
 commandInfo :: ParserInfo MigrationCommand
 commandInfo =

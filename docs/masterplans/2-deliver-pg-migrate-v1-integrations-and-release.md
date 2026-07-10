@@ -109,7 +109,10 @@ and schema constants remain defined in code by their implementation plans.
 - [ ] EP-7: Build the reusable migration CLI and JSON contracts. Implementation started
   on 2026-07-10 after confirming the core-engine MasterPlan and all six prerequisite
   ExecPlans are complete. Milestone 1 now provides the compiling optional package, typed
-  command tree, grouped parser, and eight passing parser contract tests.
+  command tree, grouped parser, and parser contract tests. Milestones 2 through 4 now add
+  the public core inspection boundary, typed handlers, stable text, JSON schema version 1,
+  six golden contracts, and parser-derived plain/enriched completions; live PostgreSQL CLI
+  acceptance remains.
 
 
 ## Surprises & Discoveries
@@ -152,3 +155,6 @@ that the optional CLI package has not yet been created.
 
 2026-07-10: Recorded EP-7 Milestone 1 completion and the public core inspection API gap
 that Milestone 2 must close.
+
+2026-07-10: Recorded the EP-7 handler, text, JSON, golden, and completion checkpoint; kept
+the database-backed command acceptance explicitly open.

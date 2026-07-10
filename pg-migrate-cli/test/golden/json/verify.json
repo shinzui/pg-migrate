@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "command": "verify",
+  "ok": false,
+  "data": {
+    "issues": [
+      {"type": "pendingMigration", "id": "accounts/0001"}
+    ],
+    "applied": [],
+    "pending": ["accounts/0001"],
+    "unknown": []
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "command": "status",
+  "ok": true,
+  "data": {
+    "issues": [],
+    "applied": ["accounts/0001"],
+    "pending": [],
+    "unknown": []
+  }
+}

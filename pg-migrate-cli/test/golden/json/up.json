@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "command": "up",
+  "ok": true,
+  "data": {
+    "startedAt": "2026-07-10T12:00:00Z",
+    "finishedAt": "2026-07-10T12:00:01Z",
+    "results": [
+      {
+        "id": "accounts/0001",
+        "outcome": "appliedNow",
+        "durationMilliseconds": 125
+      }
+    ]
+  }
+}

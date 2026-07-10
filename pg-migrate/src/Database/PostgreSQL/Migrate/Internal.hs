@@ -5,6 +5,10 @@ module Database.PostgreSQL.Migrate.Internal
     ComponentDescription (..),
     PlanDescription (..),
     planDescription,
+    componentNameText,
+    migrationNameText,
+    migrationIdComponent,
+    migrationIdName,
     migrationChecksumBytes,
     migrationTransactionMode,
     migrationKind,
@@ -108,9 +112,13 @@ import Database.PostgreSQL.Migrate.Types
     MigrationChecksum (..),
     MigrationKind (..),
     TransactionMode (..),
+    componentNameText,
     migrationActionOf,
+    migrationIdComponent,
+    migrationIdName,
     migrationKindOf,
     migrationModeOf,
+    migrationNameText,
   )
 import PgMigrate.Prelude
 

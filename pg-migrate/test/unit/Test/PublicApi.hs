@@ -10,8 +10,10 @@ import Database.PostgreSQL.Migrate
     migrationComponent,
     migrationFingerprint,
     migrationPlan,
+    migrationStatus,
     sessionMigration,
     transactionMigration,
+    verifyMigrationPlan,
   )
 import PgMigrate.Prelude
 import Test.Tasty (TestTree, testGroup)
@@ -25,7 +27,11 @@ tests =
         case publicPlan of
           Left err -> assertFailure (show err)
           Right (Left err) -> assertFailure (show err)
-          Right (Right plan) -> length (show plan) `seq` pure ()
+          Right (Right plan) ->
+            length (show plan) `seq`
+              migrationStatus `seq`
+                verifyMigrationPlan `seq`
+                  pure ()
     ]
 
 publicPlan :: Either DefinitionError (Either PlanError MigrationPlan)

@@ -43,6 +43,10 @@ module Database.PostgreSQL.Migrate
     ConnectionProvider,
     connectionProvider,
     connectionProviderFromSettings,
+    migrationStatus,
+    migrationStatusWith,
+    verifyMigrationPlan,
+    verifyMigrationPlanWith,
     runMigrationPlan,
     runMigrationPlanWith,
     RepairOperation (..),
@@ -138,6 +142,12 @@ import Database.PostgreSQL.Migrate.History
     stateValidator,
     withEquivalentHistory,
     withImportRunOptions,
+  )
+import Database.PostgreSQL.Migrate.Inspection
+  ( migrationStatus,
+    migrationStatusWith,
+    verifyMigrationPlan,
+    verifyMigrationPlanWith,
   )
 import Database.PostgreSQL.Migrate.Ledger.Types
   ( LedgerConfig,
