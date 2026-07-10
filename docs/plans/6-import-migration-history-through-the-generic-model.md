@@ -33,8 +33,10 @@ Haskell-migration restrictions without any Codd or `hasql-migration` dependency 
 - [x] (2026-07-10 13:46 PDT) Milestone 2: resolved target metadata only from the current
   plan, enforced per-component prefixes and exact payload/Haskell/equivalent-state rules,
   and built deterministic mapping-complete audit JSON; all 15 focused history tests pass.
-- [ ] Milestone 3: import target rows and matching audit rows atomically through the
-  shared dedicated-connection lifecycle.
+- [x] (2026-07-10 13:53 PDT) Milestone 3: reused the dedicated connection/version/
+  timeout/lock lifecycle, ran state validators read-only, classified exact idempotent
+  repeats and conflicts, and inserted all Applied/audit pairs in one transaction; all 3
+  focused PostgreSQL history tests pass.
 - [ ] Milestone 4: prove live import, idempotency, conflict, rollback, state validation,
   and full workspace acceptance.
 
@@ -219,3 +221,7 @@ all 95 unit tests passed without exposing a constructor that can forge StateVeri
 2026-07-10: Recorded pure target resolution after prefix gaps, unknown targets, checksum
 mismatches, Haskell payload claims, equivalent-state policy, and ambiguous requirements
 all received focused coverage.
+
+2026-07-10: Recorded the shared-lifecycle importer after live exact-payload and Haskell
+equivalent-state imports passed, an identical repeat reported AlreadyImported, changed
+evidence conflicted, and a forced second audit failure rolled back every target row.

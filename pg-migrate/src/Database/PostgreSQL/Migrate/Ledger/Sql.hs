@@ -15,10 +15,17 @@ module Database.PostgreSQL.Migrate.Ledger.Sql
     insertRepairAuditStatement,
     prepareMarkAppliedStatement,
     prepareRetryStatement,
+    HistoryLedgerRow (..),
+    StoredHistoryImport (..),
+    loadHistoryImportsStatement,
+    insertImportedMigrationStatement,
+    insertHistoryImportAuditStatement,
     ledgerVersionOneDdl,
   )
 where
 
+import Data.Aeson (Value)
+import Data.Aeson qualified as Aeson
 import Data.Functor.Contravariant (contramap)
 import Data.Int (Int32, Int64)
 import Data.Text qualified as Text
@@ -157,6 +164,27 @@ data RepairLedgerRow = RepairLedgerRow
     repairLedgerRunnerVersion :: !Text
   }
 
+data HistoryLedgerRow = HistoryLedgerRow
+  { historyLedgerMigrationId :: !MigrationId,
+    historyLedgerPosition :: !Int32,
+    historyLedgerChecksum :: !MigrationChecksum,
+    historyLedgerKind :: !MigrationKind,
+    historyLedgerTransactionMode :: !TransactionMode,
+    historyLedgerImportedAt :: !UTCTime,
+    historyLedgerSource :: !Text,
+    historyLedgerEvidence :: !ByteString,
+    historyLedgerReason :: !Text,
+    historyLedgerRunnerVersion :: !Text
+  }
+
+data StoredHistoryImport = StoredHistoryImport
+  { storedHistoryMigrationId :: !MigrationId,
+    storedHistorySource :: !Text,
+    storedHistoryEvidence :: !Value,
+    storedHistoryReason :: !Text
+  }
+  deriving stock (Generic, Eq, Show)
+
 insertAppliedMigrationStatement :: LedgerConfig -> Statement AppliedLedgerRow ()
 insertAppliedMigrationStatement config =
   Statement.unpreparable
@@ -261,6 +289,58 @@ prepareRetryStatement config =
     repairRetryEncoder
     Decoders.rowsAffected
 
+loadHistoryImportsStatement :: LedgerConfig -> Statement () [StoredHistoryImport]
+loadHistoryImportsStatement config =
+  Statement.unpreparable
+    ( Text.unwords
+        [ "SELECT component, migration, source, source_evidence, reason FROM",
+          qualifiedLedgerTable config "history_imports",
+          "ORDER BY component, migration"
+        ]
+    )
+    Encoders.noParams
+    (Decoders.rowList storedHistoryImportRow)
+
+insertImportedMigrationStatement :: LedgerConfig -> Statement HistoryLedgerRow ()
+insertImportedMigrationStatement config =
+  Statement.unpreparable
+    ( Text.unwords
+        [ "INSERT INTO",
+          qualifiedLedgerTable config "migrations",
+          "(component, migration, position, checksum, kind, transaction_mode, status,",
+          "started_at, finished_at, execution_time_ms, error, runner_version)",
+          "VALUES ($1, $2, $3, $4, $5, $6, 'applied', $7, $7, 0, NULL, $8)"
+        ]
+    )
+    historyMigrationEncoder
+    Decoders.noResult
+
+insertHistoryImportAuditStatement :: LedgerConfig -> Statement HistoryLedgerRow ()
+insertHistoryImportAuditStatement config =
+  Statement.unpreparable
+    ( Text.unwords
+        [ "INSERT INTO",
+          qualifiedLedgerTable config "history_imports",
+          "(component, migration, source, source_evidence, reason, imported_at, runner_version)",
+          "VALUES ($1, $2, $3, $4, $5, $6, $7)"
+        ]
+    )
+    historyAuditEncoder
+    Decoders.noResult
+
+storedHistoryImportRow :: Decoders.Row StoredHistoryImport
+storedHistoryImportRow =
+  StoredHistoryImport
+    <$> ( MigrationId
+            <$> (ComponentName <$> required Decoders.text)
+            <*> (MigrationName <$> required Decoders.text)
+        )
+    <*> required Decoders.text
+    <*> required (Decoders.jsonbBytes (first Text.pack . Aeson.eitherDecodeStrict'))
+    <*> required Decoders.text
+  where
+    required = Decoders.column . Decoders.nonNullable
+
 appliedLedgerRowEncoder :: Encoders.Params AppliedLedgerRow
 appliedLedgerRowEncoder =
   mconcat
@@ -314,6 +394,40 @@ repairRetryEncoder :: Encoders.Params RepairLedgerRow
 repairRetryEncoder =
   repairTransitionEncoder
     <> contramap repairLedgerRunnerVersion (Encoders.param (Encoders.nonNullable Encoders.text))
+
+historyMigrationEncoder :: Encoders.Params HistoryLedgerRow
+historyMigrationEncoder =
+  mconcat
+    [ contramap historyComponentText (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap historyMigrationText (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap historyLedgerPosition (Encoders.param (Encoders.nonNullable Encoders.int4)),
+      contramap historyChecksumBytes (Encoders.param (Encoders.nonNullable Encoders.bytea)),
+      contramap (encodeMigrationKind . historyLedgerKind) (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap (encodeTransactionMode . historyLedgerTransactionMode) (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap historyLedgerImportedAt (Encoders.param (Encoders.nonNullable Encoders.timestamptz)),
+      contramap historyLedgerRunnerVersion (Encoders.param (Encoders.nonNullable Encoders.text))
+    ]
+
+historyAuditEncoder :: Encoders.Params HistoryLedgerRow
+historyAuditEncoder =
+  mconcat
+    [ contramap historyComponentText (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap historyMigrationText (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap historyLedgerSource (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap historyLedgerEvidence (Encoders.param (Encoders.nonNullable Encoders.jsonbBytes)),
+      contramap historyLedgerReason (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap historyLedgerImportedAt (Encoders.param (Encoders.nonNullable Encoders.timestamptz)),
+      contramap historyLedgerRunnerVersion (Encoders.param (Encoders.nonNullable Encoders.text))
+    ]
+
+historyComponentText :: HistoryLedgerRow -> Text
+historyComponentText = componentNameText . migrationIdComponent . historyLedgerMigrationId
+
+historyMigrationText :: HistoryLedgerRow -> Text
+historyMigrationText = migrationNameText . migrationIdName . historyLedgerMigrationId
+
+historyChecksumBytes :: HistoryLedgerRow -> ByteString
+historyChecksumBytes HistoryLedgerRow {historyLedgerChecksum = MigrationChecksum bytes} = bytes
 
 repairComponentText :: RepairLedgerRow -> Text
 repairComponentText = componentNameText . migrationIdComponent . repairLedgerMigrationId

@@ -11,6 +11,8 @@ import Control.Concurrent
     tryPutMVar,
   )
 import Control.Exception (SomeException, bracket, finally, throwIO, try)
+import Data.Aeson qualified as Aeson
+import Data.ByteString (ByteString)
 import Data.Foldable (toList)
 import Data.Function ((&))
 import Data.IORef (atomicModifyIORef', newIORef, readIORef)
@@ -18,12 +20,14 @@ import Data.Int (Int64)
 import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text.Encoding
 import Data.Time (NominalDiffTime)
 import Data.Time.Clock.POSIX (getPOSIXTime)
+import Data.Time.LocalTime (LocalTime)
 import Database.PostgreSQL.Migrate
 import Database.PostgreSQL.Migrate qualified as Migrate
 import Database.PostgreSQL.Migrate.Internal
@@ -73,6 +77,9 @@ tests settings =
       testCase "repair rejects invalid targets" (testRepairValidation settings),
       testCase "terminated nontransactional helper leaves Running" (testCrashAmbiguity settings),
       testCase "nontransactional callback failure leaves Applied" (testNonTransactionalCallback settings),
+      testCase "history import is atomic, audited, and idempotent" (testHistoryImport settings),
+      testCase "history audit failure rolls back target rows" (testHistoryAtomicity settings),
+      testCase "equivalent history uses read-only state validation" (testHistoryEquivalentState settings),
       testCase "events follow durable migration boundaries" (testEventOrder settings),
       testCase "callback failure restores timeout and releases the lock" (testCallbackCleanup settings),
       testCase "two concurrent runners execute each effect once" (testConcurrentRunners settings),
@@ -469,6 +476,101 @@ testNonTransactionalCallback settings =
       _ <- acquireAdvisoryLock contender (lockKey config) NoWait >>= requireMigrationRight
       releaseAdvisoryLock contender (lockKey config) >>= requireCleanupRight
 
+testHistoryImport :: Settings.Settings -> IO ()
+testHistoryImport settings =
+  withTestLedger settings "history_import" $ \connection config -> do
+    let plan = historySqlPlan config
+        imported = historySqlImport config False
+        options = historyOptions config
+        provider = connectionProviderFromSettings settings
+        expectedIds = historyTarget <$> [1, 2]
+    firstReport <- importMigrationHistory options provider plan imported >>= requireHistoryRight
+    historyOutcomes firstReport @?= zip expectedIds (repeat Imported)
+    snapshot <- useSession connection (loadLedger config)
+    storedStatuses snapshot @?= [Applied, Applied]
+    [storedPosition | StoredMigration {position = storedPosition} <- storedMigrations snapshot] @?= [1, 2]
+    tableNames <- useSession connection (Session.statement (ledgerSchema config) tableNamesStatement)
+    assertBool "history import executed a target action" (all (`notElem` tableNames) ["import_action_1", "import_action_2"])
+    auditEvidence <- useSession connection (Session.statement () (historyAuditEvidenceStatement config))
+    auditEvidence @?= (2, True, True)
+    secondReport <- importMigrationHistory options provider plan imported >>= requireHistoryRight
+    historyOutcomes secondReport @?= zip expectedIds (repeat AlreadyImported)
+    migrationCount <- useSession connection (Session.statement () (migrationCountStatement config))
+    migrationCount @?= 2
+    importMigrationHistory options provider plan (historySqlImport config True)
+      >>= assertHistoryConflict (historyTarget 1)
+
+testHistoryAtomicity :: Settings.Settings -> IO ()
+testHistoryAtomicity settings =
+  withTestLedger settings "history_atomicity" $ \connection config -> do
+    initialize connection config >>= (@?= Right ())
+    useSession
+      connection
+      ( Session.script
+          ( "ALTER TABLE "
+              <> quotedSchema config
+              <> ".history_imports ADD CONSTRAINT reject_second_history CHECK (migration <> '0002-two')"
+          )
+      )
+    importMigrationHistory
+      (historyOptions config)
+      (connectionProviderFromSettings settings)
+      (historySqlPlan config)
+      (historySqlImport config False)
+      >>= assertHistoryDatabaseFailure
+    snapshot <- useSession connection (loadLedger config)
+    storedMigrations snapshot @?= []
+    auditCount <- useSession connection (Session.statement () (historyAuditCountStatement config))
+    auditCount @?= 0
+
+testHistoryEquivalentState :: Settings.Settings -> IO ()
+testHistoryEquivalentState settings = do
+  withTestLedger settings "history_equivalent" $ \connection config -> do
+    initialize connection config >>= (@?= Right ())
+    useSession connection (Session.script ("CREATE TABLE " <> quotedSchema config <> ".legacy_state (value integer)"))
+    let (plan, imported) = equivalentHistoryPlan config successfulStateValidator
+        baseOptions = historyOptions config
+        allowedOptions = withEquivalentHistory AllowEquivalentHistory baseOptions
+        provider = connectionProviderFromSettings settings
+        successfulStateValidator =
+          stateValidator historyStateKey $ do
+            exists <- Transaction.statement (ledgerSchema config <> ".legacy_state") stateTableExistsStatement
+            pure
+              ( if exists
+                  then Right (Aeson.object ["legacy_table" Aeson..= ("present" :: Text)])
+                  else Left (requireRight (stateValidationError "legacy state is missing"))
+              )
+    importMigrationHistory baseOptions provider plan imported
+      >>= assertEquivalentDisallowed (historyHaskellTarget)
+    report <- importMigrationHistory allowedOptions provider plan imported >>= requireHistoryRight
+    historyOutcomes report @?= [(historyHaskellTarget, Imported)]
+    tableNames <- useSession connection (Session.statement (ledgerSchema config) tableNamesStatement)
+    assertBool "equivalent import executed the Haskell target" ("haskell_action" `notElem` tableNames)
+  withTestLedger settings "history_validator_failure" $ \_ config -> do
+    let failedValidator =
+          stateValidator historyStateKey (pure (Left (requireRight (stateValidationError "domain state mismatch"))))
+        (plan, imported) = equivalentHistoryPlan config failedValidator
+    importMigrationHistory
+      (withEquivalentHistory AllowEquivalentHistory (historyOptions config))
+      (connectionProviderFromSettings settings)
+      plan
+      imported
+      >>= assertStateValidationFailure historyStateKey
+  withTestLedger settings "history_validator_read_only" $ \connection config -> do
+    let writeValidator =
+          stateValidator historyStateKey $ do
+            Transaction.sql (Text.Encoding.encodeUtf8 ("CREATE TABLE " <> quotedSchema config <> ".validator_write (value integer)"))
+            pure (Right Aeson.Null)
+        (plan, imported) = equivalentHistoryPlan config writeValidator
+    importMigrationHistory
+      (withEquivalentHistory AllowEquivalentHistory (historyOptions config))
+      (connectionProviderFromSettings settings)
+      plan
+      imported
+      >>= assertHistoryDatabaseFailure
+    tableNames <- useSession connection (Session.statement (ledgerSchema config) tableNamesStatement)
+    assertBool "read-only validator wrote state" ("validator_write" `notElem` tableNames)
+
 testEventOrder :: Settings.Settings -> IO ()
 testEventOrder settings =
   withTestLedger settings "events" $ \_ config -> do
@@ -714,6 +816,42 @@ repairAuditStatement config =
         )
     )
 
+historyAuditCountStatement :: LedgerConfig -> Statement.Statement () Int64
+historyAuditCountStatement config =
+  Statement.unpreparable
+    ("SELECT count(*) FROM " <> quotedSchema config <> ".history_imports")
+    Encoders.noParams
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
+
+historyAuditEvidenceStatement :: LedgerConfig -> Statement.Statement () (Int64, Bool, Bool)
+historyAuditEvidenceStatement config =
+  Statement.unpreparable
+    ( Text.unwords
+        [ "SELECT count(*),",
+          "bool_and(h.source_evidence #>> '{satisfying_evidence,0,applied_at,kind}' = 'local-without-zone'),",
+          "bool_and(m.started_at = m.finished_at AND m.started_at = h.imported_at)",
+          "FROM",
+          quotedSchema config <> ".history_imports h",
+          "JOIN",
+          quotedSchema config <> ".migrations m USING (component, migration)"
+        ]
+    )
+    Encoders.noParams
+    ( Decoders.singleRow
+        ( (,,)
+            <$> Decoders.column (Decoders.nonNullable Decoders.int8)
+            <*> Decoders.column (Decoders.nonNullable Decoders.bool)
+            <*> Decoders.column (Decoders.nonNullable Decoders.bool)
+        )
+    )
+
+stateTableExistsStatement :: Statement.Statement Text Bool
+stateTableExistsStatement =
+  Statement.preparable
+    "SELECT to_regclass($1) IS NOT NULL"
+    (Encoders.param (Encoders.nonNullable Encoders.text))
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+
 indexExistsStatement :: Statement.Statement Text Bool
 indexExistsStatement =
   Statement.preparable
@@ -809,6 +947,11 @@ requireRepairRight = \case
   Left repairError -> assertFailure (show repairError) >> error "assertFailure returned"
   Right report -> pure report
 
+requireHistoryRight :: Either HistoryImportError HistoryImportReport -> IO HistoryImportReport
+requireHistoryRight = \case
+  Left importError -> assertFailure (show importError) >> error "assertFailure returned"
+  Right report -> pure report
+
 requireThreadRun ::
   Either SomeException (Either MigrationError MigrationReport) ->
   IO MigrationReport
@@ -870,6 +1013,30 @@ assertRepairRunFailure = \case
   Left repairError -> assertFailure ("expected repaired action failure, received " <> show repairError)
   Right report -> assertFailure ("expected repaired action failure, received " <> show report)
 
+assertHistoryConflict :: MigrationId -> Either HistoryImportError HistoryImportReport -> IO ()
+assertHistoryConflict expected = \case
+  Left (HistoryImportConflict actual) -> actual @?= expected
+  Left importError -> assertFailure ("expected HistoryImportConflict, received " <> show importError)
+  Right report -> assertFailure ("expected HistoryImportConflict, received " <> show report)
+
+assertHistoryDatabaseFailure :: Either HistoryImportError HistoryImportReport -> IO ()
+assertHistoryDatabaseFailure = \case
+  Left (HistoryImportRunnerError DatabaseSessionFailed {}) -> pure ()
+  Left importError -> assertFailure ("expected history database failure, received " <> show importError)
+  Right report -> assertFailure ("expected history database failure, received " <> show report)
+
+assertEquivalentDisallowed :: MigrationId -> Either HistoryImportError HistoryImportReport -> IO ()
+assertEquivalentDisallowed expected = \case
+  Left (HistoryImportValidationFailed (HistoryEquivalentStateDisallowed actual)) -> actual @?= expected
+  Left importError -> assertFailure ("expected HistoryEquivalentStateDisallowed, received " <> show importError)
+  Right report -> assertFailure ("expected HistoryEquivalentStateDisallowed, received " <> show report)
+
+assertStateValidationFailure :: EvidenceKey -> Either HistoryImportError HistoryImportReport -> IO ()
+assertStateValidationFailure expected = \case
+  Left (HistoryStateValidationFailed actual _) -> actual @?= expected
+  Left importError -> assertFailure ("expected HistoryStateValidationFailed, received " <> show importError)
+  Right report -> assertFailure ("expected HistoryStateValidationFailed, received " <> show report)
+
 assertEventHandlerFailure :: Either MigrationError MigrationReport -> IO ()
 assertEventHandlerFailure = \case
   Left (EventHandlerFailed Nothing _) -> pure ()
@@ -925,6 +1092,10 @@ reportOutcomes :: MigrationReport -> [MigrationOutcome]
 reportOutcomes MigrationReport {results} =
   (\MigrationResult {outcome} -> outcome) <$> toList results
 
+historyOutcomes :: HistoryImportReport -> [(MigrationId, HistoryImportOutcome)]
+historyOutcomes HistoryImportReport {importResults} =
+  [(importedMigration, importOutcome) | HistoryImportResult {importedMigration, importOutcome} <- toList importResults]
+
 storedStatuses :: LedgerSnapshot -> [MigrationStatus]
 storedStatuses LedgerSnapshot {storedMigrations} =
   (\StoredMigration {status} -> status) <$> storedMigrations
@@ -948,6 +1119,95 @@ planFromMigrations component migrations =
                 (migrationComponent component Set.empty nonEmptyMigrations)
                 :| []
             )
+        )
+
+historyOptions :: LedgerConfig -> ImportOptions
+historyOptions config =
+  withImportRunOptions (withLedger config defaultRunOptions) defaultImportOptions
+
+historySqlPlan :: LedgerConfig -> MigrationPlan
+historySqlPlan config =
+  sqlPlan
+    "history-import"
+    [ ("0001-one", "CREATE TABLE " <> quotedSchema config <> ".import_action_1 (value integer)"),
+      ("0002-two", "CREATE TABLE " <> quotedSchema config <> ".import_action_2 (value integer)"),
+      ("0003-three", "CREATE TABLE " <> quotedSchema config <> ".import_action_3 (value integer)")
+    ]
+
+historySqlImport :: LedgerConfig -> Bool -> HistoryImport
+historySqlImport config changed =
+  requireRight
+    ( historyImport
+        "legacy-engine"
+        (Map.fromList [(historyEvidenceKey number, historyEvidence number) | number <- [1 .. 3]])
+        []
+        (historyMappingFor 1 :| [historyMappingFor 2])
+        "verified staging cutover"
+    )
+  where
+    historyEvidence number =
+      requireRight
+        ( sourceManifestVerifiedEvidence
+            ("legacy/000" <> Text.pack (show number) <> ".sql")
+            (Just (LocalTimeWithoutZone (read "2020-01-02 03:04:05" :: LocalTime)))
+            (Just (migrationFingerprint (historySqlBytes config number)))
+            ( Aeson.object
+                [ "ordinal" Aeson..= number,
+                  "revision" Aeson..= if changed && number == (1 :: Int) then (2 :: Int) else 1
+                ]
+            )
+        )
+    historyMappingFor number =
+      historyMapping
+        (historyTarget number)
+        (Evidence (historyEvidenceKey number))
+        (SamePayload (historyEvidenceKey number))
+
+historySqlBytes :: LedgerConfig -> Int -> ByteString
+historySqlBytes config number =
+  Text.Encoding.encodeUtf8
+    ( case number of
+        1 -> "CREATE TABLE " <> quotedSchema config <> ".import_action_1 (value integer)"
+        2 -> "CREATE TABLE " <> quotedSchema config <> ".import_action_2 (value integer)"
+        _ -> "CREATE TABLE " <> quotedSchema config <> ".import_action_3 (value integer)"
+    )
+
+historyTarget :: Int -> MigrationId
+historyTarget number =
+  requireRight
+    ( Migrate.migrationId
+        "history-import"
+        (case number of 1 -> "0001-one"; 2 -> "0002-two"; _ -> "0003-three")
+    )
+
+historyEvidenceKey :: Int -> EvidenceKey
+historyEvidenceKey number = requireRight (evidenceKey ("legacy:000" <> Text.pack (show number)))
+
+historyStateKey :: EvidenceKey
+historyStateKey = requireRight (evidenceKey "legacy:state")
+
+historyHaskellTarget :: MigrationId
+historyHaskellTarget = requireRight (Migrate.migrationId "history-equivalent" "0001-haskell")
+
+equivalentHistoryPlan :: LedgerConfig -> StateValidator -> (MigrationPlan, HistoryImport)
+equivalentHistoryPlan config validator =
+  ( planFromMigrations "history-equivalent" [migration],
+    requireRight
+      ( historyImport
+          "legacy-engine"
+          Map.empty
+          [validator]
+          (historyMapping historyHaskellTarget (Evidence historyStateKey) EquivalentState :| [])
+          "domain state verified"
+      )
+  )
+  where
+    migration =
+      requireRight
+        ( transactionMigration
+            "0001-haskell"
+            (migrationFingerprint "history-haskell-v1")
+            (Transaction.sql (Text.Encoding.encodeUtf8 ("CREATE TABLE " <> quotedSchema config <> ".haskell_action (value integer)")))
         )
 
 missingIndexPlan :: LedgerConfig -> Text -> Text -> Text -> MigrationPlan

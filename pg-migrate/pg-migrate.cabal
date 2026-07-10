@@ -97,7 +97,9 @@ test-suite pg-migrate-integration
   main-is:            Main.hs
   build-tool-depends: pg-migrate:pg-migrate-crash-helper
   build-depends:
+    , aeson              >=2.2  && <2.3
     , base               >=4.20 && <4.22
+    , bytestring         >=0.12 && <0.13
     , containers         >=0.7  && <0.8
     , hasql              >=1.10 && <1.11
     , hasql-transaction  >=1.2  && <1.3
