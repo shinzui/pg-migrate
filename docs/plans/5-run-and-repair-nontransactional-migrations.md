@@ -67,7 +67,7 @@ Nontransactional means the user action cannot share one atomic transaction with 
 result. Running is durable evidence that execution started, not a transient process flag.
 Failed means the client observed a Hasql failure and successfully recorded it; it does not
 prove PostgreSQL left no effect. Both statuses block ordinary `up` and strict `verify`.
-Repair is an operator assertion recorded in `pg_migrate.repairs`, never an automatic
+Repair is an operator assertion recorded in `pgmigrate.repairs`, never an automatic
 inference.
 
 Hasql 1.10 constructs an unprepared statement with
@@ -188,3 +188,9 @@ The completed `runMigrationPlan` and `runMigrationPlanWith` from
 `docs/plans/4-run-transactional-migrations-under-a-dedicated-lock.md` now handle all three
 actions—transactional SQL/transaction, nontransactional SQL, and session migration—without
 an unsupported-mode branch.
+
+
+## Revision Note
+
+2026-07-10: Updated the repair audit-table reference to the PostgreSQL-compatible default
+schema `pgmigrate`; PostgreSQL reserves the original draft's `pg_migrate` name.

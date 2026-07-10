@@ -4,6 +4,10 @@
 
 This document defines the first releasable version of `pg-migrate`.
 
+Implementation correction (2026-07-10): the metadata schema is `pgmigrate`, not the
+original draft's `pg_migrate`. PostgreSQL reserves the `pg_` prefix for system schemas and
+rejects user attempts to create one on every supported server version.
+
 `pg-migrate` is a Hasql-native migration library. It lets Haskell libraries own
 and embed their migrations, lets an application compose those migrations in an
 explicit order, and applies the result without exposing an engine-specific
@@ -541,7 +545,7 @@ build can leave an invalid index, so repair requires operator inspection.
 
 ## 12. Ledger
 
-The default ledger is `pg_migrate.migrations`. `LedgerConfig` may change the
+The default ledger is `pgmigrate.migrations`. `LedgerConfig` may change the
 metadata schema and advisory lock key; table names inside that schema are fixed.
 The schema is a validated PostgreSQL identifier and is always encoded through an
 identifier-safe SQL builder, never interpolated from raw user input.
@@ -554,13 +558,13 @@ data LedgerConfig = LedgerConfig
   deriving stock (Generic, Eq, Show)
 ```
 
-The public constructor is hidden. `defaultLedgerConfig` selects `pg_migrate`
+The public constructor is hidden. `defaultLedgerConfig` selects `pgmigrate`
 and the project lock key; `ledgerConfig` validates an alternate schema and key.
 
 ```sql
-CREATE SCHEMA IF NOT EXISTS pg_migrate;
+CREATE SCHEMA IF NOT EXISTS pgmigrate;
 
-CREATE TABLE pg_migrate.ledger_metadata
+CREATE TABLE pgmigrate.ledger_metadata
 (
     singleton       boolean     PRIMARY KEY DEFAULT true CHECK (singleton),
     schema_version  integer     NOT NULL CHECK (schema_version > 0),
@@ -568,7 +572,7 @@ CREATE TABLE pg_migrate.ledger_metadata
     runner_version  text        NOT NULL
 );
 
-CREATE TABLE pg_migrate.migrations
+CREATE TABLE pgmigrate.migrations
 (
     component          text        NOT NULL,
     migration          text        NOT NULL,
@@ -597,7 +601,7 @@ CREATE TABLE pg_migrate.migrations
     UNIQUE (component, position)
 );
 
-CREATE TABLE pg_migrate.history_imports
+CREATE TABLE pgmigrate.history_imports
 (
     component       text        NOT NULL,
     migration       text        NOT NULL,
@@ -609,10 +613,10 @@ CREATE TABLE pg_migrate.history_imports
     runner_version  text        NOT NULL,
     PRIMARY KEY (component, migration),
     FOREIGN KEY (component, migration)
-        REFERENCES pg_migrate.migrations (component, migration)
+        REFERENCES pgmigrate.migrations (component, migration)
 );
 
-CREATE TABLE pg_migrate.repairs
+CREATE TABLE pgmigrate.repairs
 (
     id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     component       text        NOT NULL,
@@ -626,7 +630,7 @@ CREATE TABLE pg_migrate.repairs
     repaired_by     text        NOT NULL DEFAULT current_user,
     runner_version  text        NOT NULL,
     FOREIGN KEY (component, migration)
-        REFERENCES pg_migrate.migrations (component, migration)
+        REFERENCES pgmigrate.migrations (component, migration)
 );
 ```
 
@@ -1086,7 +1090,7 @@ The importer:
 6. Inserts `Applied` rows using the current target metadata without executing
    user migration actions.
 7. Writes source evidence, mapping, reason, database role, runner version, and
-   timestamp to an append-only `pg_migrate.history_imports` audit table.
+   timestamp to an append-only `pgmigrate.history_imports` audit table.
 8. Commits the ledger and audit rows atomically.
 
 `SamePayload` is valid only for a SQL target. Importing a Haskell migration

@@ -45,6 +45,7 @@ data IdentifierError
 data PostgresIdentifierError
   = EmptyPostgresIdentifier
   | PostgresIdentifierContainsNul
+  | PostgresIdentifierHasReservedPrefix
   | PostgresIdentifierTooLong
       { actualBytes :: !Int,
         maximumBytes :: !Int

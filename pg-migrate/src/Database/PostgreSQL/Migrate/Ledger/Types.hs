@@ -75,7 +75,7 @@ data LedgerMetadata = LedgerMetadata
 
 data LedgerSnapshot = LedgerSnapshot
   { metadata :: !(Maybe LedgerMetadata),
-    migrations :: ![StoredMigration]
+    storedMigrations :: ![StoredMigration]
   }
   deriving stock (Generic, Eq, Show)
 
@@ -120,7 +120,7 @@ data LedgerError
 defaultLedgerConfig :: LedgerConfig
 defaultLedgerConfig =
   LedgerConfig
-    { schema = PostgresIdentifier "pg_migrate",
+    { schema = PostgresIdentifier "pgmigrate",
       lockKey = 0x70675F6D69677261
     }
 
@@ -133,6 +133,7 @@ postgresIdentifier :: Text -> Either DefinitionError PostgresIdentifier
 postgresIdentifier input
   | Text.null input = invalid EmptyPostgresIdentifier
   | Text.any (== '\NUL') input = invalid PostgresIdentifierContainsNul
+  | "pg_" `Text.isPrefixOf` input = invalid PostgresIdentifierHasReservedPrefix
   | byteLength > maximumPostgresIdentifierBytes =
       invalid
         PostgresIdentifierTooLong

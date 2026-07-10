@@ -19,6 +19,7 @@ tests =
       testCase "custom quoted identifiers are valid" testQuotedIdentifier,
       testCase "empty schema identifiers are rejected" testEmptyIdentifier,
       testCase "NUL schema identifiers are rejected" testNulIdentifier,
+      testCase "PostgreSQL's reserved schema prefix is rejected" testReservedIdentifier,
       testCase "schema identifiers use PostgreSQL's byte limit" testIdentifierLength,
       testCase "quoted identifiers escape embedded quotes" testIdentifierQuoting,
       testCase "ledger upgrade paths are ordered and bounded" testUpgradePath,
@@ -34,7 +35,7 @@ tests =
 
 testDefaultConfiguration :: IO ()
 testDefaultConfiguration =
-  defaultLedgerConfig @?= requireRight (ledgerConfig "pg_migrate" defaultLockKey)
+  defaultLedgerConfig @?= requireRight (ledgerConfig "pgmigrate" defaultLockKey)
 
 testQuotedIdentifier :: IO ()
 testQuotedIdentifier =
@@ -56,6 +57,15 @@ testNulIdentifier =
       InvalidLedgerSchema
         { input = "invalid\NULschema",
           postgresIdentifierReason = PostgresIdentifierContainsNul
+        }
+
+testReservedIdentifier :: IO ()
+testReservedIdentifier =
+  ledgerConfig "pg_custom" 17
+    @?= Left
+      InvalidLedgerSchema
+        { input = "pg_custom",
+          postgresIdentifierReason = PostgresIdentifierHasReservedPrefix
         }
 
 testIdentifierLength :: IO ()
@@ -193,7 +203,7 @@ testPendingVerification :: IO ()
 testPendingVerification = do
   let (firstDescription, secondDescription) = twoDescriptions
   verificationIssues
-    (verifyFromSnapshot twoMigrationPlan LedgerSnapshot {metadata = Nothing, migrations = []})
+    (verifyFromSnapshot twoMigrationPlan LedgerSnapshot {metadata = Nothing, storedMigrations = []})
     @?= [ PendingMigration (descriptionId firstDescription),
           PendingMigration (descriptionId secondDescription)
         ]
@@ -202,7 +212,7 @@ testLenientStatus :: IO ()
 testLenientStatus =
   case statusFromSnapshot
     twoMigrationPlan
-    LedgerSnapshot {metadata = Nothing, migrations = [unknownStoredMigration]} of
+    LedgerSnapshot {metadata = Nothing, storedMigrations = [unknownStoredMigration]} of
     StatusReport {issues, appliedMigrations, pendingMigrations, unknownMigrations} -> do
       issues @?= []
       appliedMigrations @?= []

@@ -74,9 +74,9 @@ loadLedger config = do
   if ledgerExists
     then do
       metadata <- Session.statement () (loadLedgerMetadataStatement config)
-      migrations <- Session.statement () (loadStoredMigrationsStatement config)
-      pure LedgerSnapshot {metadata = Just metadata, migrations}
-    else pure LedgerSnapshot {metadata = Nothing, migrations = []}
+      storedMigrations <- Session.statement () (loadStoredMigrationsStatement config)
+      pure LedgerSnapshot {metadata = Just metadata, storedMigrations}
+    else pure LedgerSnapshot {metadata = Nothing, storedMigrations = []}
 
 statusFromSnapshot :: MigrationPlan -> LedgerSnapshot -> StatusReport
 statusFromSnapshot = statusFromSnapshotWith AllowUnknownMigrations
@@ -86,8 +86,8 @@ statusFromSnapshotWith ::
   MigrationPlan ->
   LedgerSnapshot ->
   StatusReport
-statusFromSnapshotWith unknownPolicy plan LedgerSnapshot {migrations} =
-  case comparePlanWithLedger unknownPolicy (planDescription plan) migrations of
+statusFromSnapshotWith unknownPolicy plan LedgerSnapshot {storedMigrations} =
+  case comparePlanWithLedger unknownPolicy (planDescription plan) storedMigrations of
     VerificationReport
       { issues,
         appliedMigrations,
@@ -102,8 +102,8 @@ statusFromSnapshotWith unknownPolicy plan LedgerSnapshot {migrations} =
           }
 
 verifyFromSnapshot :: MigrationPlan -> LedgerSnapshot -> VerificationReport
-verifyFromSnapshot plan LedgerSnapshot {migrations} =
-  case comparePlanWithLedger RejectUnknownMigrations (planDescription plan) migrations of
+verifyFromSnapshot plan LedgerSnapshot {storedMigrations} =
+  case comparePlanWithLedger RejectUnknownMigrations (planDescription plan) storedMigrations of
     VerificationReport
       { issues,
         appliedMigrations,

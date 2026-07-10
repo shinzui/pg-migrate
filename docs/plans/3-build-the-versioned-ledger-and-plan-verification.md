@@ -35,8 +35,10 @@ fresh initialization and every mismatch as structured data rather than rendered 
 - [x] (2026-07-10 12:10 PDT) Milestone 3: added deterministic typed snapshot loading,
   exhaustive pure comparison, prefix/status/unknown policies, and strict-versus-lenient
   reports; all 80 core unit tests pass.
-- [ ] Milestone 4: expose status and strict verification behavior, add PostgreSQL
-  integration coverage, and complete final validation.
+- [x] (2026-07-10 12:29 PDT) Milestone 4: exposed read-only status and strict
+  verification sessions, repaired the idempotent database setup command, passed all 81
+  unit and 4 PostgreSQL 17 integration tests, formatted the workspace, and built all
+  components including `pg-migrate-embed`.
 
 
 ## Surprises & Discoveries
@@ -47,6 +49,18 @@ fresh initialization and every mismatch as structured data rather than rendered 
   warning-free under GHC 9.12 and future record-field changes.
   Evidence: the first build warned on updating `VerificationReport.issues`; explicit
   reconstruction removed the warning without changing the 80 passing unit tests.
+
+- Observation: PostgreSQL 17 rejects `CREATE SCHEMA pg_migrate` with SQLSTATE `42939`
+  because the `pg_` prefix is reserved for system schemas. This is a server invariant,
+  not an identifier-quoting problem, and PostgreSQL 18 retains the same rule.
+  Evidence: the first live integration run returned `unacceptable schema name
+  "pg_migrate_test_..."` before creating any ledger table.
+
+- Observation: psql variables such as `:'database'` are not expanded inside a
+  `--command` argument.
+  Evidence: the documented `just create-database` command failed at the colon; moving the
+  same identifier-safe statement to `scripts/create-database.sql` made the recipe create
+  the database successfully.
 
 
 ## Decision Log
@@ -63,9 +77,17 @@ fresh initialization and every mismatch as structured data rather than rendered 
   Date: 2026-07-10
 
 - Decision: Validate ledger schema names as PostgreSQL quoted identifiers: non-empty,
-  NUL-free UTF-8 of at most 63 bytes, with escaping deferred to the SQL builder.
+  NUL-free UTF-8 of at most 63 bytes, excluding the reserved lowercase `pg_` prefix, with
+  escaping deferred to the SQL builder.
   Rationale: quoted identifiers legitimately include spaces, Unicode, and double quotes;
   rejecting them would make the advertised safe quoting contract artificially narrow.
+  Date: 2026-07-10
+
+- Decision: Correct the default ledger schema from `pg_migrate` to `pgmigrate` throughout
+  the specification and coordinated plans.
+  Rationale: no supported PostgreSQL server permits users to create a `pg_` schema, while
+  `pgmigrate` preserves the intended recognizable dedicated namespace without requiring
+  the unsafe `allow_system_table_mods` server setting.
   Date: 2026-07-10
 
 - Decision: Use hexadecimal `0x70675F6D69677261` as the stable default advisory lock
@@ -84,7 +106,20 @@ fresh initialization and every mismatch as structured data rather than rendered 
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+`pg-migrate` now owns a self-describing, versioned four-table ledger and can compare a
+declared plan with typed stored rows before execution. Configuration rejects invalid,
+overlong, NUL-containing, and PostgreSQL-reserved schema names; every dynamic identifier
+is quoted. Status tolerates unknown history only under its explicit policy, while strict
+verification reports unknown and pending migrations alongside immutable metadata drift,
+interrupted states, duplicate rows, and prefix gaps.
+
+The live PostgreSQL 17 suite proves transactional installation, idempotent re-entry,
+seven migrations-table constraint classes, safe embedded quotes in custom schemas,
+read-only missing-ledger behavior, and mutation-free `LedgerTooNew` refusal. Final
+validation passed `nix fmt`, `cabal build all`, 81 core unit tests, and 4 database tests.
+The implementation also corrected the draft's impossible `pg_migrate` schema to
+`pgmigrate` and fixed the documented idempotent database-creation recipe. Connection and
+lock ownership remain intentionally deferred to EP-4.
 
 
 ## Context and Orientation
@@ -96,7 +131,7 @@ component-local position, checksum, kind, and transaction mode. The SQL plan in
 can build ledger comparison from manual migrations, but final integration should use its
 exact SQL checksum behavior.
 
-The default metadata schema is `pg_migrate`. `ledger_metadata` stores one schema version;
+The default metadata schema is `pgmigrate`. `ledger_metadata` stores one schema version;
 `migrations` stores durable execution state; `history_imports` and `repairs` are append-only
 audit tables even when those features are not yet invoked. A ledger version is the format
 of these tables, not a user migration number. A strict plan comparison means the database
@@ -179,7 +214,7 @@ Intention: intention_01kx6bkse1end9hcygcaemmtqc
 ## Validation and Acceptance
 
 On a fresh database, running the ledger initializer twice leaves schema version 1 and no
-duplicate metadata. Inspecting `pg_migrate.migrations` shows the exact constraints in the
+duplicate metadata. Inspecting `pgmigrate.migrations` shows the exact constraints in the
 specification. A custom valid schema such as `app_migrations` creates quoted objects there;
 an invalid or overlong identifier is rejected before Hasql execution.
 
@@ -211,7 +246,7 @@ structured errors. Required public or internal interfaces include:
 defaultLedgerConfig :: LedgerConfig
 ledgerConfig :: Text -> Int64 -> Either DefinitionError LedgerConfig
 comparePlanWithLedger :: UnknownMigrationsPolicy -> PlanDescription -> [StoredMigration] -> VerificationReport
-initializeOrUpgradeLedger :: LedgerConfig -> Text -> Hasql.Session.Session ()
+initializeOrUpgradeLedger :: LedgerConfig -> Text -> Hasql.Session.Session (Either LedgerError ())
 loadLedger :: LedgerConfig -> Hasql.Session.Session LedgerSnapshot
 statusFromSnapshot :: MigrationPlan -> LedgerSnapshot -> StatusReport
 verifyFromSnapshot :: MigrationPlan -> LedgerSnapshot -> VerificationReport
@@ -236,3 +271,7 @@ clarified the structured initialization result consumed by EP-4.
 
 2026-07-10: Recorded typed snapshot loading and exhaustive stable plan comparison,
 including the GHC record-update compatibility discovery.
+
+2026-07-10: Completed the live PostgreSQL integration milestone, corrected the reserved
+default schema and database setup recipe, synchronized dependent plans, and recorded the
+final workspace build and test evidence.

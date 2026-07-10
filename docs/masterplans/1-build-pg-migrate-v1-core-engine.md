@@ -66,7 +66,7 @@ predecessor dependency or source-specific branch.
 |---|-------|------|-----------|-----------|--------|
 | 1 | Bootstrap the pg-migrate workspace and pure model | docs/plans/1-bootstrap-the-pg-migrate-workspace-and-pure-model.md | None | None | Complete |
 | 2 | Validate SQL and embed ordered manifests | docs/plans/2-validate-sql-and-embed-ordered-manifests.md | EP-1 | None | Complete |
-| 3 | Build the versioned ledger and plan verification | docs/plans/3-build-the-versioned-ledger-and-plan-verification.md | EP-1 | EP-2 | In Progress |
+| 3 | Build the versioned ledger and plan verification | docs/plans/3-build-the-versioned-ledger-and-plan-verification.md | EP-1 | EP-2 | Complete |
 | 4 | Run transactional migrations under a dedicated lock | docs/plans/4-run-transactional-migrations-under-a-dedicated-lock.md | EP-2, EP-3 | None | Not Started |
 | 5 | Run and repair nontransactional migrations | docs/plans/5-run-and-repair-nontransactional-migrations.md | EP-4 | None | Not Started |
 | 6 | Import migration history through the generic model | docs/plans/6-import-migration-history-through-the-generic-model.md | EP-3, EP-4 | EP-5 | Not Started |
@@ -106,7 +106,7 @@ directives, and `pg-migrate-embed/src/Database/PostgreSQL/Migrate/Embed.hs`. EP-
 decode already-validated UTF-8 only at the Hasql 1.10 `Text` boundary and must never
 normalize bytes before comparing checksums.
 
-EP-3 owns the complete `pg_migrate` ledger schema, its row codecs, internal schema version,
+EP-3 owns the complete `pgmigrate` ledger schema, its row codecs, internal schema version,
 and comparison result consumed by EP-4, EP-5, and EP-6. No later plan may issue an
 independent variant of ledger DDL. EP-5 extends the already-created `migrations` and
 `repairs` tables; EP-6 writes `migrations` and `history_imports` in one transaction.
@@ -126,6 +126,9 @@ operations required by later packages even though the illustrative export list i
 - [x] (2026-07-10 11:45 PDT) EP-2: Added exact-byte SQL validation, ordered Template
   Haskell manifests, component construction, crash-conservative authoring, and a
   tracked-input recompilation proof; the final 65-test core and 24-test embed suites pass.
+- [x] (2026-07-10 12:29 PDT) EP-3: Added the versioned four-table ledger, typed snapshot
+  loading, exhaustive plan comparison, status and strict verification, and PostgreSQL 17
+  coverage; all 81 unit and 4 integration tests pass and the full workspace builds.
 
 
 ## Surprises & Discoveries
@@ -140,6 +143,11 @@ operations required by later packages even though the illustrative export list i
   graph used by Cabal. Later packages should reuse that package set rather than introduce
   independent pins, and upstream database-dependent checks must not replace each
   package's own hermetic tests.
+
+- Observation: PostgreSQL 17 and 18 reserve schema names beginning with lowercase `pg_`,
+  so the draft default `pg_migrate` cannot be created by an ordinary or superuser-backed
+  application connection. EP-3 corrected the coordinated default to `pgmigrate` and now
+  rejects the reserved prefix before Hasql execution.
 
 
 ## Decision Log
@@ -177,15 +185,24 @@ operations required by later packages even though the illustrative export list i
   constructors inaccessible preserves the singular safe public API.
   Date: 2026-07-10
 
+- Decision: Use `pgmigrate` as the v1 default metadata schema and cascade that name to
+  import, repair, and cutover plans.
+  Rationale: PostgreSQL reserves `pg_` for system schemas; the original `pg_migrate` name
+  is impossible on the explicitly supported PostgreSQL 17 and 18 servers unless an unsafe
+  server-wide developer setting is enabled.
+  Date: 2026-07-10
+
 
 ## Outcomes & Retrospective
 
 EP-1 delivered the compiling package, pure model, and plan semantics that unblock both
 EP-2 and EP-3. EP-2 delivered exact-byte SQL validation, ordered compile-time embedding,
 component construction, safe migration authoring, and explicit GHC dependency tracking.
-All final EP-1 and EP-2 formatting, build, unit, and package-specific acceptance checks
-passed. The initiative remains in progress: the ledger, execution, nontransactional
-repair, and history import are still owned by EP-3 through EP-6.
+EP-3 delivered the PostgreSQL-compatible `pgmigrate` ledger, versioned transactional DDL,
+typed loading, exhaustive plan comparison, and read-only status/verification sessions.
+All final EP-1 through EP-3 formatting, build, unit, package-specific, and available live
+database checks passed. The initiative remains in progress: execution, nontransactional
+repair, and history import are still owned by EP-4 through EP-6.
 
 
 ## Revision Note
@@ -198,3 +215,10 @@ tests, 24 embed tests, and tracked-input recompilation test all passed.
 
 2026-07-10: Started EP-3 after confirming its hard dependency EP-1 and soft dependency
 EP-2 are complete.
+
+2026-07-10: Corrected the cross-plan default ledger schema from impossible `pg_migrate`
+to PostgreSQL-compatible `pgmigrate` after live PostgreSQL 17 validation.
+
+2026-07-10: Marked EP-3 complete after the full workspace build, 81 unit tests, and 4
+PostgreSQL 17 integration tests passed, including installation, constraints, quoting,
+read-only loading, and future-version refusal.

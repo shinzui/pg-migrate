@@ -19,6 +19,8 @@ module Database.PostgreSQL.Migrate.Internal
     initializeOrUpgradeLedger,
     quotePostgresIdentifier,
     ledgerVersionOneDdl,
+    LedgerConfig (..),
+    ledgerSchemaText,
     comparePlanWithLedger,
     loadLedger,
     statusFromSnapshot,
@@ -49,10 +51,12 @@ import Database.PostgreSQL.Migrate.Ledger.Sql
     quotePostgresIdentifier,
   )
 import Database.PostgreSQL.Migrate.Ledger.Types
-  ( LedgerError (..),
+  ( LedgerConfig (..),
+    LedgerError (..),
     LedgerMetadata (..),
     LedgerSnapshot (..),
     PostgresIdentifier (..),
+    ledgerSchemaText,
   )
 import Database.PostgreSQL.Migrate.Plan
   ( ComponentDescription (..),

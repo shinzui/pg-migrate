@@ -72,3 +72,18 @@ test-suite pg-migrate-unit
     , tasty-quickcheck  >=0.11 && <0.13
     , text              >=2.1  && <2.2
     , time              >=1.12 && <1.15
+
+test-suite pg-migrate-integration
+  import:         common
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test/integration
+  main-is:        Main.hs
+  build-depends:
+    , base         >=4.20 && <4.22
+    , containers   >=0.7  && <0.8
+    , hasql        >=1.10 && <1.11
+    , pg-migrate
+    , tasty        >=1.5  && <1.6
+    , tasty-hunit  >=0.10 && <0.11
+    , text         >=2.1  && <2.2
+    , time         >=1.12 && <1.15
