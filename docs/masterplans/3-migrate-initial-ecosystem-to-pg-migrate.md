@@ -17,7 +17,7 @@ Decision Log, and Outcomes & Retrospective must be kept up to date as work proce
 
 After this initiative, Kiroku, Keiro, and `pgmq-migration` export native
 `MigrationComponent` values, their applications compose explicit plans, and existing
-databases move to the `pg_migrate` ledger without replaying already-applied SQL. Fresh and
+databases move to the `pgmigrate` ledger without replaying already-applied SQL. Fresh and
 imported databases accept one new native append-only migration exactly once. Staging
 copies pass strict verification, production cutovers happen in maintenance windows, and
 the deployed runtime no longer depends on Codd, `codd-extras`, `hasql-migration`, or
@@ -134,7 +134,19 @@ deployed database.
   quiescence, coordination, and an evidence gate that ordinary repository changes do not.
   Date: 2026-07-10
 
+- Decision: Consume the corrected core default schema name `pgmigrate` in downstream
+  import, staging, and cutover evidence.
+  Rationale: PostgreSQL reserves the original draft's `pg_migrate` name for system use;
+  downstream runbooks must name the schema the released core can actually create.
+  Date: 2026-07-10
+
 
 ## Outcomes & Retrospective
 
 (To be filled during and after implementation.)
+
+
+## Revision Note
+
+2026-07-10: Replaced the impossible reserved `pg_migrate` schema name with the corrected
+core default `pgmigrate` and recorded the downstream coordination decision.

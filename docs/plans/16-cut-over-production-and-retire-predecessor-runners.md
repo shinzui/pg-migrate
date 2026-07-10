@@ -21,7 +21,7 @@ back up each database, quiesce every predecessor migration writer, import histor
 run strict verification, apply only the reviewed native canary, and switch deployment jobs
 to the new consumer command. After an observation window and verification of every
 database, repositories and deployed artifacts remove predecessor runtime dependencies.
-The result is one audited `pg_migrate` ledger per database and no Codd or
+The result is one audited `pgmigrate` ledger per database and no Codd or
 `hasql-migration` runner capable of racing it.
 
 
@@ -184,13 +184,19 @@ environment-approved backup/deployment tools, and the standard CLI/import APIs. 
 operational handoff must name these durable artifacts:
 
 ```text
-pg_migrate.ledger_metadata
-pg_migrate.migrations
-pg_migrate.history_imports
-pg_migrate.repairs
+pgmigrate.ledger_metadata
+pgmigrate.migrations
+pgmigrate.history_imports
+pgmigrate.repairs
 ```
 
 Custom ledger schemas substitute the validated configured schema consistently. The final
 deployment interface is an explicit migration command/job receiving consumer-controlled
 connection configuration; the core runner never reads Codd environment variables or owns
 service process exit policy.
+
+
+## Revision Note
+
+2026-07-10: Updated all production ledger artifact names to the corrected core default
+schema `pgmigrate`, because PostgreSQL reserves the original `pg_migrate` prefix.
