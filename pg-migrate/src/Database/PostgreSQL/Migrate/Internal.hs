@@ -19,9 +19,25 @@ module Database.PostgreSQL.Migrate.Internal
     initializeOrUpgradeLedger,
     quotePostgresIdentifier,
     ledgerVersionOneDdl,
+    comparePlanWithLedger,
+    loadLedger,
+    statusFromSnapshot,
+    statusFromSnapshotWith,
+    verifyFromSnapshot,
+    loadStatus,
+    loadVerification,
   )
 where
 
+import Database.PostgreSQL.Migrate.Ledger
+  ( comparePlanWithLedger,
+    loadLedger,
+    loadStatus,
+    loadVerification,
+    statusFromSnapshot,
+    statusFromSnapshotWith,
+    verifyFromSnapshot,
+  )
 import Database.PostgreSQL.Migrate.Ledger.Migrations
   ( currentLedgerVersion,
     initializeOrUpgradeLedger,

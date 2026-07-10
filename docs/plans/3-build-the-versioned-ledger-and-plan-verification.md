@@ -32,14 +32,21 @@ fresh initialization and every mismatch as structured data rather than rendered 
 - [x] (2026-07-10 12:00 PDT) Milestone 2: implemented identifier-safe version 1 DDL,
   typed metadata statements, ordered upgrade selection, transactional installation, and
   newer-version refusal; all 72 core unit tests pass.
-- [ ] Milestone 3: load typed ledger snapshots and compare them with declared plans.
+- [x] (2026-07-10 12:10 PDT) Milestone 3: added deterministic typed snapshot loading,
+  exhaustive pure comparison, prefix/status/unknown policies, and strict-versus-lenient
+  reports; all 80 core unit tests pass.
 - [ ] Milestone 4: expose status and strict verification behavior, add PostgreSQL
   integration coverage, and complete final validation.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: GHC's `DuplicateRecordFields` still emits forward-compatibility warnings
+  for type-directed record updates when two report types share field labels. The ledger
+  implementation reconstructs immutable reports explicitly instead, keeping the package
+  warning-free under GHC 9.12 and future record-field changes.
+  Evidence: the first build warned on updating `VerificationReport.issues`; explicit
+  reconstruction removed the warning without changing the 80 passing unit tests.
 
 
 ## Decision Log
@@ -226,3 +233,6 @@ including the quoted-identifier and stable-lock-key decisions.
 
 2026-07-10: Recorded the completed version 1 DDL and transactional upgrade path, and
 clarified the structured initialization result consumed by EP-4.
+
+2026-07-10: Recorded typed snapshot loading and exhaustive stable plan comparison,
+including the GHC record-update compatibility discovery.

@@ -4,12 +4,14 @@ module Database.PostgreSQL.Migrate.Ledger.Sql
     ledgerMetadataExistsStatement,
     loadLedgerMetadataStatement,
     insertLedgerMetadataStatement,
+    loadStoredMigrationsStatement,
     ledgerVersionOneDdl,
   )
 where
 
 import Data.Text qualified as Text
 import Database.PostgreSQL.Migrate.Ledger.Types
+import Database.PostgreSQL.Migrate.Types
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
 import Hasql.Statement (Statement)
@@ -63,6 +65,60 @@ insertLedgerMetadataStatement config =
     )
     (Encoders.param (Encoders.nonNullable Encoders.text))
     Decoders.noResult
+
+loadStoredMigrationsStatement :: LedgerConfig -> Statement () [StoredMigration]
+loadStoredMigrationsStatement config =
+  Statement.unpreparable
+    ( Text.unwords
+        [ "SELECT component, migration, position, checksum, kind, transaction_mode,",
+          "status, started_at, finished_at, execution_time_ms, error, runner_version",
+          "FROM",
+          qualifiedLedgerTable config "migrations",
+          "ORDER BY component, position"
+        ]
+    )
+    Encoders.noParams
+    (Decoders.rowList storedMigrationRow)
+
+storedMigrationRow :: Decoders.Row StoredMigration
+storedMigrationRow =
+  StoredMigration
+    <$> ( MigrationId
+            <$> (ComponentName <$> required Decoders.text)
+            <*> (MigrationName <$> required Decoders.text)
+        )
+    <*> (fromIntegral <$> required Decoders.int4)
+    <*> (MigrationChecksum <$> required Decoders.bytea)
+    <*> required (Decoders.refine decodeMigrationKind Decoders.text)
+    <*> required (Decoders.refine decodeTransactionMode Decoders.text)
+    <*> required (Decoders.refine decodeMigrationStatus Decoders.text)
+    <*> required Decoders.timestamptz
+    <*> optional Decoders.timestamptz
+    <*> optional Decoders.int8
+    <*> optional Decoders.text
+    <*> required Decoders.text
+  where
+    required = Decoders.column . Decoders.nonNullable
+    optional = Decoders.column . Decoders.nullable
+
+decodeMigrationKind :: Text -> Either Text MigrationKind
+decodeMigrationKind = \case
+  "sql" -> Right SqlKind
+  "haskell" -> Right HaskellKind
+  value -> Left ("unsupported migration kind: " <> value)
+
+decodeTransactionMode :: Text -> Either Text TransactionMode
+decodeTransactionMode = \case
+  "transactional" -> Right Transactional
+  "nontransactional" -> Right NonTransactional
+  value -> Left ("unsupported transaction mode: " <> value)
+
+decodeMigrationStatus :: Text -> Either Text MigrationStatus
+decodeMigrationStatus = \case
+  "running" -> Right Running
+  "applied" -> Right Applied
+  "failed" -> Right Failed
+  value -> Left ("unsupported migration status: " <> value)
 
 ledgerVersionOneDdl :: LedgerConfig -> Text
 ledgerVersionOneDdl config =
