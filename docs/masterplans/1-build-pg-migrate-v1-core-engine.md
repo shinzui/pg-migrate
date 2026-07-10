@@ -69,7 +69,7 @@ predecessor dependency or source-specific branch.
 | 3 | Build the versioned ledger and plan verification | docs/plans/3-build-the-versioned-ledger-and-plan-verification.md | EP-1 | EP-2 | Complete |
 | 4 | Run transactional migrations under a dedicated lock | docs/plans/4-run-transactional-migrations-under-a-dedicated-lock.md | EP-2, EP-3 | None | Complete |
 | 5 | Run and repair nontransactional migrations | docs/plans/5-run-and-repair-nontransactional-migrations.md | EP-4 | None | Complete |
-| 6 | Import migration history through the generic model | docs/plans/6-import-migration-history-through-the-generic-model.md | EP-3, EP-4 | EP-5 | In Progress |
+| 6 | Import migration history through the generic model | docs/plans/6-import-migration-history-through-the-generic-model.md | EP-3, EP-4 | EP-5 | Complete |
 
 Status values: Not Started, In Progress, Complete, Cancelled.
 Hard Deps and Soft Deps reference other rows by their # prefix (e.g., EP-1, EP-3).
@@ -135,6 +135,10 @@ operations required by later packages even though the illustrative export list i
 - [x] (2026-07-10 13:34 PDT) EP-5: Added durable nontransactional Running/Applied/Failed
   execution, confirmed metadata-safe repair with immutable audit rows, and true process
   crash coverage; all 87 unit and 21 integration tests pass and the workspace builds.
+- [x] (2026-07-10 13:56 PDT) EP-6: Added opaque source-agnostic history evidence,
+  prefix/payload/equivalent-state validation, read-only state validators, and atomic
+  Applied/audit import under the normal lock; all 103 core unit, 25 PostgreSQL integration,
+  24 embed, and recompilation tests pass and the workspace builds.
 
 
 ## Surprises & Discoveries
@@ -208,6 +212,13 @@ operations required by later packages even though the illustrative export list i
   server-wide developer setting is enabled.
   Date: 2026-07-10
 
+- Decision: Treat normalized source, reason, mapping, satisfying evidence, and current
+  target metadata as history-import identity while retaining timestamps, role, and runner
+  version as immutable audit facts.
+  Rationale: JSONB semantic comparison makes exact repeats idempotent across binary
+  upgrades without allowing changed historical assertions to overwrite evidence.
+  Date: 2026-07-10
+
 
 ## Outcomes & Retrospective
 
@@ -219,9 +230,13 @@ typed loading, exhaustive plan comparison, and read-only status/verification ses
 EP-4 delivered dedicated connection and lock ownership, server/timeout policy, atomic
 transactional execution, structured event/report/error behavior, and interruption-safe
 cleanup. EP-5 delivered the conservative nontransactional state machine, audited repair,
-and real process-death evidence without adding public crash hooks. All final EP-1 through
-EP-5 formatting, build, unit, package-specific, and live database checks passed. The
-initiative remains in progress: generic history import is still owned by EP-6.
+and real process-death evidence without adding public crash hooks. EP-6 delivered the
+source-agnostic history model, pure prefix and evidence resolution, read-only domain-state
+validation, semantic idempotency, and atomic target/audit import without predecessor
+dependencies. All EP-1 through EP-6 formatting, build, unit, embed, recompilation,
+dependency-closure, and live PostgreSQL checks pass. The v1 core-engine initiative is
+complete; the CLI/adapters/release and downstream conversions remain in their separately
+coordinated MasterPlans.
 
 
 ## Revision Note
@@ -255,6 +270,10 @@ audit contents, invalid-target rejection, and durable nontransactional callback 
 
 2026-07-10: Started EP-6 after all hard and soft dependencies passed their acceptance
 gates; history import is the final child plan in this core-engine initiative.
+
+2026-07-10: Marked EP-6 and this MasterPlan complete after all six child acceptance gates,
+the complete 103-unit/25-integration/24-embed/recompilation suite, formatting, workspace
+build, and legacy-free core dependency dry-run passed.
 
 2026-07-10: Started EP-4 after its hard dependencies EP-2 and EP-3 passed their complete
 acceptance gates.

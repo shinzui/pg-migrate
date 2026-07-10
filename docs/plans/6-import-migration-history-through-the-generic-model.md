@@ -37,13 +37,20 @@ Haskell-migration restrictions without any Codd or `hasql-migration` dependency 
   timeout/lock lifecycle, ran state validators read-only, classified exact idempotent
   repeats and conflicts, and inserted all Applied/audit pairs in one transaction; all 3
   focused PostgreSQL history tests pass.
-- [ ] Milestone 4: prove live import, idempotency, conflict, rollback, state validation,
-  and full workspace acceptance.
+- [x] (2026-07-10 13:56 PDT) Milestone 4: proved multi-component prefixes, fresh import
+  without target execution, semantic idempotency, changed/ordinary-history conflicts,
+  exact audit/timestamp preservation, atomic rollback, read-only state validation, and
+  Haskell equivalent state; 103 core unit, 25 PostgreSQL integration, 24 embed, and the
+  recompilation tests pass, the workspace builds, and the core dry-run has no legacy
+  engine dependency.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: comparing decoded Aeson `Value`s from PostgreSQL JSONB makes idempotency
+  independent of object-key serialization order while still detecting changed mapping
+  structure or satisfying evidence. Import timestamps, database roles, and runner
+  versions remain immutable audit facts but are not inputs to semantic repeat matching.
 
 
 ## Decision Log
@@ -60,10 +67,24 @@ Haskell-migration restrictions without any Codd or `hasql-migration` dependency 
   execution times.
   Date: 2026-07-10
 
+- Decision: Bind one import timestamp into both target rows and their audit rows, and
+  classify idempotency from current target metadata plus source, reason, and normalized
+  JSONB evidence rather than incidental writer/version fields.
+  Rationale: Operators can prove when a target was imported exactly, while a later binary
+  can safely recognize the same historical assertion without rewriting immutable audit.
+  Date: 2026-07-10
+
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+The core package now imports exact-payload SQL and explicitly allowed equivalent-state
+history without depending on any predecessor engine. Opaque constructors prevent forged
+StateVerified evidence; every mapped target comes from the current plan and must form its
+component prefix. The shared runner lifecycle owns version, timeout, and advisory-lock
+cleanup, validators execute read-only, and one transaction owns every target/audit pair.
+Live tests prove target actions never run, identical imports are semantic no-ops, changed
+or ordinary existing history conflicts, and a second-audit failure rolls back the first
+target. All package and workspace acceptance checks pass.
 
 
 ## Context and Orientation
@@ -225,3 +246,6 @@ all received focused coverage.
 2026-07-10: Recorded the shared-lifecycle importer after live exact-payload and Haskell
 equivalent-state imports passed, an identical repeat reported AlreadyImported, changed
 evidence conflicted, and a forced second audit failure rolled back every target row.
+
+2026-07-10: Completed the plan after full formatting, build, dependency, unit, embed,
+recompilation, and PostgreSQL acceptance passed with no legacy engine in the core closure.

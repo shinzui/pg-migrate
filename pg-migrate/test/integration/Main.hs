@@ -78,6 +78,7 @@ tests settings =
       testCase "terminated nontransactional helper leaves Running" (testCrashAmbiguity settings),
       testCase "nontransactional callback failure leaves Applied" (testNonTransactionalCallback settings),
       testCase "history import is atomic, audited, and idempotent" (testHistoryImport settings),
+      testCase "history import conflicts with ordinary applied rows" (testHistoryExistingConflict settings),
       testCase "history audit failure rolls back target rows" (testHistoryAtomicity settings),
       testCase "equivalent history uses read-only state validation" (testHistoryEquivalentState settings),
       testCase "events follow durable migration boundaries" (testEventOrder settings),
@@ -499,6 +500,25 @@ testHistoryImport settings =
     migrationCount @?= 2
     importMigrationHistory options provider plan (historySqlImport config True)
       >>= assertHistoryConflict (historyTarget 1)
+
+testHistoryExistingConflict :: Settings.Settings -> IO ()
+testHistoryExistingConflict settings =
+  withTestLedger settings "history_existing" $ \connection config -> do
+    let firstSql = "CREATE TABLE " <> quotedSchema config <> ".import_action_1 (value integer)"
+        existingPlan = sqlPlan "history-import" [("0001-one", firstSql)]
+        fullPlan = historySqlPlan config
+        runOptions = withLedger config defaultRunOptions
+    _ <- runMigrationPlan runOptions settings existingPlan >>= requireRunRight
+    importMigrationHistory
+      (historyOptions config)
+      (connectionProviderFromSettings settings)
+      fullPlan
+      (historySqlImport config False)
+      >>= assertHistoryConflict (historyTarget 1)
+    snapshot <- useSession connection (loadLedger config)
+    length (storedMigrations snapshot) @?= 1
+    auditCount <- useSession connection (Session.statement () (historyAuditCountStatement config))
+    auditCount @?= 0
 
 testHistoryAtomicity :: Settings.Settings -> IO ()
 testHistoryAtomicity settings =

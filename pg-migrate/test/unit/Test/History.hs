@@ -30,6 +30,7 @@ tests =
       testCase "same-payload evidence participates in its requirement" testSamePayloadRequirement,
       testCase "equivalent history is rejected by default" testEquivalentDefault,
       testCase "same-payload prefixes resolve from target metadata" testResolvePrefix,
+      testCase "each affected component resolves its own prefix" testMultiComponentPrefix,
       testCase "component gaps are rejected" testPrefixGap,
       testCase "unknown targets are rejected" testUnknownTarget,
       testCase "payload checksum mismatches are rejected" testChecksumMismatch,
@@ -108,6 +109,48 @@ testResolvePrefix = do
   (resolvedPosition <$> resolved) @?= (1 :| [2])
   (resolvedChecksum <$> resolved)
     @?= (migrationFingerprint "SELECT 1" :| [migrationFingerprint "SELECT 2"])
+
+testMultiComponentPrefix :: IO ()
+testMultiComponentPrefix = do
+  let firstKey = requireEvidenceKey "legacy:first"
+      secondKey = requireEvidenceKey "legacy:second"
+      firstTarget = requireRight (migrationId "history-first" "0001-one")
+      secondTarget = requireRight (migrationId "history-second" "0001-one")
+      firstChecksum = migrationFingerprint "SELECT 'first'"
+      secondChecksum = migrationFingerprint "SELECT 'second'"
+      available =
+        Map.fromList
+          [ (firstKey, requireRight (sourceManifestVerifiedEvidence "first" Nothing (Just firstChecksum) Aeson.Null)),
+            (secondKey, requireRight (sourceManifestVerifiedEvidence "second" Nothing (Just secondChecksum) Aeson.Null))
+          ]
+      imported =
+        requireRight
+          ( historyImport
+              "legacy"
+              available
+              []
+              ( historyMapping firstTarget (Evidence firstKey) (SamePayload firstKey)
+                  :| [historyMapping secondTarget (Evidence secondKey) (SamePayload secondKey)]
+              )
+              "cutover"
+          )
+      firstComponent =
+        requireRight
+          ( migrationComponent
+              "history-first"
+              Set.empty
+              (requireRight (sqlMigration "0001-one" "SELECT 'first'") :| [])
+          )
+      secondComponent =
+        requireRight
+          ( migrationComponent
+              "history-second"
+              Set.empty
+              (requireRight (sqlMigration "0001-one" "SELECT 'second'") :| [])
+          )
+      plan = requireRight (migrationPlan (firstComponent :| [secondComponent]))
+  resolved <- requireValidationRight (resolveHistoryImport RejectEquivalentHistory plan available imported)
+  (resolvedPosition <$> resolved) @?= (1 :| [1])
 
 testPrefixGap :: IO ()
 testPrefixGap = do
