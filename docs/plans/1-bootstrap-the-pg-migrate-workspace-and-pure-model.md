@@ -31,14 +31,15 @@ resolver changes only dependency-constrained order.
 - [x] (2026-07-10 10:12 PDT) Milestone 1: established the workspace, package, empty test
   harness, Nix override, Just recipes, and pre-release README; `nix develop -c cabal
   build all` succeeds with GHC 9.12.4.
-- [x] (2026-07-10 10:41 PDT) Milestone 2: implemented opaque validated names, identities,
+- [x] (2026-07-10 10:20 PDT) Milestone 2: implemented opaque validated names, identities,
   constrained Hasql actions, components, and raw SHA-256 fingerprints.
-- [x] (2026-07-10 10:41 PDT) Milestone 3: implemented explicit plan validation, stable
+- [x] (2026-07-10 10:20 PDT) Milestone 3: implemented explicit plan validation, stable
   topological resolution, distinct structured errors, and read-only plan descriptions.
-- [x] (2026-07-10 10:41 PDT) Milestone 4: completed 34 focused definition, ordering,
+- [x] (2026-07-10 10:20 PDT) Milestone 4: completed 34 focused definition, ordering,
   property, metadata, and public-API tests; the suite passes under GHC 9.12.4.
-- [ ] Run the final formatting, Mori, Cabal, repeated-test, and Nix-package acceptance
-  checks and record their evidence.
+- [x] (2026-07-10 10:29 PDT) Final validation: `mori validate`, `mori show --full`,
+  `nix fmt -- --fail-on-change`, `nix develop -c cabal build all`, two consecutive unit
+  runs, `nix build .#default`, and `nix flake check --no-build` all succeeded.
 
 
 ## Surprises & Discoveries
@@ -48,6 +49,13 @@ resolver changes only dependency-constrained order.
   Evidence: the first model build rejected `memory`'s `convert`; the registered crypton
   source documents the `ram` instance in `Crypto/Hash/Types.hs`, and `ram` 0.20 provides
   the matching `Data.ByteArray.convert`.
+
+- Observation: nixpkgs' GHC 9.12 package set contains crypton 1.0.6 and Hasql 1.9.3.1,
+  which cannot satisfy the v1 bounds, while postgresql-binary's upstream test suite
+  assumes a running PostgreSQL server and fails in a pure Nix build.
+  Evidence: the first corrected-subdirectory Nix build reported the two version-bound
+  failures; after pinning the local-corpus versions it reached postgresql-binary tests,
+  where 76 round trips failed with `no connection to the server`.
 
 
 ## Decision Log
@@ -79,10 +87,30 @@ resolver changes only dependency-constrained order.
   components, or plans.
   Date: 2026-07-10
 
+- Decision: Pin crypton 1.1.2, Hasql 1.10.3.5, hasql-transaction 1.2.2, and
+  postgresql-binary 0.15.0.1 in the project-owned Nix package override, and disable only
+  those dependencies' upstream checks.
+  Rationale: these are the versions validated from the registered source corpus. Their
+  upstream checks are not hermetic, while `pg-migrate`'s own 34-test suite remains
+  enabled and passes inside `nix build .#default`.
+  Date: 2026-07-10
+
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+EP-1 is complete. The repository now has a GHC 9.12.4 Cabal workspace and reproducible
+Nix package; opaque validated identifiers and action-bearing migrations; component-local
+identity; explicit and stable dependency-aware plans; raw SHA-256 fingerprints; and a
+read-only description boundary for later ledger work. The 34-test suite covers every
+identifier rule, the known SHA-256 `abc` vector, duplicate and dependency errors, caller
+order, stable resolution, metadata positions, and construction through only the singular
+public API.
+
+The main implementation lesson is that matching Cabal and Nix dependency graphs must be
+verified independently: the development shell resolved the required Hackage releases,
+while nixpkgs needed explicit source pins and hermetic-check policy. SQL construction is
+intentionally still absent; `docs/plans/2-validate-sql-and-embed-ordered-manifests.md`
+owns `sqlMigration`, SQL lexical validation, and embedded manifests.
 
 
 ## Context and Orientation
@@ -253,3 +281,10 @@ migrationComponent :: Text -> Set Text -> NonEmpty Migration -> Either Definitio
 migrationPlan :: NonEmpty MigrationComponent -> Either PlanError MigrationPlan
 resolveMigrationPlan :: NonEmpty MigrationComponent -> Either PlanError MigrationPlan
 ```
+
+
+## Revision Note
+
+2026-07-10: Updated the living sections throughout implementation, recorded the crypton
+and Nix dependency discoveries, and finalized the plan after all acceptance commands
+passed. The intended behavior and milestone scope did not change.

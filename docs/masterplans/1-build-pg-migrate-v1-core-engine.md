@@ -64,7 +64,7 @@ predecessor dependency or source-specific branch.
 
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
-| 1 | Bootstrap the pg-migrate workspace and pure model | docs/plans/1-bootstrap-the-pg-migrate-workspace-and-pure-model.md | None | None | In Progress |
+| 1 | Bootstrap the pg-migrate workspace and pure model | docs/plans/1-bootstrap-the-pg-migrate-workspace-and-pure-model.md | None | None | Complete |
 | 2 | Validate SQL and embed ordered manifests | docs/plans/2-validate-sql-and-embed-ordered-manifests.md | EP-1 | None | Not Started |
 | 3 | Build the versioned ledger and plan verification | docs/plans/3-build-the-versioned-ledger-and-plan-verification.md | EP-1 | EP-2 | Not Started |
 | 4 | Run transactional migrations under a dedicated lock | docs/plans/4-run-transactional-migrations-under-a-dedicated-lock.md | EP-2, EP-3 | None | Not Started |
@@ -121,7 +121,8 @@ operations required by later packages even though the illustrative export list i
 
 ## Progress
 
-- [ ] EP-1: Bootstrap the pg-migrate workspace and pure model (in progress).
+- [x] (2026-07-10 10:29 PDT) EP-1: Bootstrapped the GHC 9.12 workspace, opaque pure
+  model, explicit and stable plan validation, Nix package, and 34-test unit suite.
 
 
 ## Surprises & Discoveries
@@ -130,6 +131,12 @@ operations required by later packages even though the illustrative export list i
   through `ram`'s `Data.ByteArray`, not the older `memory` package. EP-1 therefore owns a
   direct `ram >= 0.20 && < 0.23` dependency; EP-2 and EP-3 should consume the resulting
   opaque 32-byte `MigrationChecksum` rather than add a competing conversion path.
+
+- Observation: the default nixpkgs GHC 9.12 set predates the required crypton and Hasql
+  releases. The project-owned `flake.module.nix` now pins the four-version crypton/Hasql
+  graph used by Cabal. Later packages should reuse that package set rather than introduce
+  independent pins, and upstream database-dependent checks must not replace each
+  package's own hermetic tests.
 
 
 ## Decision Log
@@ -161,7 +168,23 @@ operations required by later packages even though the illustrative export list i
   operations, but the illustrative export list in section 16 does not name them.
   Date: 2026-07-10
 
+- Decision: Treat EP-1's `Database.PostgreSQL.Migrate.Internal` as a read-only
+  integration boundary for exact checksum bytes and plan metadata.
+  Rationale: EP-3 needs those values for ledger rows, while keeping validated input
+  constructors inaccessible preserves the singular safe public API.
+  Date: 2026-07-10
+
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+EP-1 delivered the compiling package, pure model, and plan semantics that unblock both
+EP-2 and EP-3. All final Cabal, Mori, formatting, repeated unit, flake-evaluation, and Nix
+package checks passed. The initiative remains in progress: SQL embedding, the ledger,
+execution, nontransactional repair, and history import are still owned by EP-2 through
+EP-6.
+
+
+## Revision Note
+
+2026-07-10: Marked EP-1 complete, recorded its crypton/Nix integration discoveries, and
+clarified the internal read-only boundary that EP-2 and EP-3 must consume.
