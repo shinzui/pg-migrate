@@ -35,7 +35,10 @@ changing either the manifest or a listed file recompiles the embedding module.
 - [x] (2026-07-10 10:55 PDT) Milestone 3: constructed components from embedded
   manifest entries and proved manifest order, suffix-derived names, per-file transaction
   modes, and structured error preservation; all 17 embed-package tests pass.
-- [ ] Milestone 4: implement crash-conservative migration authoring.
+- [x] (2026-07-10 11:12 PDT) Milestone 4: implemented crash-conservative migration
+  authoring with zero-padded sequence inference, explicit-name validation, exclusive file
+  creation, atomic manifest replacement, and rollback after simulated replacement failure;
+  all 24 embed-package tests pass.
 - [ ] Milestone 5: prove manifest and SQL input changes trigger recompilation.
 - [ ] Run final formatting, builds, tests, and plan closeout.
 
@@ -48,6 +51,14 @@ changing either the manifest or a listed file recompiles the embedding module.
   path, and retains only the manifest basenames in its generated value.
   Evidence: the package test compiles a real splice over
   `test/fixtures/valid/migrations/manifest` and observes its non-sorted manifest order.
+
+- Observation: GHC 9.12 brings Prelude's `ioError` into scope, so an identically named
+  structured-error helper is ambiguous rather than shadowing Prelude silently. The
+  authoring implementation uses the unambiguous `authoringIoError` name and avoids
+  partial list functions under `-Wall -Wcompat`.
+  Evidence: the first focused build reported `Ambiguous occurrence ‘ioError’`; after the
+  rename and numeric-prefix pattern match, all 24 embed-package tests pass without source
+  warnings.
 
 
 ## Decision Log
@@ -71,6 +82,13 @@ changing either the manifest or a listed file recompiles the embedding module.
   the failing byte offset required by the structured definition error contract. The
   classifier rejects overlong encodings, surrogate code points, out-of-range code points,
   truncated sequences, and invalid continuation bytes without normalizing valid payloads.
+  Date: 2026-07-10
+
+- Decision: Expose a narrowly scoped `Database.PostgreSQL.Migrate.Embed.Internal` module
+  containing only the injectable manifest-renaming variant.
+  Rationale: deterministic tests must prove rollback after replacement failure without
+  relying on platform-specific permission behavior, while the stable facade exposes only
+  `newMigration` and opaque validated options.
   Date: 2026-07-10
 
 
@@ -236,3 +254,9 @@ newMigration :: NewMigrationOptions -> IO (Either AuthoringError FilePath)
 `NewMigrationOptions` must carry the manifest path, optional explicit basename, and initial
 SQL bytes. Its constructor or smart constructor validates paths; no API accepts a runtime
 migration directory for execution.
+
+
+## Revision Note
+
+2026-07-10: Recorded completion of crash-conservative authoring, its deterministic
+failure-injection boundary, and the GHC 9.12 compile-time naming discovery.

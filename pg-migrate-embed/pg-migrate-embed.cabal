@@ -35,8 +35,14 @@ library
   import:             common
   default-extensions: TemplateHaskell
   hs-source-dirs:     src
-  exposed-modules:    Database.PostgreSQL.Migrate.Embed
-  other-modules:      Database.PostgreSQL.Migrate.Embed.Manifest
+  exposed-modules:
+    Database.PostgreSQL.Migrate.Embed
+    Database.PostgreSQL.Migrate.Embed.Internal
+
+  other-modules:
+    Database.PostgreSQL.Migrate.Embed.Authoring
+    Database.PostgreSQL.Migrate.Embed.Manifest
+
   build-depends:
     , base              >=4.20 && <4.22
     , bytestring        >=0.12 && <0.13
@@ -45,6 +51,7 @@ library
     , pg-migrate
     , template-haskell  >=2.22 && <2.24
     , text              >=2.1  && <2.2
+    , unix              >=2.8  && <2.9
 
 test-suite pg-migrate-embed-test
   import:          common
@@ -53,6 +60,7 @@ test-suite pg-migrate-embed-test
   main-is:         Main.hs
   other-modules:
     Paths_pg_migrate_embed
+    Test.Authoring
     Test.Component
     Test.Manifest
 

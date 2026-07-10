@@ -2,6 +2,7 @@ module Database.PostgreSQL.Migrate.Embed.Manifest
   ( ManifestError (..),
     checkMigrationManifest,
     embedMigrationManifest,
+    validateManifestEntry,
   )
 where
 
@@ -34,6 +35,7 @@ data ManifestError
   | ParentTraversalManifestEntry !Int !FilePath
   | NestedManifestEntry !Int !FilePath
   | NonSqlManifestEntry !Int !FilePath
+  | EmptySqlBasename !Int
   | DuplicateManifestEntry !FilePath !Int !Int
   | MissingManifestFile !FilePath
   | UnlistedSqlFiles ![FilePath]
@@ -96,9 +98,13 @@ validateManifestLine (lineNumber, entryText)
       Left (ParentTraversalManifestEntry lineNumber entry)
   | FilePath.takeFileName entry /= entry = Left (NestedManifestEntry lineNumber entry)
   | FilePath.takeExtension entry /= ".sql" = Left (NonSqlManifestEntry lineNumber entry)
+  | null (FilePath.dropExtension entry) = Left (EmptySqlBasename lineNumber)
   | otherwise = Right entry
   where
     entry = Text.unpack entryText
+
+validateManifestEntry :: FilePath -> Either ManifestError FilePath
+validateManifestEntry entry = validateManifestLine (1, Text.pack entry)
 
 validateDuplicates :: NonEmpty FilePath -> Either ManifestError (NonEmpty FilePath)
 validateDuplicates entries = go [] (zip [1 ..] (toList entries))
