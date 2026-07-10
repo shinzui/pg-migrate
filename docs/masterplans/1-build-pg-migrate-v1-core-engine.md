@@ -67,7 +67,7 @@ predecessor dependency or source-specific branch.
 | 1 | Bootstrap the pg-migrate workspace and pure model | docs/plans/1-bootstrap-the-pg-migrate-workspace-and-pure-model.md | None | None | Complete |
 | 2 | Validate SQL and embed ordered manifests | docs/plans/2-validate-sql-and-embed-ordered-manifests.md | EP-1 | None | Complete |
 | 3 | Build the versioned ledger and plan verification | docs/plans/3-build-the-versioned-ledger-and-plan-verification.md | EP-1 | EP-2 | Complete |
-| 4 | Run transactional migrations under a dedicated lock | docs/plans/4-run-transactional-migrations-under-a-dedicated-lock.md | EP-2, EP-3 | None | In Progress |
+| 4 | Run transactional migrations under a dedicated lock | docs/plans/4-run-transactional-migrations-under-a-dedicated-lock.md | EP-2, EP-3 | None | Complete |
 | 5 | Run and repair nontransactional migrations | docs/plans/5-run-and-repair-nontransactional-migrations.md | EP-4 | None | Not Started |
 | 6 | Import migration history through the generic model | docs/plans/6-import-migration-history-through-the-generic-model.md | EP-3, EP-4 | EP-5 | Not Started |
 
@@ -129,6 +129,9 @@ operations required by later packages even though the illustrative export list i
 - [x] (2026-07-10 12:29 PDT) EP-3: Added the versioned four-table ledger, typed snapshot
   loading, exhaustive plan comparison, status and strict verification, and PostgreSQL 17
   coverage; all 81 unit and 4 integration tests pass and the full workspace builds.
+- [x] (2026-07-10 13:10 PDT) EP-4: Added dedicated connection/version/timeout/lock
+  ownership, atomic transactional execution, structured events and reports, condemnation
+  detection, and interruption-safe cleanup; all 85 unit and 14 integration tests pass.
 
 
 ## Surprises & Discoveries
@@ -148,6 +151,11 @@ operations required by later packages even though the illustrative export list i
   so the draft default `pg_migrate` cannot be created by an ordinary or superuser-backed
   application connection. EP-3 corrected the coordinated default to `pgmigrate` and now
   rejects the reserved prefix before Hasql execution.
+
+- Observation: a server-blocking default advisory-lock call can starve an in-process
+  concurrent runner at the libpq/RTS boundary. EP-4 therefore uses interruptible
+  `pg_try_advisory_lock` polling for every wait mode, including infinite wait, while
+  retaining the same one-session lock ownership contract for EP-5 and EP-6.
 
 
 ## Decision Log
@@ -200,9 +208,11 @@ EP-2 and EP-3. EP-2 delivered exact-byte SQL validation, ordered compile-time em
 component construction, safe migration authoring, and explicit GHC dependency tracking.
 EP-3 delivered the PostgreSQL-compatible `pgmigrate` ledger, versioned transactional DDL,
 typed loading, exhaustive plan comparison, and read-only status/verification sessions.
-All final EP-1 through EP-3 formatting, build, unit, package-specific, and available live
-database checks passed. The initiative remains in progress: execution, nontransactional
-repair, and history import are still owned by EP-4 through EP-6.
+EP-4 delivered dedicated connection and lock ownership, server/timeout policy, atomic
+transactional execution, structured event/report/error behavior, and interruption-safe
+cleanup. All final EP-1 through EP-4 formatting, build, unit, package-specific, and live
+database checks passed. The initiative remains in progress: nontransactional repair and
+history import are still owned by EP-5 and EP-6.
 
 
 ## Revision Note
@@ -222,6 +232,10 @@ to PostgreSQL-compatible `pgmigrate` after live PostgreSQL 17 validation.
 2026-07-10: Marked EP-3 complete after the full workspace build, 81 unit tests, and 4
 PostgreSQL 17 integration tests passed, including installation, constraints, quoting,
 read-only loading, and future-version refusal.
+
+2026-07-10: Marked EP-4 complete after the full workspace build, 85 unit tests, and 14
+PostgreSQL 17 integration tests passed; recorded the default infinite-wait polling change
+that prevents in-process libpq/RTS starvation.
 
 2026-07-10: Started EP-4 after its hard dependencies EP-2 and EP-3 passed their complete
 acceptance gates.

@@ -1,16 +1,31 @@
 module Main (main) where
 
-import Control.Exception (bracket, finally)
+import Control.Concurrent
+  ( forkIO,
+    killThread,
+    newEmptyMVar,
+    putMVar,
+    readMVar,
+    takeMVar,
+    threadDelay,
+    tryPutMVar,
+  )
+import Control.Exception (SomeException, bracket, finally, throwIO, try)
 import Data.Foldable (toList)
+import Data.Function ((&))
+import Data.IORef (atomicModifyIORef', newIORef, readIORef)
 import Data.Int (Int64)
+import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text.Encoding
+import Data.Time (NominalDiffTime)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Database.PostgreSQL.Migrate
+import Database.PostgreSQL.Migrate qualified as Migrate
 import Database.PostgreSQL.Migrate.Internal
 import GHC.Clock (getMonotonicTimeNSec)
 import Hasql.Connection qualified as Connection
@@ -48,7 +63,11 @@ tests settings =
       testCase "transactional plans apply once and then report applied" (testTransactionalRunner settings),
       testCase "transactional SQL failure rolls back action and ledger" (testTransactionalRollback settings),
       testCase "condemned Haskell transactions are detected" (testTransactionCondemn settings),
-      testCase "nontransactional preflight happens before every mutation" (testNonTransactionalPreflight settings)
+      testCase "nontransactional preflight happens before every mutation" (testNonTransactionalPreflight settings),
+      testCase "events follow durable migration boundaries" (testEventOrder settings),
+      testCase "callback failure restores timeout and releases the lock" (testCallbackCleanup settings),
+      testCase "two concurrent runners execute each effect once" (testConcurrentRunners settings),
+      testCase "asynchronous interruption restores and unlocks before returning" (testAsyncCleanup settings)
     ]
 
 testInstallation :: Settings.Settings -> IO ()
@@ -238,6 +257,120 @@ testNonTransactionalPreflight settings =
     snapshot <- useSession connection (loadLedger config)
     storedMigrations snapshot @?= []
 
+testEventOrder :: Settings.Settings -> IO ()
+testEventOrder settings =
+  withTestLedger settings "events" $ \_ config -> do
+    eventsRef <- newIORef []
+    let plan =
+          sqlPlan
+            "events"
+            [ ("0001-create", "CREATE TABLE " <> quotedSchema config <> ".event_effects (value integer NOT NULL)"),
+              ("0002-insert", "INSERT INTO " <> quotedSchema config <> ".event_effects (value) VALUES (1)")
+            ]
+        handler event = atomicModifyIORef' eventsRef (\events -> (events <> [event], ()))
+        options = defaultRunOptions & withLedger config & withEventHandler handler
+    report <- runMigrationPlan options settings plan >>= requireRunRight
+    reportOutcomes report @?= [AppliedNow, AppliedNow]
+    events <- readIORef eventsRef
+    assertSuccessfulEventOrder events
+
+testCallbackCleanup :: Settings.Settings -> IO ()
+testCallbackCleanup settings =
+  withTestLedger settings "callback" $ \connection config ->
+    withConnection settings $ \contender -> do
+      timeoutBefore <- readStatementTimeout connection >>= requireMigrationRight
+      let plan =
+            sqlPlan
+              "callback"
+              [ ("0001-create", "CREATE TABLE " <> quotedSchema config <> ".callback_first (value integer)"),
+                ("0002-never", "CREATE TABLE " <> quotedSchema config <> ".callback_second (value integer)")
+              ]
+          handler = \case
+            MigrationCompleted {} -> throwIO (userError "callback failure")
+            _ -> pure ()
+          options =
+            defaultRunOptions
+              & withLedger config
+              & withStatementTimeout (Just 0.5)
+              & withEventHandler handler
+          provider = connectionProvider (\action -> Right <$> action connection)
+      runMigrationPlanWith options provider plan >>= assertEventHandlerFailure
+      timeoutAfter <- readStatementTimeout connection >>= requireMigrationRight
+      timeoutAfter @?= timeoutBefore
+      _ <- acquireAdvisoryLock contender (lockKey config) NoWait >>= requireMigrationRight
+      releaseAdvisoryLock contender (lockKey config) >>= requireCleanupRight
+      snapshot <- useSession connection (loadLedger config)
+      length (storedMigrations snapshot) @?= 1
+      tableNames <- useSession connection (Session.statement (ledgerSchema config) tableNamesStatement)
+      assertBool "first migration was not durable before callback" ("callback_first" `elem` tableNames)
+      assertBool "runner continued after callback failure" ("callback_second" `notElem` tableNames)
+
+testConcurrentRunners :: Settings.Settings -> IO ()
+testConcurrentRunners settings =
+  withTestLedger settings "concurrent" $ \connection config -> do
+    let plan =
+          sqlPlan
+            "concurrent"
+            [ ("0001-create", "CREATE TABLE " <> quotedSchema config <> ".concurrent_effects (value integer NOT NULL)"),
+              ("0002-insert", "INSERT INTO " <> quotedSchema config <> ".concurrent_effects (value) VALUES (1)")
+            ]
+        options = defaultRunOptions & withLedger config
+        run = runMigrationPlan options settings plan
+    gate <- newEmptyMVar
+    firstDone <- newEmptyMVar
+    secondDone <- newEmptyMVar
+    _ <- forkIO (readMVar gate >> try @SomeException run >>= putMVar firstDone)
+    _ <- forkIO (readMVar gate >> try @SomeException run >>= putMVar secondDone)
+    putMVar gate ()
+    firstReport <- takeMVar firstDone >>= requireThreadRun
+    secondReport <- takeMVar secondDone >>= requireThreadRun
+    List.sort [reportOutcomes firstReport, reportOutcomes secondReport]
+      @?= List.sort [[AppliedNow, AppliedNow], [AlreadyApplied, AlreadyApplied]]
+    effectCount <- useSession connection (Session.statement () (concurrentEffectCountStatement config))
+    effectCount @?= 1
+    snapshot <- useSession connection (loadLedger config)
+    length (storedMigrations snapshot) @?= 2
+
+testAsyncCleanup :: Settings.Settings -> IO ()
+testAsyncCleanup settings =
+  withTestLedger settings "async" $ \connection config ->
+    withConnection settings $ \contender -> do
+      timeoutBefore <- readStatementTimeout connection >>= requireMigrationRight
+      started <- newEmptyMVar
+      done <- newEmptyMVar
+      let action = Transaction.sql "SELECT pg_sleep(5)"
+          migration =
+            requireRight
+              (transactionMigration "0001-sleep" (migrationFingerprint "sleep-v1") action)
+          plan = planFromMigrations "async" [migration]
+          handler = \case
+            MigrationStarted {} -> do
+              _ <- tryPutMVar started ()
+              pure ()
+            _ -> pure ()
+          options =
+            defaultRunOptions
+              & withLedger config
+              & withStatementTimeout (Just 2)
+              & withEventHandler handler
+          provider = connectionProvider (\use -> Right <$> use connection)
+      runnerThread <-
+        forkIO
+          (try @SomeException (runMigrationPlanWith options provider plan) >>= putMVar done)
+      takeMVar started
+      threadDelay 50000
+      killThread runnerThread
+      interrupted <- takeMVar done
+      case interrupted of
+        Left _ -> pure ()
+        Right result -> assertFailure ("expected asynchronous exception, received " <> show result)
+      timeoutAfter <- readStatementTimeout connection >>= requireMigrationRight
+      timeoutAfter @?= timeoutBefore
+      _ <- acquireAdvisoryLock contender (lockKey config) NoWait >>= requireMigrationRight
+      releaseAdvisoryLock contender (lockKey config) >>= requireCleanupRight
+      snapshot <- useSession connection (loadLedger config)
+      storedMigrations snapshot @?= []
+
 withTestLedger ::
   Settings.Settings ->
   Text ->
@@ -341,6 +474,13 @@ effectCountStatement config =
     Encoders.noParams
     (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
 
+concurrentEffectCountStatement :: LedgerConfig -> Statement.Statement () Int64
+concurrentEffectCountStatement config =
+  Statement.unpreparable
+    ("SELECT count(*) FROM " <> quotedSchema config <> ".concurrent_effects")
+    Encoders.noParams
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.int8)))
+
 setFutureVersionSql :: LedgerConfig -> Text
 setFutureVersionSql config =
   "UPDATE "
@@ -401,6 +541,13 @@ requireRunRight = \case
   Left migrationError -> assertFailure (show migrationError) >> error "assertFailure returned"
   Right report -> pure report
 
+requireThreadRun ::
+  Either SomeException (Either MigrationError MigrationReport) ->
+  IO MigrationReport
+requireThreadRun = \case
+  Left exception -> assertFailure (show exception) >> error "assertFailure returned"
+  Right result -> requireRunRight result
+
 assertDatabaseSessionFailure :: Either MigrationError MigrationReport -> IO ()
 assertDatabaseSessionFailure = \case
   Left DatabaseSessionFailed {} -> pure ()
@@ -419,6 +566,12 @@ assertUnsupportedNonTransactional = \case
   Left migrationError -> assertFailure ("expected UnsupportedNonTransactionalMigration, received " <> show migrationError)
   Right report -> assertFailure ("expected UnsupportedNonTransactionalMigration, received " <> show report)
 
+assertEventHandlerFailure :: Either MigrationError MigrationReport -> IO ()
+assertEventHandlerFailure = \case
+  Left (EventHandlerFailed Nothing _) -> pure ()
+  Left migrationError -> assertFailure ("expected EventHandlerFailed, received " <> show migrationError)
+  Right report -> assertFailure ("expected EventHandlerFailed, received " <> show report)
+
 assertLockUnavailable :: Either MigrationError value -> IO ()
 assertLockUnavailable = \case
   Left AdvisoryLockUnavailable -> pure ()
@@ -430,6 +583,33 @@ assertLockTimedOut = \case
   Left (AdvisoryLockTimedOut timeout) -> timeout @?= 0.12
   Left migrationError -> assertFailure ("expected AdvisoryLockTimedOut, received " <> show migrationError)
   Right _ -> assertFailure "expected AdvisoryLockTimedOut, received Right"
+
+assertSuccessfulEventOrder :: [MigrationEvent] -> IO ()
+assertSuccessfulEventOrder = \case
+  [ LockWaitStarted WaitIndefinitely,
+    LockAcquired lockDuration,
+    PlanValidated 0 2,
+    MigrationStarted firstId,
+    MigrationCompleted firstCompleted firstDuration,
+    MigrationStarted secondId,
+    MigrationCompleted secondCompleted secondDuration,
+    MigrationPlanCompleted planDuration
+    ] -> do
+      let expectedFirst = requireRight (Migrate.migrationId "events" "0001-create")
+          expectedSecond = requireRight (Migrate.migrationId "events" "0002-insert")
+      firstId @?= expectedFirst
+      firstCompleted @?= expectedFirst
+      secondId @?= expectedSecond
+      secondCompleted @?= expectedSecond
+      assertNonnegative "lock duration" lockDuration
+      assertNonnegative "first migration duration" firstDuration
+      assertNonnegative "second migration duration" secondDuration
+      assertNonnegative "plan duration" planDuration
+  events -> assertFailure ("unexpected event order: " <> show events)
+
+assertNonnegative :: String -> NominalDiffTime -> IO ()
+assertNonnegative label duration =
+  assertBool (label <> " was negative: " <> show duration) (duration >= 0)
 
 uniqueLockKey :: IO Int64
 uniqueLockKey = do

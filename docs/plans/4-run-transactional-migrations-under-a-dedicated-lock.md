@@ -39,8 +39,10 @@ failed transaction leaves neither user effects nor a ledger row.
   verification and nontransactional preflight, atomic SQL/Haskell actions plus Applied
   rows, repeat-run outcomes, rollback, and post-transaction condemnation detection; all
   85 unit and 10 PostgreSQL integration tests pass.
-- [ ] Milestone 4: prove event boundaries, rollback, condemnation, lock behavior,
-  concurrency, cleanup, and final workspace acceptance.
+- [x] (2026-07-10 13:10 PDT) Milestone 4: proved durable event ordering, callback and
+  asynchronous cleanup, default-wait concurrency, exactly-once effects, timeout and lock
+  restoration, and nonnegative durations; all 85 unit and 14 PostgreSQL integration tests
+  pass and the full workspace builds.
 
 
 ## Surprises & Discoveries
@@ -52,6 +54,14 @@ failed transaction leaves neither user effects nor a ledger row.
   successful session, and the live condemnation test observes `TransactionCondemned`
   with neither user table nor ledger row remaining.
 
+- Observation: two simultaneous server-blocking `pg_advisory_lock` libpq calls can occupy
+  all available test RTS execution capabilities, leaving the lock holder idle inside its
+  ledger transaction and the waiter blocked in PostgreSQL.
+  Evidence: `pg_stat_activity` showed one connection `idle in transaction` after ledger
+  DDL and the other waiting on `Lock/advisory`; replacing the infinite blocking call with
+  deadline-free `pg_try_advisory_lock` polling made the same default-options concurrency
+  test finish with exactly one execution of each effect.
+
 
 ## Decision Log
 
@@ -61,10 +71,10 @@ failed transaction leaves neither user effects nor a ledger row.
   application pool would violate the dedicated-connection contract.
   Date: 2026-07-10
 
-- Decision: Poll only for finite timeout and no-wait modes; use PostgreSQL's blocking
-  advisory-lock call for the default infinite wait.
-  Rationale: `pg_try_advisory_lock` gives explicit elapsed-time control without changing
-  `lock_timeout`, while the blocking call avoids needless default polling.
+- Decision: Use `pg_try_advisory_lock` for no-wait, finite, and infinite waits; infinite
+  wait polls without a deadline.
+  Rationale: polling gives explicit monotonic timing without changing `lock_timeout` and
+  prevents simultaneous blocking libpq calls from starving the in-process lock holder.
   Date: 2026-07-10
 
 - Decision: Represent cleanup failure as a structured error carrying both the optional
@@ -77,7 +87,20 @@ failed transaction leaves neither user effects nor a ledger row.
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+Applications can now run validated transactional SQL and Haskell plans through either
+Hasql settings or a bracketed dedicated connection provider. The runner accepts only
+PostgreSQL 17 and 18, saves and restores `statement_timeout`, owns one advisory lock across
+ledger initialization, verification, and execution, writes every action and Applied row
+atomically, and reports `TransactionCondemned` when Hasql aborts without a session error.
+Repeat runs return `AlreadyApplied`, and pending nontransactional work is rejected before
+any mutation until EP-5 installs its durable state machine.
+
+The final live suite proves rollback, condemnation, no-wait and finite waits, default-wait
+concurrency, exactly-once side effects, durable event order, callback failure, and
+asynchronous interruption. Cleanup restores the prior timeout and unlocks before the
+advanced provider callback returns. Final validation passed `nix fmt`, `cabal build all`,
+85 core unit tests, and 14 PostgreSQL 17 integration tests. EP-5 can reuse the same
+connection, lock, event, and cleanup lifecycle without creating a parallel runner.
 
 
 ## Context and Orientation
@@ -239,3 +262,7 @@ lifecycle after all 85 unit and 6 live PostgreSQL tests passed.
 
 2026-07-10: Recorded the completed atomic transactional runner and Hasql condemnation
 discovery after all 85 unit and 10 live PostgreSQL tests passed.
+
+2026-07-10: Completed event, callback, concurrency, and asynchronous-cleanup coverage;
+revised infinite locking to deadline-free polling after live RTS starvation evidence; and
+recorded the final full-workspace acceptance results.
