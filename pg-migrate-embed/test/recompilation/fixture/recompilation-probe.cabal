@@ -1,0 +1,19 @@
+cabal-version: 3.8
+name:          pg-migrate-embed-recompilation-probe
+version:       0.1.0.0
+build-type:    Simple
+
+executable recompilation-probe
+  default-language:   GHC2024
+  default-extensions:
+    OverloadedStrings
+    TemplateHaskell
+
+  ghc-options:        -Wall -threaded
+  hs-source-dirs:     app
+  main-is:            Main.hs
+  build-depends:
+    , base              >=4.20 && <4.22
+    , bytestring        >=0.12 && <0.13
+    , pg-migrate
+    , pg-migrate-embed

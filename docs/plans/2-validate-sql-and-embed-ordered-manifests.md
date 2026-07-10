@@ -39,7 +39,9 @@ changing either the manifest or a listed file recompiles the embedding module.
   authoring with zero-padded sequence inference, explicit-name validation, exclusive file
   creation, atomic manifest replacement, and rollback after simulated replacement failure;
   all 24 embed-package tests pass.
-- [ ] Milestone 5: prove manifest and SQL input changes trigger recompilation.
+- [x] (2026-07-10 11:38 PDT) Milestone 5: added a hermetic compile-time probe that
+  proves GHC rebuilds embedded output after either a listed SQL file or the ordered
+  manifest changes, while the Haskell module remains untouched.
 - [ ] Run final formatting, builds, tests, and plan closeout.
 
 
@@ -59,6 +61,14 @@ changing either the manifest or a listed file recompiles the embedding module.
   Evidence: the first focused build reported `Ambiguous occurrence ‘ioError’`; after the
   rename and numeric-prefix pattern match, all 24 embed-package tests pass without source
   warnings.
+
+- Observation: Cabal's `run` file monitor can declare a component up to date before
+  invoking GHC, even though the previous interface records both the manifest and SQL file
+  through `addDependentFile`. The regression suite must enter the Cabal-resolved package
+  environment with `cabal exec` and invoke `ghc --make` so GHC performs its recorded
+  dependent-file fingerprint check.
+  Evidence: `ghc --show-iface` listed both dependent files, and the direct rebuild reported
+  `[./migrations/manifest changed]` before producing two checksum lines.
 
 
 ## Decision Log
@@ -89,6 +99,13 @@ changing either the manifest or a listed file recompiles the embedding module.
   Rationale: deterministic tests must prove rollback after replacement failure without
   relying on platform-specific permission behavior, while the stable facade exposes only
   `newMigration` and opaque validated options.
+  Date: 2026-07-10
+
+- Decision: Drive the recompilation probe with `ghc --make` inside `cabal exec` rather
+  than repeated `cabal run` calls.
+  Rationale: Cabal still supplies the exact local package database and dependencies, while
+  GHC—not Cabal's higher-level file monitor—owns `addDependentFile` fingerprint semantics.
+  This directly tests the contract implemented by `embedMigrationManifest`.
   Date: 2026-07-10
 
 
@@ -260,3 +277,6 @@ migration directory for execution.
 
 2026-07-10: Recorded completion of crash-conservative authoring, its deterministic
 failure-injection boundary, and the GHC 9.12 compile-time naming discovery.
+
+2026-07-10: Recorded the completed SQL/manifest recompilation probe and why it invokes
+GHC through Cabal's resolved package environment.
