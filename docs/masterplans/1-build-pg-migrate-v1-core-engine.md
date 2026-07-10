@@ -65,7 +65,7 @@ predecessor dependency or source-specific branch.
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
 | 1 | Bootstrap the pg-migrate workspace and pure model | docs/plans/1-bootstrap-the-pg-migrate-workspace-and-pure-model.md | None | None | Complete |
-| 2 | Validate SQL and embed ordered manifests | docs/plans/2-validate-sql-and-embed-ordered-manifests.md | EP-1 | None | In Progress |
+| 2 | Validate SQL and embed ordered manifests | docs/plans/2-validate-sql-and-embed-ordered-manifests.md | EP-1 | None | Complete |
 | 3 | Build the versioned ledger and plan verification | docs/plans/3-build-the-versioned-ledger-and-plan-verification.md | EP-1 | EP-2 | Not Started |
 | 4 | Run transactional migrations under a dedicated lock | docs/plans/4-run-transactional-migrations-under-a-dedicated-lock.md | EP-2, EP-3 | None | Not Started |
 | 5 | Run and repair nontransactional migrations | docs/plans/5-run-and-repair-nontransactional-migrations.md | EP-4 | None | Not Started |
@@ -123,6 +123,9 @@ operations required by later packages even though the illustrative export list i
 
 - [x] (2026-07-10 10:29 PDT) EP-1: Bootstrapped the GHC 9.12 workspace, opaque pure
   model, explicit and stable plan validation, Nix package, and 34-test unit suite.
+- [x] (2026-07-10 11:45 PDT) EP-2: Added exact-byte SQL validation, ordered Template
+  Haskell manifests, component construction, crash-conservative authoring, and a
+  tracked-input recompilation proof; the final 65-test core and 24-test embed suites pass.
 
 
 ## Surprises & Discoveries
@@ -178,13 +181,17 @@ operations required by later packages even though the illustrative export list i
 ## Outcomes & Retrospective
 
 EP-1 delivered the compiling package, pure model, and plan semantics that unblock both
-EP-2 and EP-3. All final Cabal, Mori, formatting, repeated unit, flake-evaluation, and Nix
-package checks passed. The initiative remains in progress: SQL embedding, the ledger,
-execution, nontransactional repair, and history import are still owned by EP-2 through
-EP-6.
+EP-2 and EP-3. EP-2 delivered exact-byte SQL validation, ordered compile-time embedding,
+component construction, safe migration authoring, and explicit GHC dependency tracking.
+All final EP-1 and EP-2 formatting, build, unit, and package-specific acceptance checks
+passed. The initiative remains in progress: the ledger, execution, nontransactional
+repair, and history import are still owned by EP-3 through EP-6.
 
 
 ## Revision Note
 
 2026-07-10: Marked EP-1 complete, recorded its crypton/Nix integration discoveries, and
 clarified the internal read-only boundary that EP-2 and EP-3 must consume.
+
+2026-07-10: Marked EP-2 complete after its final formatting, package builds, 65 core
+tests, 24 embed tests, and tracked-input recompilation test all passed.

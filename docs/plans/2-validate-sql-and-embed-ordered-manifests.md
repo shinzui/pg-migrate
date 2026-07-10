@@ -42,7 +42,9 @@ changing either the manifest or a listed file recompiles the embedding module.
 - [x] (2026-07-10 11:38 PDT) Milestone 5: added a hermetic compile-time probe that
   proves GHC rebuilds embedded output after either a listed SQL file or the ordered
   manifest changes, while the Haskell module remains untouched.
-- [ ] Run final formatting, builds, tests, and plan closeout.
+- [x] (2026-07-10 11:45 PDT) Ran `nix fmt`, built both packages, passed all 65
+  core tests and all 24 embed tests, and passed the dedicated tracked-input
+  recompilation suite.
 
 
 ## Surprises & Discoveries
@@ -111,7 +113,14 @@ changing either the manifest or a listed file recompiles the embedding module.
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+Component authors can now validate exact SQL bytes, embed a manifest in declared order,
+construct a migration component, and add a migration through a crash-conservative
+authoring API. The implementation rejects malformed UTF-8, unsafe SQL, invalid or
+incomplete manifests, and ambiguous nontransactional scripts before execution. The final
+acceptance run built `pg-migrate` and `pg-migrate-embed`, passed 65 core tests and 24 embed
+tests, and independently proved that changing either tracked input makes GHC regenerate
+the embedded value. This completes the plan without leaving runtime filesystem migration
+loading or database execution in the embed package.
 
 
 ## Context and Orientation
@@ -280,3 +289,6 @@ failure-injection boundary, and the GHC 9.12 compile-time naming discovery.
 
 2026-07-10: Recorded the completed SQL/manifest recompilation probe and why it invokes
 GHC through Cabal's resolved package environment.
+
+2026-07-10: Recorded the final formatting, build, unit, embed, and recompilation evidence
+and closed the plan after every acceptance condition passed.
