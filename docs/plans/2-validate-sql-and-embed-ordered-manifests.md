@@ -30,7 +30,8 @@ changing either the manifest or a listed file recompiles the embedding module.
 - [x] (2026-07-10 10:42 PDT) Milestone 1: implemented strict UTF-8 validation, SQL
   lexical classification, structured definition errors, and exact-byte `sqlMigration`;
   all 65 core unit tests pass.
-- [ ] Milestone 2: implement manifest checking and Template Haskell embedding.
+- [x] (2026-07-10 10:49 PDT) Milestone 2: implemented manifest checking and
+  Template Haskell embedding; all 13 embed-package manifest tests pass.
 - [ ] Milestone 3: construct components from embedded manifest entries and add fixtures.
 - [ ] Milestone 4: implement crash-conservative migration authoring.
 - [ ] Milestone 5: prove manifest and SQL input changes trigger recompilation.
@@ -39,7 +40,12 @@ changing either the manifest or a listed file recompiles the embedding module.
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: GHC 9.12's `makeRelativeToProject` resolves relative splice inputs against
+  the package root and `addDependentFile` expects the resulting absolute path. The embedder
+  therefore resolves once, registers the manifest and every listed SQL file by absolute
+  path, and retains only the manifest basenames in its generated value.
+  Evidence: the package test compiles a real splice over
+  `test/fixtures/valid/migrations/manifest` and observes its non-sorted manifest order.
 
 
 ## Decision Log

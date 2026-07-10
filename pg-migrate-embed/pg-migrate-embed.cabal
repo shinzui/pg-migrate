@@ -1,0 +1,67 @@
+cabal-version: 3.8
+name:          pg-migrate-embed
+version:       0.1.0.0
+synopsis:      Compile-time ordered SQL manifests for pg-migrate
+description:
+  Checks ordered migration manifests, embeds their exact SQL bytes, and provides
+  crash-conservative migration authoring helpers.
+
+license:       BSD-3-Clause
+build-type:    Simple
+data-files:
+  test/fixtures/absolute/*
+  test/fixtures/blank/*
+  test/fixtures/comment/*
+  test/fixtures/duplicate/*
+  test/fixtures/missing/*
+  test/fixtures/nested/*
+  test/fixtures/non-sql/*
+  test/fixtures/parent/*
+  test/fixtures/unlisted/*
+  test/fixtures/valid/migrations/*
+
+common common
+  default-language:   GHC2024
+  default-extensions:
+    DeriveAnyClass
+    DuplicateRecordFields
+    MultilineStrings
+    OverloadedLabels
+    OverloadedStrings
+
+  ghc-options:        -Wall -Wcompat
+
+library
+  import:             common
+  default-extensions: TemplateHaskell
+  hs-source-dirs:     src
+  exposed-modules:    Database.PostgreSQL.Migrate.Embed
+  other-modules:      Database.PostgreSQL.Migrate.Embed.Manifest
+  build-depends:
+    , base              >=4.20 && <4.22
+    , bytestring        >=0.12 && <0.13
+    , directory         >=1.3  && <1.4
+    , filepath          >=1.5  && <1.6
+    , pg-migrate
+    , template-haskell  >=2.22 && <2.24
+    , text              >=2.1  && <2.2
+
+test-suite pg-migrate-embed-test
+  import:          common
+  type:            exitcode-stdio-1.0
+  hs-source-dirs:  test/unit
+  main-is:         Main.hs
+  other-modules:
+    Paths_pg_migrate_embed
+    Test.Manifest
+
+  autogen-modules: Paths_pg_migrate_embed
+  build-depends:
+    , base              >=4.20 && <4.22
+    , bytestring        >=0.12 && <0.13
+    , directory         >=1.3  && <1.4
+    , filepath          >=1.5  && <1.6
+    , pg-migrate-embed
+    , tasty             >=1.5  && <1.6
+    , tasty-hunit       >=0.10 && <0.11
+    , text              >=2.1  && <2.2
