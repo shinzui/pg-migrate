@@ -30,6 +30,8 @@ library
 
   other-modules:
     Database.PostgreSQL.Migrate.Definition
+    Database.PostgreSQL.Migrate.Ledger.Migrations
+    Database.PostgreSQL.Migrate.Ledger.Sql
     Database.PostgreSQL.Migrate.Ledger.Types
     Database.PostgreSQL.Migrate.Plan
     Database.PostgreSQL.Migrate.Sql

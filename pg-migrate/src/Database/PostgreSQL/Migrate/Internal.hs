@@ -9,9 +9,35 @@ module Database.PostgreSQL.Migrate.Internal
     migrationTransactionMode,
     migrationKind,
     migrationSqlBytes,
+    PostgresIdentifier (..),
+    LedgerMetadata (..),
+    LedgerSnapshot (..),
+    LedgerError (..),
+    currentLedgerVersion,
+    ledgerMigrationVersions,
+    ledgerUpgradePath,
+    initializeOrUpgradeLedger,
+    quotePostgresIdentifier,
+    ledgerVersionOneDdl,
   )
 where
 
+import Database.PostgreSQL.Migrate.Ledger.Migrations
+  ( currentLedgerVersion,
+    initializeOrUpgradeLedger,
+    ledgerMigrationVersions,
+    ledgerUpgradePath,
+  )
+import Database.PostgreSQL.Migrate.Ledger.Sql
+  ( ledgerVersionOneDdl,
+    quotePostgresIdentifier,
+  )
+import Database.PostgreSQL.Migrate.Ledger.Types
+  ( LedgerError (..),
+    LedgerMetadata (..),
+    LedgerSnapshot (..),
+    PostgresIdentifier (..),
+  )
 import Database.PostgreSQL.Migrate.Plan
   ( ComponentDescription (..),
     MigrationDescription (..),

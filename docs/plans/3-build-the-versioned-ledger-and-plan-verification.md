@@ -29,8 +29,9 @@ fresh initialization and every mismatch as structured data rather than rendered 
 - [x] (2026-07-10 11:57 PDT) Milestone 1: added an opaque PostgreSQL identifier and
   ledger configuration, immutable stored-row/report/error types, and five focused
   configuration tests; all 70 core unit tests pass.
-- [ ] Milestone 2: implement the versioned ledger DDL and transactional initialization
-  and upgrade sessions.
+- [x] (2026-07-10 12:00 PDT) Milestone 2: implemented identifier-safe version 1 DDL,
+  typed metadata statements, ordered upgrade selection, transactional installation, and
+  newer-version refusal; all 72 core unit tests pass.
 - [ ] Milestone 3: load typed ledger snapshots and compare them with declared plans.
 - [ ] Milestone 4: expose status and strict verification behavior, add PostgreSQL
   integration coverage, and complete final validation.
@@ -64,6 +65,13 @@ fresh initialization and every mismatch as structured data rather than rendered 
   key.
   Rationale: the bytes read as the recognizable prefix `pg_migra`, fit in signed `Int64`,
   and give this engine a project-owned constant rather than relying on runtime hashing.
+  Date: 2026-07-10
+
+- Decision: Return `Either LedgerError ()` inside the initialization `Session`.
+  Rationale: a future ledger version is an expected, structured compatibility result and
+  cannot be represented by the plan's provisional `Session ()` signature without
+  discarding data or fabricating a Hasql transport error. EP-4 can lift this result into
+  its runner error while preserving genuine `SessionError` separately.
   Date: 2026-07-10
 
 
@@ -215,3 +223,6 @@ verifiable milestones from the plan of work.
 
 2026-07-10: Recorded the completed validated configuration and immutable ledger model,
 including the quoted-identifier and stable-lock-key decisions.
+
+2026-07-10: Recorded the completed version 1 DDL and transactional upgrade path, and
+clarified the structured initialization result consumed by EP-4.
