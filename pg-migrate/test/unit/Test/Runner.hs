@@ -1,6 +1,7 @@
 module Test.Runner (tests) where
 
 import Data.Function ((&))
+import Data.Int (Int32)
 import Data.Time (NominalDiffTime)
 import Database.PostgreSQL.Migrate
 import Database.PostgreSQL.Migrate qualified as Migrate
@@ -14,7 +15,8 @@ tests =
     "runner"
     [ testCase "default options are conservative" testDefaultOptions,
       testCase "functional option updates compose" testOptionUpdates,
-      testCase "report values remain immutable structured data" testReportValues
+      testCase "report values remain immutable structured data" testReportValues,
+      testCase "server version classification accepts only 17 and 18" testServerVersions
     ]
 
 testDefaultOptions :: IO ()
@@ -45,6 +47,18 @@ testReportValues = do
       result = MigrationResult identifier AppliedNow (Just 0.5)
   result @?= MigrationResult identifier AppliedNow (Just 0.5)
   MigrationCompleted identifier 0.5 @?= MigrationCompleted identifier 0.5
+
+testServerVersions :: IO ()
+testServerVersions = do
+  requireRight (classifyServerVersion (170010 :: Int32)) @?= 17
+  requireRight (classifyServerVersion (180000 :: Int32)) @?= 18
+  assertUnsupported 16 (classifyServerVersion 160010)
+  assertUnsupported 19 (classifyServerVersion 190000)
+
+assertUnsupported :: Int -> Either MigrationError Int -> IO ()
+assertUnsupported expected = \case
+  Left (UnsupportedPostgresVersion actual) -> actual @?= expected
+  other -> error ("expected unsupported PostgreSQL version, received " <> show other)
 
 requireRight :: (Show error) => Either error value -> value
 requireRight = \case

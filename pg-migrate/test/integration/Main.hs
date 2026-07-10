@@ -9,6 +9,7 @@ import Data.Text qualified as Text
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Database.PostgreSQL.Migrate
 import Database.PostgreSQL.Migrate.Internal
+import GHC.Clock (getMonotonicTimeNSec)
 import Hasql.Connection qualified as Connection
 import Hasql.Connection.Settings qualified as Settings
 import Hasql.Decoders qualified as Decoders
@@ -37,7 +38,9 @@ tests settings =
     [ testCase "installation is complete, constrained, and idempotent" (testInstallation settings),
       testCase "quoted custom schemas are safe" (testQuotedSchema settings),
       testCase "read-only loading leaves a missing ledger missing" (testMissingReadOnly settings),
-      testCase "a future schema version is refused without mutation" (testFutureVersion settings)
+      testCase "a future schema version is refused without mutation" (testFutureVersion settings),
+      testCase "server version and statement timeout lifecycle are supported" (testConnectionLifecycle settings),
+      testCase "lock no-wait and finite timeout preserve session settings" (testLockLifecycle settings)
     ]
 
 testInstallation :: Settings.Settings -> IO ()
@@ -111,6 +114,40 @@ testFutureVersion settings =
       LedgerSnapshot {metadata = Just LedgerMetadata {schemaVersion}} ->
         schemaVersion @?= currentLedgerVersion + 1
       other -> assertFailure ("unexpected future-version snapshot: " <> show other)
+
+testConnectionLifecycle :: Settings.Settings -> IO ()
+testConnectionLifecycle settings =
+  withConnection settings $ \connection -> do
+    majorVersion <- checkServerVersion connection >>= requireMigrationRight
+    majorVersion @?= 17
+    before <- readStatementTimeout connection >>= requireMigrationRight
+    saved <- applyStatementTimeout connection (Just 0.075) >>= requireMigrationRight
+    saved @?= Just before
+    during <- readStatementTimeout connection >>= requireMigrationRight
+    during @?= "75ms"
+    restoreStatementTimeout connection saved >>= requireCleanupRight
+    after <- readStatementTimeout connection >>= requireMigrationRight
+    after @?= before
+
+testLockLifecycle :: Settings.Settings -> IO ()
+testLockLifecycle settings = do
+  lockKey <- uniqueLockKey
+  withConnection settings $ \holder ->
+    withConnection settings $ \contender -> do
+      timeoutBefore <- readStatementTimeout contender >>= requireMigrationRight
+      _ <- acquireAdvisoryLock holder lockKey WaitIndefinitely >>= requireMigrationRight
+      acquireAdvisoryLock contender lockKey NoWait >>= assertLockUnavailable
+      started <- getMonotonicTimeNSec
+      acquireAdvisoryLock contender lockKey (WaitFor 0.12) >>= assertLockTimedOut
+      finished <- getMonotonicTimeNSec
+      let elapsed = fromIntegral (finished - started) / (1000000000 :: Double)
+      assertBool ("finite lock wait returned too early: " <> show elapsed) (elapsed >= 0.10)
+      assertBool ("finite lock wait returned too late: " <> show elapsed) (elapsed < 1.0)
+      releaseAdvisoryLock holder lockKey >>= requireCleanupRight
+      _ <- acquireAdvisoryLock contender lockKey NoWait >>= requireMigrationRight
+      releaseAdvisoryLock contender lockKey >>= requireCleanupRight
+      timeoutAfter <- readStatementTimeout contender >>= requireMigrationRight
+      timeoutAfter @?= timeoutBefore
 
 withTestLedger ::
   Settings.Settings ->
@@ -250,6 +287,34 @@ isLeft :: Either left right -> Bool
 isLeft = \case
   Left _ -> True
   Right _ -> False
+
+requireMigrationRight :: Either MigrationError value -> IO value
+requireMigrationRight = \case
+  Left migrationError -> assertFailure (show migrationError) >> error "assertFailure returned"
+  Right value -> pure value
+
+requireCleanupRight :: Either CleanupIssue () -> IO ()
+requireCleanupRight = \case
+  Left cleanupIssue -> assertFailure (show cleanupIssue)
+  Right () -> pure ()
+
+assertLockUnavailable :: Either MigrationError value -> IO ()
+assertLockUnavailable = \case
+  Left AdvisoryLockUnavailable -> pure ()
+  Left migrationError -> assertFailure ("expected AdvisoryLockUnavailable, received " <> show migrationError)
+  Right _ -> assertFailure "expected AdvisoryLockUnavailable, received Right"
+
+assertLockTimedOut :: Either MigrationError value -> IO ()
+assertLockTimedOut = \case
+  Left (AdvisoryLockTimedOut timeout) -> timeout @?= 0.12
+  Left migrationError -> assertFailure ("expected AdvisoryLockTimedOut, received " <> show migrationError)
+  Right _ -> assertFailure "expected AdvisoryLockTimedOut, received Right"
+
+uniqueLockKey :: IO Int64
+uniqueLockKey = do
+  now <- getPOSIXTime
+  let microseconds = floor (realToFrac now * (1000000 :: Double)) :: Integer
+  pure (testLockKey + fromIntegral (microseconds `mod` 1000000))
 
 integrationRunnerVersion :: Text
 integrationRunnerVersion = "pg-migrate-integration"

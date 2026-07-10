@@ -31,8 +31,10 @@ failed transaction leaves neither user effects nor a ledger row.
 - [x] (2026-07-10 12:39 PDT) Milestone 1: added opaque composable run options and
   connection providers, lock modes, immutable events/results/reports, cleanup context,
   and structured runner errors; all 84 core unit tests pass.
-- [ ] Milestone 2: implement dedicated connection cleanup, server-version checking,
-  advisory-lock waits, and statement-timeout restoration.
+- [x] (2026-07-10 12:49 PDT) Milestone 2: implemented masked dedicated connection
+  release, PostgreSQL 17/18 classification, blocking/no-wait/finite advisory locks with
+  monotonic timing, explicit unlock, and statement-timeout save/restore; all 85 unit and
+  6 PostgreSQL integration tests pass.
 - [ ] Milestone 3: initialize and verify the ledger, execute transactional migrations,
   and insert their Applied rows atomically.
 - [ ] Milestone 4: prove event boundaries, rollback, condemnation, lock behavior,
@@ -224,3 +226,6 @@ verifiable milestones from the plan of work.
 
 2026-07-10: Recorded the completed runner type contract and cleanup-error composition
 decision after all 84 unit tests passed.
+
+2026-07-10: Recorded the completed connection, version, lock, and statement-timeout
+lifecycle after all 85 unit and 6 live PostgreSQL tests passed.

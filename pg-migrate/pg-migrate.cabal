@@ -35,6 +35,8 @@ library
     Database.PostgreSQL.Migrate.Ledger.Sql
     Database.PostgreSQL.Migrate.Ledger.Types
     Database.PostgreSQL.Migrate.Plan
+    Database.PostgreSQL.Migrate.Runner.Connection
+    Database.PostgreSQL.Migrate.Runner.Lock
     Database.PostgreSQL.Migrate.Runner.Types
     Database.PostgreSQL.Migrate.Sql
     Database.PostgreSQL.Migrate.Sql.Scanner

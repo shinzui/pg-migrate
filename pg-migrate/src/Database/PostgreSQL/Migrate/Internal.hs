@@ -33,6 +33,13 @@ module Database.PostgreSQL.Migrate.Internal
     runStatementTimeout,
     runUnknownMigrationsPolicy,
     runEventHandler,
+    checkServerVersion,
+    classifyServerVersion,
+    acquireAdvisoryLock,
+    releaseAdvisoryLock,
+    applyStatementTimeout,
+    restoreStatementTimeout,
+    readStatementTimeout,
   )
 where
 
@@ -68,6 +75,17 @@ import Database.PostgreSQL.Migrate.Plan
     MigrationDescription (..),
     PlanDescription (..),
     planDescription,
+  )
+import Database.PostgreSQL.Migrate.Runner.Connection
+  ( checkServerVersion,
+    classifyServerVersion,
+  )
+import Database.PostgreSQL.Migrate.Runner.Lock
+  ( acquireAdvisoryLock,
+    applyStatementTimeout,
+    readStatementTimeout,
+    releaseAdvisoryLock,
+    restoreStatementTimeout,
   )
 import Database.PostgreSQL.Migrate.Runner.Types
   ( runEventHandler,

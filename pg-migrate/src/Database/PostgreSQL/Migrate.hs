@@ -42,6 +42,7 @@ module Database.PostgreSQL.Migrate
     MigrationError (..),
     ConnectionProvider,
     connectionProvider,
+    connectionProviderFromSettings,
     IdentifierError (..),
     PostgresIdentifierError (..),
     SqlError (..),
@@ -79,6 +80,9 @@ import Database.PostgreSQL.Migrate.Plan
   ( PlanError (..),
     migrationPlan,
     resolveMigrationPlan,
+  )
+import Database.PostgreSQL.Migrate.Runner.Connection
+  ( connectionProviderFromSettings,
   )
 import Database.PostgreSQL.Migrate.Runner.Types
   ( CleanupIssue (..),
