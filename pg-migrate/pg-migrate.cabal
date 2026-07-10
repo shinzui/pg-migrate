@@ -31,6 +31,8 @@ library
   other-modules:
     Database.PostgreSQL.Migrate.Definition
     Database.PostgreSQL.Migrate.Plan
+    Database.PostgreSQL.Migrate.Sql
+    Database.PostgreSQL.Migrate.Sql.Scanner
     Database.PostgreSQL.Migrate.Types
 
   build-depends:
@@ -52,6 +54,7 @@ test-suite pg-migrate-unit
     Test.Definition
     Test.Plan
     Test.PublicApi
+    Test.Sql
 
   build-depends:
     , base              >=4.20 && <4.22

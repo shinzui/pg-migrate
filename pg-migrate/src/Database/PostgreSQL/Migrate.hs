@@ -8,14 +8,17 @@ module Database.PostgreSQL.Migrate
     MigrationChecksum,
     migrationFingerprint,
     Migration,
+    sqlMigration,
     transactionMigration,
     sessionMigration,
     MigrationComponent,
     migrationComponent,
+    migrationComponentFromEmbeddedSql,
     MigrationPlan,
     migrationPlan,
     resolveMigrationPlan,
     IdentifierError (..),
+    SqlError (..),
     DefinitionError (..),
     PlanError (..),
   )
@@ -26,10 +29,12 @@ import Database.PostgreSQL.Migrate.Definition
     IdentifierError (..),
     componentName,
     migrationComponent,
+    migrationComponentFromEmbeddedSql,
     migrationFingerprint,
     migrationId,
     migrationName,
     sessionMigration,
+    sqlMigration,
     transactionMigration,
   )
 import Database.PostgreSQL.Migrate.Plan
@@ -37,6 +42,7 @@ import Database.PostgreSQL.Migrate.Plan
     migrationPlan,
     resolveMigrationPlan,
   )
+import Database.PostgreSQL.Migrate.Sql (SqlError (..))
 import Database.PostgreSQL.Migrate.Types
   ( ComponentName,
     Migration,

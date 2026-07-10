@@ -5,9 +5,11 @@ module Database.PostgreSQL.Migrate.Definition
     migrationName,
     migrationId,
     migrationFingerprint,
+    sqlMigration,
     transactionMigration,
     sessionMigration,
     migrationComponent,
+    migrationComponentFromEmbeddedSql,
   )
 where
 
@@ -18,6 +20,11 @@ import Data.Char qualified as Char
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text.Encoding
+import Database.PostgreSQL.Migrate.Sql
+  ( SqlError,
+    sqlScanTransactionMode,
+    validateSql,
+  )
 import Database.PostgreSQL.Migrate.Types
 import Hasql.Session qualified as Hasql.Session
 import Hasql.Transaction qualified as Hasql.Transaction
@@ -43,6 +50,10 @@ data DefinitionError
       { input :: !Text,
         reason :: !IdentifierError
       }
+  | InvalidSql !SqlError
+  | InvalidEmbeddedMigrationFile
+      { file :: !FilePath
+      }
   deriving stock (Generic, Eq, Show)
 
 componentName :: Text -> Either DefinitionError ComponentName
@@ -63,6 +74,20 @@ migrationFingerprint :: ByteString -> MigrationChecksum
 migrationFingerprint bytes =
   MigrationChecksum
     (ByteArray.convert (Hash.hashWith Hash.SHA256 bytes))
+
+sqlMigration :: Text -> ByteString -> Either DefinitionError Migration
+sqlMigration nameInput sqlBytes = do
+  name <- migrationName nameInput
+  sqlScan <- first InvalidSql (validateSql sqlBytes)
+  pure
+    Migration
+      { name,
+        description = Nothing,
+        mode = sqlScanTransactionMode sqlScan,
+        kind = SqlKind,
+        checksum = migrationFingerprint sqlBytes,
+        action = SqlAction sqlBytes
+      }
 
 transactionMigration ::
   Text ->
@@ -108,6 +133,23 @@ migrationComponent nameInput dependencyInputs migrations = do
   dependencies <-
     Set.fromList <$> traverse componentName (Set.toAscList dependencyInputs)
   pure MigrationComponent {name, dependencies, migrations}
+
+migrationComponentFromEmbeddedSql ::
+  Text ->
+  Set Text ->
+  NonEmpty (FilePath, ByteString) ->
+  Either DefinitionError MigrationComponent
+migrationComponentFromEmbeddedSql nameInput dependencyInputs entries = do
+  migrations <- traverse migrationFromEntry entries
+  migrationComponent nameInput dependencyInputs migrations
+  where
+    migrationFromEntry (file, sqlBytes) = do
+      localName <-
+        maybe
+          (Left (InvalidEmbeddedMigrationFile file))
+          Right
+          (Text.stripSuffix ".sql" (Text.pack file))
+      sqlMigration localName sqlBytes
 
 validateIdentifier :: Text -> Either IdentifierError Text
 validateIdentifier value

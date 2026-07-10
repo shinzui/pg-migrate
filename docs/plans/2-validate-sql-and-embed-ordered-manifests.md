@@ -27,7 +27,14 @@ changing either the manifest or a listed file recompiles the embedding module.
 
 ## Progress
 
-(No implementation work has started.)
+- [x] (2026-07-10 10:42 PDT) Milestone 1: implemented strict UTF-8 validation, SQL
+  lexical classification, structured definition errors, and exact-byte `sqlMigration`;
+  all 65 core unit tests pass.
+- [ ] Milestone 2: implement manifest checking and Template Haskell embedding.
+- [ ] Milestone 3: construct components from embedded manifest entries and add fixtures.
+- [ ] Milestone 4: implement crash-conservative migration authoring.
+- [ ] Milestone 5: prove manifest and SQL input changes trigger recompilation.
+- [ ] Run final formatting, builds, tests, and plan closeout.
 
 
 ## Surprises & Discoveries
@@ -48,6 +55,14 @@ changing either the manifest or a listed file recompiles the embedding module.
   the action.
   Rationale: Hasql 1.10 sessions accept `Text`, while the public checksum contract covers
   exact original bytes including comments and whitespace.
+  Date: 2026-07-10
+
+- Decision: Validate UTF-8 with a small byte-level classifier before calling the total
+  `decodeUtf8` function.
+  Rationale: `text`'s public strict decoder identifies malformed input but does not expose
+  the failing byte offset required by the structured definition error contract. The
+  classifier rejects overlong encodings, surrogate code points, out-of-range code points,
+  truncated sequences, and invalid continuation bytes without normalizing valid payloads.
   Date: 2026-07-10
 
 
