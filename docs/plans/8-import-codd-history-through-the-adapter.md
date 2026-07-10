@@ -27,12 +27,24 @@ schema. Fixture tests cover both `codd_schema.sql_migrations` and
 
 ## Progress
 
-(No implementation work has started.)
+- [x] (2026-07-10 16:04 PDT) Milestone 1: Defined the optional adapter package, opaque
+  validated source configuration, ledger/evidence/report/error types, explicit lowercase
+  SHA-256 manifest format, stable evidence keys, and mountable parser command. All six
+  focused manifest and parser tests pass.
+- [ ] (2026-07-10 16:04 PDT) Milestone 2: Detect exact V1–V5 catalog shapes and read typed
+  rows from one dedicated, legacy-lock-owning source connection.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: Codd V5 does not change `sql_migrations`; it renames `codd_schema` to
+  `codd` after V4. The supported V5 column sequence must therefore exactly match V4 rather
+  than accept every table found under the new schema name.
+
+- Observation: Codd 0.2.0 itself does not acquire the Kiroku wrapper advisory lock, and
+  registered Codd dependents contain no shared `migrations.lock` convention. The adapter
+  must document that the lock protects only cooperating wrappers and define its manifest
+  syntax explicitly.
 
 
 ## Decision Log
@@ -53,6 +65,16 @@ schema. Fixture tests cover both `codd_schema.sql_migrations` and
 ## Outcomes & Retrospective
 
 (To be filled during and after implementation.)
+
+
+## Revision Note
+
+2026-07-10: Began EP-8 after reading Codd V1–V5 source schemas and registered dependent
+repositories; recorded the exact V5 shape and absence of an existing wrapper-lock or
+manifest convention.
+
+2026-07-10: Completed Milestone 1 with the package boundary, validated config and evidence
+types, explicit manifest syntax, mountable parser, and six passing focused tests.
 
 
 ## Context and Orientation

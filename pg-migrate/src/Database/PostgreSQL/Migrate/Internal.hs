@@ -37,6 +37,7 @@ module Database.PostgreSQL.Migrate.Internal
     runStatementTimeout,
     runUnknownMigrationsPolicy,
     runEventHandler,
+    useConnectionProvider,
     checkServerVersion,
     classifyServerVersion,
     acquireAdvisoryLock,
@@ -100,7 +101,8 @@ import Database.PostgreSQL.Migrate.Runner.Lock
     restoreStatementTimeout,
   )
 import Database.PostgreSQL.Migrate.Runner.Types
-  ( runEventHandler,
+  ( ConnectionProvider (..),
+    runEventHandler,
     runLedgerConfig,
     runLockWait,
     runStatementTimeout,
@@ -120,6 +122,8 @@ import Database.PostgreSQL.Migrate.Types
     migrationModeOf,
     migrationNameText,
   )
+import Hasql.Connection qualified as Connection
+import Hasql.Errors qualified as Errors
 import PgMigrate.Prelude
 
 migrationChecksumBytes :: MigrationChecksum -> ByteString
@@ -137,3 +141,9 @@ migrationSqlBytes migration =
     SqlAction bytes -> Just bytes
     TransactionAction _ -> Nothing
     SessionAction _ -> Nothing
+
+useConnectionProvider ::
+  ConnectionProvider ->
+  (Connection.Connection -> IO value) ->
+  IO (Either Errors.ConnectionError value)
+useConnectionProvider ConnectionProvider {useDedicatedConnection} = useDedicatedConnection

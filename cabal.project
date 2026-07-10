@@ -2,6 +2,7 @@ packages:
   pg-migrate
   pg-migrate-cli
   pg-migrate-embed
+  pg-migrate-import-codd
 
 with-compiler: ghc-9.12.4
 tests: True

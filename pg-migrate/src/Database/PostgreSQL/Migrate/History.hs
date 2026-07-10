@@ -11,6 +11,7 @@ module Database.PostgreSQL.Migrate.History
     PayloadRelation (..),
     HistoryMapping,
     historyMapping,
+    historyMappingPayloadRelation,
     StateValidationError,
     stateValidationError,
     StateValidator,

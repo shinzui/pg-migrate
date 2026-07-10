@@ -58,7 +58,7 @@ package.
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
 | 7 | Build the reusable migration CLI and JSON contracts | docs/plans/7-build-the-reusable-migration-cli-and-json-contracts.md | None | None | Complete |
-| 8 | Import Codd history through the adapter | docs/plans/8-import-codd-history-through-the-adapter.md | None | EP-7 | Not Started |
+| 8 | Import Codd history through the adapter | docs/plans/8-import-codd-history-through-the-adapter.md | None | EP-7 | In Progress |
 | 9 | Import hasql-migration history through the adapter | docs/plans/9-import-hasql-migration-history-through-the-adapter.md | None | EP-7 | Not Started |
 | 10 | Provide ephemeral PostgreSQL test support and acceptance matrix | docs/plans/10-provide-ephemeral-postgresql-test-support-and-acceptance-matrix.md | EP-7, EP-8, EP-9 | None | Not Started |
 | 11 | Publish v1 API operations and compatibility documentation | docs/plans/11-publish-v1-api-operations-and-compatibility-documentation.md | EP-10 | None | Not Started |
@@ -111,6 +111,10 @@ and schema constants remain defined in code by their implementation plans.
   inspection operations, stable text, JSON schema version 1, six JSON and nine help
   goldens, parser-derived completions, and two live PostgreSQL command scenarios. All
   workspace gates and the legacy-free core-library closure audit pass.
+- [ ] EP-8: Import Codd history through the adapter. Implementation started after EP-7's
+  parser and rendering conventions passed their full acceptance gate. Milestone 1 now
+  provides the package boundary, validated source/evidence types, manifest syntax, and
+  mountable parser with six passing tests.
 
 
 ## Surprises & Discoveries
@@ -160,3 +164,7 @@ the database-backed command acceptance explicitly open.
 2026-07-10: Marked EP-7 complete after the full workspace build and test matrix, exact help
 and JSON goldens, repeatable live PostgreSQL CLI scenarios, formatting, and core-library
 dependency-closure audit passed.
+
+2026-07-10: Started EP-8, the next registry-ordered child with all hard dependencies met.
+
+2026-07-10: Recorded EP-8 Milestone 1 completion and start of exact catalog/lock handling.

@@ -108,8 +108,14 @@ in  Schema.Project::{
             "Optional Codd history-import adapter: reads legacy codd ledgers via Hasql without executing applied migrations"
         , dependencies =
           [ internalDep "pg-migrate"
+          , internalDep "pg-migrate-cli"
+          , thirdPartyDep "aeson"
+          , thirdPartyDep "bytestring"
+          , thirdPartyDep "containers"
           , thirdPartyDep "hasql"
           , thirdPartyDep "optparse-applicative"
+          , thirdPartyDep "text"
+          , thirdPartyDep "time"
           ]
         }
       , Schema.Package::{

@@ -13,6 +13,7 @@ module Database.PostgreSQL.Migrate.History.Types
     PayloadRelation (..),
     HistoryMapping (..),
     historyMapping,
+    historyMappingPayloadRelation,
     StateValidationError (..),
     stateValidationError,
     StateValidator (..),
@@ -209,6 +210,9 @@ staticEvidence strength identity appliedAt payloadChecksum details
 
 historyMapping :: MigrationId -> EvidenceRequirement -> PayloadRelation -> HistoryMapping
 historyMapping target requirement payload = HistoryMapping {target, requirement, payload}
+
+historyMappingPayloadRelation :: HistoryMapping -> PayloadRelation
+historyMappingPayloadRelation HistoryMapping {payload} = payload
 
 stateValidationError :: Text -> Either HistoryDefinitionError StateValidationError
 stateValidationError value
