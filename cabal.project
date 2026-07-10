@@ -1,0 +1,5 @@
+packages: pg-migrate
+
+with-compiler: ghc-9.12.4
+tests: True
+benchmarks: False

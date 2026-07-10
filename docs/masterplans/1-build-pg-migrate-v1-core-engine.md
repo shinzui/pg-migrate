@@ -64,7 +64,7 @@ predecessor dependency or source-specific branch.
 
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
-| 1 | Bootstrap the pg-migrate workspace and pure model | docs/plans/1-bootstrap-the-pg-migrate-workspace-and-pure-model.md | None | None | Not Started |
+| 1 | Bootstrap the pg-migrate workspace and pure model | docs/plans/1-bootstrap-the-pg-migrate-workspace-and-pure-model.md | None | None | In Progress |
 | 2 | Validate SQL and embed ordered manifests | docs/plans/2-validate-sql-and-embed-ordered-manifests.md | EP-1 | None | Not Started |
 | 3 | Build the versioned ledger and plan verification | docs/plans/3-build-the-versioned-ledger-and-plan-verification.md | EP-1 | EP-2 | Not Started |
 | 4 | Run transactional migrations under a dedicated lock | docs/plans/4-run-transactional-migrations-under-a-dedicated-lock.md | EP-2, EP-3 | None | Not Started |
@@ -121,7 +121,7 @@ operations required by later packages even though the illustrative export list i
 
 ## Progress
 
-(No implementation work has started.)
+- [ ] EP-1: Bootstrap the pg-migrate workspace and pure model (in progress).
 
 
 ## Surprises & Discoveries

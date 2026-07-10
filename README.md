@@ -6,8 +6,8 @@ components into an explicit, deterministic migration plan and run it through one
 dedicated PostgreSQL connection.
 
 > [!IMPORTANT]
-> The project is currently in specification and implementation-planning status.
-> There is no supported release or usable library API yet.
+> The project is currently in pre-release implementation. There is no supported
+> release or stable library API yet.
 
 ## Goals
 
@@ -81,6 +81,13 @@ The repository provides a Nix flake for the development environment:
 nix develop
 ```
 
+Build the package and run the unit suite from that shell:
+
+```console
+cabal build all
+just unit
+```
+
 Project identity and dependency metadata live in [`mori.dhall`](mori.dhall). Use `mori`
 to locate registered dependency source and documentation when working on the
 implementation:
@@ -89,6 +96,3 @@ implementation:
 mori show --full
 mori registry list
 ```
-
-Build and test commands will be documented here after the Cabal workspace is introduced
-by the first ExecPlan.

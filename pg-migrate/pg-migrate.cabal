@@ -1,0 +1,63 @@
+cabal-version: 3.8
+name:          pg-migrate
+version:       0.1.0.0
+synopsis:      Hasql-native PostgreSQL migration engine
+description:
+  Libraries own ordered migration components and applications compose them into
+  validated plans. This package is pre-release and its API may change.
+
+license:       BSD-3-Clause
+build-type:    Simple
+
+common common
+  default-language:   GHC2024
+  default-extensions:
+    DeriveAnyClass
+    DuplicateRecordFields
+    MultilineStrings
+    OverloadedLabels
+    OverloadedStrings
+
+  ghc-options:        -Wall -Wcompat
+
+library
+  import:          common
+  hs-source-dirs:  src
+  exposed-modules:
+    Database.PostgreSQL.Migrate
+    PgMigrate.Prelude
+
+  other-modules:
+    Database.PostgreSQL.Migrate.Definition
+    Database.PostgreSQL.Migrate.Plan
+    Database.PostgreSQL.Migrate.Types
+
+  build-depends:
+    , base               >=4.20 && <4.22
+    , bytestring         >=0.12 && <0.13
+    , containers         >=0.7  && <0.8
+    , crypton            >=1.1  && <1.2
+    , hasql              >=1.10 && <1.11
+    , hasql-transaction  >=1.2  && <1.3
+    , memory             >=0.18 && <0.19
+    , text               >=2.1  && <2.2
+
+test-suite pg-migrate-unit
+  import:         common
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test/unit
+  main-is:        Main.hs
+  other-modules:
+    Test.Definition
+    Test.Plan
+    Test.PublicApi
+
+  build-depends:
+    , base              >=4.20 && <4.22
+    , bytestring        >=0.12 && <0.13
+    , containers        >=0.7  && <0.8
+    , pg-migrate
+    , tasty             >=1.5  && <1.6
+    , tasty-hunit       >=0.10 && <0.11
+    , tasty-quickcheck  >=0.11 && <0.13
+    , text              >=2.1  && <2.2

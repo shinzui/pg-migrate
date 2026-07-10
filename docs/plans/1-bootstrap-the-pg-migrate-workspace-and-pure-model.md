@@ -28,7 +28,12 @@ resolver changes only dependency-constrained order.
 
 ## Progress
 
-(No implementation work has started.)
+- [x] (2026-07-10 10:12 PDT) Milestone 1: established the workspace, package, empty test
+  harness, Nix override, Just recipes, and pre-release README; `nix develop -c cabal
+  build all` succeeds with GHC 9.12.4.
+- [ ] Milestone 2: implement opaque names, migrations, components, and fingerprints.
+- [ ] Milestone 3: implement explicit and stable dependency-resolving plans.
+- [ ] Milestone 4: complete the focused unit and public-API tests.
 
 
 ## Surprises & Discoveries
