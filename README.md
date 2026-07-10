@@ -5,7 +5,7 @@ explicit, compile-time migration plan. Libraries export ordered components; appl
 compose them, configure the database connection, and mount the reusable CLI. The runner is
 forward-only, uses ledger schema v1, and supports PostgreSQL 17 and 18.
 
-The 1.0 package set is:
+The package set is:
 
 - `pg-migrate`: validated plans, runner, ledger, repair, inspection, and generic import.
 - `pg-migrate-embed`: manifest v1 validation, exact-byte embedding, and authoring.
@@ -37,18 +37,24 @@ or database-state equivalence checker. Back up the database before deployment or
 import, use a maintenance window for predecessor cutovers, and treat `Running` after a
 crash as operationally ambiguous until an operator inspects the database.
 
-The release-blocking command is `just acceptance`; CI runs it independently on PostgreSQL
-17 and 18. See the [acceptance matrix](docs/acceptance-matrix.md) and
-[release checklist](docs/release-checklist.md).
-
-`pg-migrate` is a planned Hasql-native PostgreSQL migration library for Haskell.
-Libraries own and embed named migration components; applications compose those
-components into an explicit, deterministic migration plan and run it through one
-dedicated PostgreSQL connection.
+## Release status
 
 > [!IMPORTANT]
-> The project is currently in pre-release implementation. There is no supported
-> release or stable library API yet.
+> This public repository is pre-release. There is no published Hackage or GitHub release
+> yet.
+
+All six Cabal packages currently use `1.0.0.0` as coherent, tested release-candidate
+metadata. That does not select it as the first published version. The exact initial PVP
+version must be explicitly confirmed before the release files are finalized, and tagging,
+pushing, Hackage uploads, documentation uploads, and the GitHub release require a
+separate publication approval.
+
+Package versions are independent of the ledger, manifest, and JSON contract versions,
+which are each currently v1. The complete release gate covers source distributions,
+Haddocks, production dependency closure, documentation, and the fifteen-group acceptance
+matrix on both PostgreSQL 17 and 18. See the [release policy](docs/reference/release-policy.md),
+[acceptance matrix](docs/acceptance-matrix.md), and
+[release checklist](docs/release-checklist.md).
 
 ## Goals
 
@@ -65,20 +71,9 @@ dedicated PostgreSQL connection.
 - Import existing Codd and `hasql-migration` history through optional adapters without
   coupling predecessor engines to the core runner.
 
-Version 1 targets GHC 9.12 or newer and PostgreSQL 17 and 18. It intentionally excludes
-down migrations, automatic retries or repair, arbitrary `IO` migrations, runtime
-filesystem discovery, and whole-database schema snapshot comparison.
-
-## Planned packages
-
-| Package | Responsibility |
-| --- | --- |
-| `pg-migrate` | Core model, plan validation, ledger, runner, repair, and generic history import |
-| `pg-migrate-embed` | Template Haskell support for embedding ordered SQL manifests |
-| `pg-migrate-cli` | Reusable `optparse-applicative` parsers and command handlers |
-| `pg-migrate-import-codd` | Optional Codd history-import adapter |
-| `pg-migrate-import-hasql-migration` | Optional `hasql-migration` history-import adapter |
-| `pg-migrate-test-support` | `ephemeral-pg` helpers kept outside the production dependency closure |
+The current v1 contracts target the GHC 9.12.4 project toolchain and PostgreSQL 17 and 18.
+They intentionally exclude down migrations, automatic retries or repair, arbitrary `IO`
+migrations, runtime filesystem discovery, and whole-database schema snapshot comparison.
 
 ## Design overview
 
@@ -101,18 +96,15 @@ translate verified source evidence into the generic history-import model.
 
 - [Initial specification](docs/initial-spec.md) defines the normative v1 behavior and
   public contracts.
-- [Core engine MasterPlan](docs/masterplans/1-build-pg-migrate-v1-core-engine.md) covers
+- [Core engine MasterPlan](docs/masterplans/1-build-pg-migrate-v1-core-engine.md) records
   the model, embedding, ledger, runner, repair, and generic history import.
 - [Integrations and release MasterPlan](docs/masterplans/2-deliver-pg-migrate-v1-integrations-and-release.md)
-  covers the CLI, predecessor adapters, test support, acceptance matrix, and release
+  records the CLI, predecessor adapters, test support, acceptance matrix, and release
   documentation.
 - [Ecosystem migration MasterPlan](docs/masterplans/3-migrate-initial-ecosystem-to-pg-migrate.md)
   covers staged adoption by Kiroku, Keiro, and PGMQ and the production cutover.
 - [ExecPlans](docs/plans/) contain the self-contained implementation steps and acceptance
   criteria for each delivery slice.
-
-Implementation starts with
-[bootstrapping the workspace and pure model](docs/plans/1-bootstrap-the-pg-migrate-workspace-and-pure-model.md).
 
 ## Development
 
