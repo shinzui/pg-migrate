@@ -87,6 +87,7 @@ module Database.PostgreSQL.Migrate
     HistoryImportResult (..),
     HistoryImportReport (..),
     HistoryValidationError (..),
+    validateHistoryMappingTargets,
     HistoryImportError (..),
     importMigrationHistory,
     IdentifierError (..),
@@ -142,6 +143,7 @@ import Database.PostgreSQL.Migrate.History
     sourceManifestVerifiedEvidence,
     stateValidationError,
     stateValidator,
+    validateHistoryMappingTargets,
     withEquivalentHistory,
     withImportRunOptions,
   )

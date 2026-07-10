@@ -85,7 +85,7 @@ data CoddImportError
   | CoddConnectionFailed !Errors.ConnectionError
   | CoddSessionFailed !Errors.SessionError
   | CoddLockUnavailable !Int64
-  | CoddUnlockFailed !Int64
+  | CoddUnlockFailed !Int64 !(Maybe CoddImportError) !(Maybe CoddImportError)
   | CoddLedgerMissing
   | CoddBothSchemasPresent
   | CoddUnsupportedShape !Text ![Text]
@@ -98,6 +98,7 @@ data CoddImportError
   | CoddSourcePayloadMissing !FilePath
   | CoddManifestChecksumMismatch !FilePath !Text !Text
   | CoddConfirmationRequired
+  | CoddSamePayloadRequiresManifest
   | CoddHistoryDefinitionFailed !HistoryDefinitionError
   | CoddTargetImportFailed !HistoryImportError
   deriving stock (Generic, Show)

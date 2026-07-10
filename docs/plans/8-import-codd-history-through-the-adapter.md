@@ -31,8 +31,16 @@ schema. Fixture tests cover both `codd_schema.sql_migrations` and
   validated source configuration, ledger/evidence/report/error types, explicit lowercase
   SHA-256 manifest format, stable evidence keys, and mountable parser command. All six
   focused manifest and parser tests pass.
-- [ ] (2026-07-10 16:04 PDT) Milestone 2: Detect exact V1–V5 catalog shapes and read typed
-  rows from one dedicated, legacy-lock-owning source connection.
+- [x] (2026-07-10 15:08 PDT) Milestone 2: Detect exact V1–V5 catalog shapes and read typed
+  rows from one dedicated, legacy-lock-owning source connection. Pure and live fixtures
+  cover both schema generations, unsupported shapes, duplicates, missing rows, partial
+  failures, ordered selection, and strict-source rejection.
+- [x] (2026-07-10 15:08 PDT) Milestone 3: Validate manifest payloads and confirmation,
+  acquire the legacy lock before the target lifecycle, preflight target mappings without
+  a connection, and delegate atomic target writes to the generic importer.
+- [x] (2026-07-10 15:08 PDT) Milestone 4: Expose the read/import/parser boundary and close
+  the live V1–V5, lock-contention, source-preservation, audit, action-free, and idempotency
+  acceptance suite. The full workspace build and all eight test suites pass.
 
 
 ## Surprises & Discoveries
@@ -45,6 +53,11 @@ schema. Fixture tests cover both `codd_schema.sql_migrations` and
   registered Codd dependents contain no shared `migrations.lock` convention. The adapter
   must document that the lock protects only cooperating wrappers and define its manifest
   syntax explicitly.
+
+- Observation: the generic importer originally validated target IDs and component prefixes
+  only after acquiring its target connection. The adapter's stronger preflight contract
+  required a small public pure `validateHistoryMappingTargets` operation in core so invalid
+  checked-in mappings fail before the Codd source connection is acquired.
 
 
 ## Decision Log
@@ -61,10 +74,29 @@ schema. Fixture tests cover both `codd_schema.sql_migrations` and
   explicit confirmation policy.
   Date: 2026-07-10
 
+- Decision: Require a parsed manifest, exact selected source bytes, and explicit
+  confirmation for every Codd `SamePayload` mapping.
+  Rationale: Codd's ledger has no historical payload checksum; current repository bytes
+  can safely satisfy the generic same-payload rule only when their manifest digest is
+  verified and the operator acknowledges the evidence limitation.
+  Date: 2026-07-10
+
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+The adapter now detects only the documented Codd V1–V5 ledger shapes, reads selected rows
+without mutating the source, rejects partial/duplicate/ambiguous history, and preserves
+unselected rows for lenient inspection. It validates optional lowercase SHA-256 manifest
+evidence, requires manifest-backed bytes and confirmation for `SamePayload`, holds the
+cooperating legacy lock before entering the generic target lifecycle, and reports both
+primary and unlock failures.
+
+The focused suite contains 18 pure tests and 9 PostgreSQL tests. The live fixtures prove
+all five schema versions, strict and lenient selection, lock contention before any target
+schema exists, audited action-free import, unchanged source rows and columns, and
+idempotent replay. `cabal build pg-migrate-import-codd --dry-run` contains no Codd,
+`codd-extras`, or `postgresql-simple` dependency, and the full workspace build plus all
+eight test suites pass.
 
 
 ## Revision Note
@@ -75,6 +107,11 @@ manifest convention.
 
 2026-07-10: Completed Milestone 1 with the package boundary, validated config and evidence
 types, explicit manifest syntax, mountable parser, and six passing focused tests.
+
+2026-07-10: Completed Milestones 2–4 after exact V1–V5 fixtures, source-first lock ordering,
+manifest-backed evidence, pre-connection mapping validation, action-free audited import,
+source-preservation and idempotency proofs, the dependency dry run, and the full workspace
+build/test matrix passed.
 
 
 ## Context and Orientation

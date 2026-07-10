@@ -29,6 +29,7 @@ module Database.PostgreSQL.Migrate.History
     HistoryImportResult (..),
     HistoryImportReport (..),
     HistoryValidationError (..),
+    validateHistoryMappingTargets,
     HistoryImportError (..),
     importMigrationHistory,
   )

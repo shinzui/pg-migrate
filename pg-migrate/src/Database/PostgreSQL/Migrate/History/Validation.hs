@@ -1,6 +1,7 @@
 module Database.PostgreSQL.Migrate.History.Validation
   ( ResolvedHistoryMapping (..),
     resolveHistoryImport,
+    validateHistoryMappingTargets,
     stateVerifiedEvidence,
   )
 where
@@ -45,11 +46,25 @@ resolveHistoryImport ::
   HistoryImport ->
   Either HistoryValidationError (NonEmpty ResolvedHistoryMapping)
 resolveHistoryImport policy plan availableEvidence history = do
-  targets <- traverse (lookupTarget plannedTargets) (mappings history)
-  validatePrefixes targets
+  targets <- resolveTargets plan (mappings history)
   traverse (resolveMapping policy availableEvidence history) targets
-  where
-    plannedTargets = flattenPlan plan
+
+validateHistoryMappingTargets ::
+  MigrationPlan ->
+  NonEmpty HistoryMapping ->
+  Either HistoryValidationError ()
+validateHistoryMappingTargets plan historyMappings = do
+  _ <- resolveTargets plan historyMappings
+  Right ()
+
+resolveTargets ::
+  MigrationPlan ->
+  NonEmpty HistoryMapping ->
+  Either HistoryValidationError (NonEmpty (HistoryMapping, PlannedTarget))
+resolveTargets plan historyMappings = do
+  targets <- traverse (lookupTarget (flattenPlan plan)) historyMappings
+  validatePrefixes targets
+  Right targets
 
 stateVerifiedEvidence :: EvidenceKey -> Value -> ImportEvidence
 stateVerifiedEvidence key details =
