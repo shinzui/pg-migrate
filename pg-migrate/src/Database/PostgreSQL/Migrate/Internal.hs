@@ -28,6 +28,11 @@ module Database.PostgreSQL.Migrate.Internal
     verifyFromSnapshot,
     loadStatus,
     loadVerification,
+    runLedgerConfig,
+    runLockWait,
+    runStatementTimeout,
+    runUnknownMigrationsPolicy,
+    runEventHandler,
   )
 where
 
@@ -63,6 +68,13 @@ import Database.PostgreSQL.Migrate.Plan
     MigrationDescription (..),
     PlanDescription (..),
     planDescription,
+  )
+import Database.PostgreSQL.Migrate.Runner.Types
+  ( runEventHandler,
+    runLedgerConfig,
+    runLockWait,
+    runStatementTimeout,
+    runUnknownMigrationsPolicy,
   )
 import Database.PostgreSQL.Migrate.Types
   ( Migration,

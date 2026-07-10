@@ -35,6 +35,7 @@ library
     Database.PostgreSQL.Migrate.Ledger.Sql
     Database.PostgreSQL.Migrate.Ledger.Types
     Database.PostgreSQL.Migrate.Plan
+    Database.PostgreSQL.Migrate.Runner.Types
     Database.PostgreSQL.Migrate.Sql
     Database.PostgreSQL.Migrate.Sql.Scanner
     Database.PostgreSQL.Migrate.Types
@@ -60,6 +61,7 @@ test-suite pg-migrate-unit
     Test.Ledger
     Test.Plan
     Test.PublicApi
+    Test.Runner
     Test.Sql
 
   build-depends:

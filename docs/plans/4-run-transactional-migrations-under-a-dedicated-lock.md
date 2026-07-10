@@ -28,7 +28,15 @@ failed transaction leaves neither user effects nor a ledger row.
 
 ## Progress
 
-(No implementation work has started.)
+- [x] (2026-07-10 12:39 PDT) Milestone 1: added opaque composable run options and
+  connection providers, lock modes, immutable events/results/reports, cleanup context,
+  and structured runner errors; all 84 core unit tests pass.
+- [ ] Milestone 2: implement dedicated connection cleanup, server-version checking,
+  advisory-lock waits, and statement-timeout restoration.
+- [ ] Milestone 3: initialize and verify the ledger, execute transactional migrations,
+  and insert their Applied rows atomically.
+- [ ] Milestone 4: prove event boundaries, rollback, condemnation, lock behavior,
+  concurrency, cleanup, and final workspace acceptance.
 
 
 ## Surprises & Discoveries
@@ -48,6 +56,13 @@ failed transaction leaves neither user effects nor a ledger row.
   advisory-lock call for the default infinite wait.
   Rationale: `pg_try_advisory_lock` gives explicit elapsed-time control without changing
   `lock_timeout`, while the blocking call avoids needless default polling.
+  Date: 2026-07-10
+
+- Decision: Represent cleanup failure as a structured error carrying both the optional
+  primary runner error and a non-empty list of typed cleanup issues.
+  Rationale: explicit unlock and statement-timeout restoration can both fail, and losing
+  either the original failure or the cleanup evidence would make the dedicated-connection
+  contract impossible to diagnose.
   Date: 2026-07-10
 
 
@@ -200,3 +215,12 @@ runMigrationPlanWith :: RunOptions -> ConnectionProvider -> MigrationPlan -> IO 
 
 Constructors for `RunOptions`, `ConnectionProvider`, and validated configuration remain
 hidden. Output constructors remain public for integrations and tests.
+
+
+## Revision Note
+
+2026-07-10: Started implementation and expanded Progress into the four independently
+verifiable milestones from the plan of work.
+
+2026-07-10: Recorded the completed runner type contract and cleanup-error composition
+decision after all 84 unit tests passed.

@@ -67,7 +67,7 @@ predecessor dependency or source-specific branch.
 | 1 | Bootstrap the pg-migrate workspace and pure model | docs/plans/1-bootstrap-the-pg-migrate-workspace-and-pure-model.md | None | None | Complete |
 | 2 | Validate SQL and embed ordered manifests | docs/plans/2-validate-sql-and-embed-ordered-manifests.md | EP-1 | None | Complete |
 | 3 | Build the versioned ledger and plan verification | docs/plans/3-build-the-versioned-ledger-and-plan-verification.md | EP-1 | EP-2 | Complete |
-| 4 | Run transactional migrations under a dedicated lock | docs/plans/4-run-transactional-migrations-under-a-dedicated-lock.md | EP-2, EP-3 | None | Not Started |
+| 4 | Run transactional migrations under a dedicated lock | docs/plans/4-run-transactional-migrations-under-a-dedicated-lock.md | EP-2, EP-3 | None | In Progress |
 | 5 | Run and repair nontransactional migrations | docs/plans/5-run-and-repair-nontransactional-migrations.md | EP-4 | None | Not Started |
 | 6 | Import migration history through the generic model | docs/plans/6-import-migration-history-through-the-generic-model.md | EP-3, EP-4 | EP-5 | Not Started |
 
@@ -222,3 +222,6 @@ to PostgreSQL-compatible `pgmigrate` after live PostgreSQL 17 validation.
 2026-07-10: Marked EP-3 complete after the full workspace build, 81 unit tests, and 4
 PostgreSQL 17 integration tests passed, including installation, constraints, quoting,
 read-only loading, and future-version refusal.
+
+2026-07-10: Started EP-4 after its hard dependencies EP-2 and EP-3 passed their complete
+acceptance gates.
