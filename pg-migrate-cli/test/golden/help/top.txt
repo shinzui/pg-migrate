@@ -1,0 +1,24 @@
+Usage: pg-migrate-cli-help-fixture (COMMAND | COMMAND | COMMAND)
+
+  Manage the fixture service migration plan
+
+Available options:
+  -h,--help                Show this help text
+
+Inspection
+  plan                     Show component order and dependencies
+  status                   Show declared and stored migration status
+  verify                   Strictly compare the declared plan with the migration
+                           ledger (not live schema snapshots)
+  list                     List declared migrations and metadata
+  check                    Validate an ordered SQL manifest without a database
+
+Execution
+  up                       Apply the complete migration plan; selective
+                           execution is unavailable in v1
+  repair                   Repair one nontransactional migration after operator
+                           inspection
+
+Authoring
+  new                      Create and append one SQL migration without applying
+                           it

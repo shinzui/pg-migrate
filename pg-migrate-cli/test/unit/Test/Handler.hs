@@ -7,6 +7,7 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Database.PostgreSQL.Migrate
 import Database.PostgreSQL.Migrate.CLI
+import Database.PostgreSQL.Migrate.Embed (AuthoringError (ExplicitMigrationNameRequired))
 import Hasql.Connection.Settings qualified as Settings
 import System.Directory qualified as Directory
 import System.FilePath ((</>))
@@ -21,6 +22,7 @@ tests =
       testCase "list filters narrow output without changing plan order" testListFilter,
       testCase "check returns exact-byte checksums" testCheck,
       testCase "new creates and appends a migration without applying it" testNew,
+      testCase "new reports when a nonnumeric manifest requires an explicit name" testNewRequiresName,
       testCase "manifest failures are typed usage outcomes" testCheckFailure
     ]
 
@@ -93,6 +95,21 @@ testCheckFailure =
     case payload outcome of
       Left (CliManifestError _) -> pure ()
       result -> assertFailure ("expected typed manifest error, received: " <> show result)
+
+testNewRequiresName :: Assertion
+testNewRequiresName =
+  withFixtureDirectory "new-name" $ \directory -> do
+    let manifest = directory </> "manifest"
+    ByteString.writeFile (directory </> "baseline.sql") "SELECT 1;\n"
+    ByteString.writeFile manifest "baseline.sql\n"
+    outcome <-
+      runMigrationCommand
+        fixtureEnvironment
+        (New (NewOptions manifest "add profile" Nothing textOutput))
+    exitClass outcome @?= ExitUsageFailed
+    case payload outcome of
+      Left (CliAuthoringError ExplicitMigrationNameRequired) -> pure ()
+      result -> assertFailure ("expected explicit-name usage error, received: " <> show result)
 
 fixtureEnvironment :: CliEnvironment
 fixtureEnvironment = cliEnvironment (Settings.connectionString "") fixturePlan defaultRunOptions

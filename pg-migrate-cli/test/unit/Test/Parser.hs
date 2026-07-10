@@ -8,6 +8,7 @@ import Data.Set qualified as Set
 import Database.PostgreSQL.Migrate
 import Database.PostgreSQL.Migrate.CLI
 import Options.Applicative
+import Paths_pg_migrate_cli qualified as Paths
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -24,7 +25,8 @@ tests =
       testCase "repair validates the component/migration target" testRepairTarget,
       testCase "parsing does not imply database settings" testNoImplicitDatabaseSettings,
       testCase "plain completion derives all commands from the parser" testPlainCompletion,
-      testCase "enriched completion derives execution flags and descriptions" testEnrichedCompletion
+      testCase "enriched completion derives execution flags and descriptions" testEnrichedCompletion,
+      testGroup "help goldens" (uncurry goldenHelpCase <$> helpGoldens)
     ]
 
 testGroupedHelp :: Assertion
@@ -118,25 +120,49 @@ completionOutput enriched index wordsBeforeCursor =
 expectedCommands :: [String]
 expectedCommands = ["plan", "status", "verify", "list", "check", "up", "repair", "new"]
 
+goldenHelpCase :: FilePath -> [String] -> TestTree
+goldenHelpCase name arguments =
+  testCase name $ do
+    goldenPath <- Paths.getDataFileName ("test/golden/help/" <> name <> ".txt")
+    expected <- readFile goldenPath
+    actual <- parseFailure (arguments <> ["--help"])
+    normalizeHelp actual @?= expected
+
+normalizeHelp :: String -> String
+normalizeHelp = unlines . fmap (reverse . dropWhile (== ' ') . reverse) . lines
+
+helpGoldens :: [(FilePath, [String])]
+helpGoldens =
+  [ ("top", []),
+    ("plan", ["plan"]),
+    ("status", ["status"]),
+    ("verify", ["verify"]),
+    ("list", ["list"]),
+    ("check", ["check"]),
+    ("up", ["up"]),
+    ("repair", ["repair"]),
+    ("new", ["new"])
+  ]
+
 commandInfo :: ParserInfo MigrationCommand
 commandInfo =
   info
     (migrationCommandParser fixturePlan <**> helper)
-    (fullDesc <> progDesc "Test pg-migrate consumer")
+    (fullDesc <> progDesc "Manage the fixture service migration plan")
 
 parseSuccess :: [String] -> MigrationCommand
 parseSuccess arguments =
   case execParserPure defaultPrefs commandInfo arguments of
     Success parsedCommand -> parsedCommand
     Failure failure ->
-      let (message, _) = renderFailure failure "test-migrate"
+      let (message, _) = renderFailure failure "pg-migrate-cli-help-fixture"
        in error message
     CompletionInvoked _ -> error "unexpected completion"
 
 parseFailure :: [String] -> IO String
 parseFailure arguments =
   case execParserPure defaultPrefs commandInfo arguments of
-    Failure failure -> pure (fst (renderFailure failure "test-migrate"))
+    Failure failure -> pure (fst (renderFailure failure "pg-migrate-cli-help-fixture"))
     Success parsedCommand -> assertFailure ("expected parser failure, received: " <> show parsedCommand)
     CompletionInvoked _ -> assertFailure "expected parser failure, received completion"
 

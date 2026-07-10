@@ -1,0 +1,10 @@
+Usage: pg-migrate-cli-help-fixture check MANIFEST [--json]
+
+  Validate an ordered SQL manifest without a database
+
+Available options:
+  MANIFEST                 Path to the ordered migration manifest
+  -h,--help                Show this help text
+
+Output
+  --json                   Emit JSON schema version 1

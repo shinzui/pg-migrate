@@ -31,16 +31,18 @@ text/JSON for every command without requiring migration discovery.
   model, grouped parser, and parser-focused tests. All 8 parser tests pass, including
   grouped help, narrow verify wording, duration and conflict rejection, repair
   confirmation, validated targets, and absent implicit database settings.
-- [ ] (2026-07-10 15:01 PDT) Milestone 2: Added the consumer-supplied handler environment,
+- [x] (2026-07-10 15:39 PDT) Milestone 2: Added the consumer-supplied handler environment,
   typed outcomes and exit classes, public core inspection operations, execution dispatch,
   manifest checking, authoring, filters, and stable text rendering. Pure handler coverage
-  passes; live status, strict verify, up, and repair acceptance remains.
+  and two live PostgreSQL status/verify/up/repair scenarios pass.
 - [x] (2026-07-10 15:01 PDT) Milestone 3: Added JSON schema version 1 with ordered arrays,
   lowercase SHA-256, UTC timestamps, integer milliseconds, constructor-derived error
   tags, six checked-in golden contracts, and repeat-render stability coverage.
-- [ ] (2026-07-10 15:01 PDT) Milestone 4: Grouped top-level and subcommand help plus plain
-  and enriched parser-derived completion proofs pass. Live PostgreSQL command coverage
-  remains before this milestone is complete.
+- [x] (2026-07-10 15:39 PDT) Milestone 4: Added a two-component consumer fixture, exact
+  top-level and eight subcommand help goldens, plain and enriched parser-derived
+  completion proofs, and live PostgreSQL command coverage. The complete workspace build,
+  103 core unit tests, 25 core PostgreSQL tests, 24 embed tests, embed recompilation proof,
+  32 CLI contract tests, and 2 CLI PostgreSQL tests pass.
 
 
 ## Surprises & Discoveries
@@ -58,6 +60,11 @@ text/JSON for every command without requiring migration discovery.
 - Observation: inspection filters must not change strict verification semantics. The
   handler filters displayed applied, pending, and unknown arrays but retains the complete
   issue list and computes `ExitVerificationFailed` from the unfiltered report.
+
+- Observation: a database fixture is repeatable only when both ledger metadata and user
+  objects live inside its disposable schema. The first command-lifecycle fixture created
+  its probe table in `public`; moving it under `pgmigrate_cli_commands` made two consecutive
+  full integration runs pass and left no external object behind.
 
 
 ## Decision Log
@@ -87,10 +94,28 @@ text/JSON for every command without requiring migration discovery.
   inspect every issue without parsing an error message.
   Date: 2026-07-10
 
+- Decision: Public status and verify operations own a dedicated connection and enforce the
+  PostgreSQL version gate, but do not acquire the migration advisory lock or initialize the
+  ledger.
+  Rationale: these operations are read-only by contract. A missing ledger must remain
+  missing and report every declared migration as pending rather than mutate the database.
+  Date: 2026-07-10
+
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+EP-7 delivered the optional `pg-migrate-cli` package and a test-only two-component
+consumer showing how a service mounts the parser. Consumers receive typed command values,
+outcomes, exit classes, and text or JSON renderers without surrendering configuration,
+logging, streams, or process-exit policy. Public read-only core operations now support the
+opaque connection lifecycle required by status and strict verification. JSON schema
+version 1, help output, parser-derived completions, authoring recovery, full-plan execution,
+and confirmed repair are covered by golden, pure, and live PostgreSQL tests.
+
+The final gate passed `nix fmt`, `cabal build all`, all 103 core unit, 25 core PostgreSQL,
+24 embed, recompilation, 32 CLI contract, and 2 CLI PostgreSQL tests. A fresh Cabal plan for
+`lib:pg-migrate` with tests disabled contains no `optparse-applicative` in its transitive
+closure, so the optional CLI dependency remains outside the production core package.
 
 
 ## Revision Note
@@ -106,6 +131,10 @@ and the missing public core inspection operations for Milestone 2.
 inspection filters, JSON schema version 1, six golden contracts, and real plain/enriched
 completion protocol tests. Live PostgreSQL command acceptance remains for Milestones 2
 and 4.
+
+2026-07-10: Completed EP-7 after exact help goldens, a two-component consumer fixture,
+two repeatable live PostgreSQL command scenarios, the full workspace build and test matrix,
+formatting, and a transitive core-library closure audit all passed.
 
 
 ## Context and Orientation

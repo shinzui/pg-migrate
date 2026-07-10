@@ -1,0 +1,14 @@
+Usage: pg-migrate-cli-help-fixture new
+         --manifest PATH --description TEXT [--name BASENAME] [--json]
+
+  Create and append one SQL migration without applying it
+
+Available options:
+  --manifest PATH          Ordered manifest to append
+  --description TEXT       Human description written into the new SQL file
+  --name BASENAME          Explicit SQL basename when numeric inference is
+                           unavailable
+  -h,--help                Show this help text
+
+Output
+  --json                   Emit JSON schema version 1

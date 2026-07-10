@@ -1,0 +1,14 @@
+Usage: pg-migrate-cli-help-fixture plan
+         [--component COMPONENT] [--migration MIGRATION] [--json]
+
+  Show component order and dependencies
+
+Filters
+  --component COMPONENT    Limit inspection output to one component
+  --migration MIGRATION    Limit inspection output to one migration name
+
+Output
+  --json                   Emit JSON schema version 1
+
+Available options:
+  -h,--help                Show this help text

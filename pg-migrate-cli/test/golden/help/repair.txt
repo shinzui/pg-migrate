@@ -1,0 +1,31 @@
+Usage: pg-migrate-cli-help-fixture repair
+         COMPONENT/MIGRATION (--mark-applied | --retry) --reason TEXT --confirm
+         [--database-url URL] [--no-wait | --lock-timeout MILLISECONDS]
+         [--statement-timeout MILLISECONDS] [--json]
+
+  Repair one nontransactional migration after operator inspection
+
+Available options:
+  --mark-applied           Record the inspected nontransactional result as
+                           applied
+  --retry                  Return the migration to running and execute its
+                           action again
+  --reason TEXT            Audit reason for the repair
+  --confirm                Confirm that the database result was inspected
+  -h,--help                Show this help text
+
+Connection
+  --database-url URL       PostgreSQL URI or keyword/value connection string; no
+                           environment variable is read
+
+Execution
+  --no-wait                Fail immediately when the advisory lock is
+                           unavailable
+  --lock-timeout MILLISECONDS
+                           Wait at most this many positive milliseconds for the
+                           advisory lock
+  --statement-timeout MILLISECONDS
+                           Positive PostgreSQL statement timeout in milliseconds
+
+Output
+  --json                   Emit JSON schema version 1

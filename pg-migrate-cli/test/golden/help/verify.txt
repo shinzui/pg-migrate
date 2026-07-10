@@ -1,0 +1,20 @@
+Usage: pg-migrate-cli-help-fixture verify
+         [--component COMPONENT] [--migration MIGRATION] [--database-url URL]
+         [--json]
+
+  Strictly compare the declared plan with the migration ledger (not live schema
+  snapshots)
+
+Filters
+  --component COMPONENT    Limit inspection output to one component
+  --migration MIGRATION    Limit inspection output to one migration name
+
+Connection
+  --database-url URL       PostgreSQL URI or keyword/value connection string; no
+                           environment variable is read
+
+Output
+  --json                   Emit JSON schema version 1
+
+Available options:
+  -h,--help                Show this help text

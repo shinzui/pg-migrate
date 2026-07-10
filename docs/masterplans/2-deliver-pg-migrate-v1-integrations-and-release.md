@@ -57,7 +57,7 @@ package.
 
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
-| 7 | Build the reusable migration CLI and JSON contracts | docs/plans/7-build-the-reusable-migration-cli-and-json-contracts.md | None | None | In Progress |
+| 7 | Build the reusable migration CLI and JSON contracts | docs/plans/7-build-the-reusable-migration-cli-and-json-contracts.md | None | None | Complete |
 | 8 | Import Codd history through the adapter | docs/plans/8-import-codd-history-through-the-adapter.md | None | EP-7 | Not Started |
 | 9 | Import hasql-migration history through the adapter | docs/plans/9-import-hasql-migration-history-through-the-adapter.md | None | EP-7 | Not Started |
 | 10 | Provide ephemeral PostgreSQL test support and acceptance matrix | docs/plans/10-provide-ephemeral-postgresql-test-support-and-acceptance-matrix.md | EP-7, EP-8, EP-9 | None | Not Started |
@@ -106,13 +106,11 @@ and schema constants remain defined in code by their implementation plans.
 
 ## Progress
 
-- [ ] EP-7: Build the reusable migration CLI and JSON contracts. Implementation started
-  on 2026-07-10 after confirming the core-engine MasterPlan and all six prerequisite
-  ExecPlans are complete. Milestone 1 now provides the compiling optional package, typed
-  command tree, grouped parser, and parser contract tests. Milestones 2 through 4 now add
-  the public core inspection boundary, typed handlers, stable text, JSON schema version 1,
-  six golden contracts, and parser-derived plain/enriched completions; live PostgreSQL CLI
-  acceptance remains.
+- [x] EP-7: Built the reusable migration CLI and JSON contracts. The package now provides
+  the grouped parser, typed command/handler/outcome boundary, public read-only core
+  inspection operations, stable text, JSON schema version 1, six JSON and nine help
+  goldens, parser-derived completions, and two live PostgreSQL command scenarios. All
+  workspace gates and the legacy-free core-library closure audit pass.
 
 
 ## Surprises & Discoveries
@@ -158,3 +156,7 @@ that Milestone 2 must close.
 
 2026-07-10: Recorded the EP-7 handler, text, JSON, golden, and completion checkpoint; kept
 the database-backed command acceptance explicitly open.
+
+2026-07-10: Marked EP-7 complete after the full workspace build and test matrix, exact help
+and JSON goldens, repeatable live PostgreSQL CLI scenarios, formatting, and core-library
+dependency-closure audit passed.

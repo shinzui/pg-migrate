@@ -90,6 +90,8 @@ in  Schema.Project::{
         , dependencies =
           [ internalDep "pg-migrate"
           , internalDep "pg-migrate-embed"
+          , thirdPartyDep "aeson"
+          , thirdPartyDep "containers"
           , thirdPartyDep "optparse-applicative"
           , thirdPartyDep "hasql"
           , thirdPartyDep "bytestring"
