@@ -27,7 +27,16 @@ fixtures and consumers use the new plan, and runtime dependencies no longer incl
 
 ## Progress
 
-(No implementation work has started.)
+- [x] (2026-07-10 18:55 PDT) Selected EP-14 after EP-13 completion, resolved pgmq-hs and
+  hasql-migration through `mori`, and confirmed the pgmq-hs worktree is clean.
+- [ ] Milestone 1: Preserve the vendored PGMQ 1.11 payload in a one-entry native
+  `pgmq` component.
+- [ ] Milestone 2: Import the direct full-install hasql-migration row by verified MD5 and
+  exact payload.
+- [ ] Milestone 3: Prove the two-step equivalent route only with explicit opt-in and a
+  read-only PGMQ 1.11 schema contract.
+- [ ] Milestone 4: Rewire every fixture and consumer, remove runtime predecessor
+  dependencies, update documentation, and pass the full validation matrix.
 
 
 ## Surprises & Discoveries
@@ -182,3 +191,10 @@ pgmqV1_11StateValidator :: StateValidator
 
 The policy value must explicitly select direct/equivalent rules; no default silently
 accepts equivalent history.
+
+
+## Revision Note
+
+2026-07-10: Started implementation after confirming the initiative prerequisite, locating
+both the consumer and predecessor source through `mori`, and verifying a clean pgmq-hs
+worktree.

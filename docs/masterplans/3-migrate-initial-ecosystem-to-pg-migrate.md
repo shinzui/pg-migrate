@@ -59,7 +59,7 @@ the exact `mori` project and working directory needed to execute it.
 |---|-------|------|-----------|-----------|--------|
 | 12 | Upgrade Kiroku to a native migration component | docs/plans/12-upgrade-kiroku-to-a-native-migration-component.md | None | None | Complete |
 | 13 | Upgrade Keiro and compose its Kiroku dependency | docs/plans/13-upgrade-keiro-and-compose-its-kiroku-dependency.md | EP-12 | None | Complete |
-| 14 | Upgrade PGMQ with equivalent-history validation | docs/plans/14-upgrade-pgmq-with-equivalent-history-validation.md | None | EP-12 | Not Started |
+| 14 | Upgrade PGMQ with equivalent-history validation | docs/plans/14-upgrade-pgmq-with-equivalent-history-validation.md | None | EP-12 | In Progress |
 | 15 | Prove staged imports and native append-only upgrades | docs/plans/15-prove-staged-imports-and-native-append-only-upgrades.md | EP-12, EP-13, EP-14 | None | Not Started |
 | 16 | Cut over production and retire predecessor runners | docs/plans/16-cut-over-production-and-retire-predecessor-runners.md | EP-15 | None | Not Started |
 
@@ -114,6 +114,8 @@ deployed database.
 - [x] EP-13: Upgraded Keiro to a sixteen-entry native component, composed Kiroku first,
   proved atomic shared-ledger import and no replay, rewired framework fixtures, isolated
   Codd transition tools, and passed native, legacy, and full workspace test matrices.
+- [ ] EP-14: In progress. pgmq-hs and hasql-migration were resolved through `mori`, and
+  the consumer worktree is clean.
 
 
 ## Surprises & Discoveries
@@ -213,3 +215,6 @@ preserve.
 conversion, dependency-order and shared-ledger import proofs, standard CLI/test-fixture
 rewiring, opt-in legacy evidence validation, clean package checks, and the full workspace
 test matrix. Recorded Kiroku commit publication as an EP-15 staging prerequisite.
+
+2026-07-10: Started EP-14 after EP-13 completion, resolving pgmq-hs and its
+hasql-migration predecessor through `mori` and confirming a clean consumer worktree.
