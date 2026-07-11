@@ -1,4 +1,4 @@
-# 1.0 release checklist
+# 1.0.0.0 release checklist
 
 - [x] All six packages use version `1.0.0.0` and bounded internal library dependencies.
 - [x] Public ledger, manifest, and JSON version constants equal 1.
