@@ -62,6 +62,13 @@ hard gate for production cutover.
   `nix develop -c cabal test all` without `cabal.project.local`. Keiro and PGMQ `master`
   are published through `0a1b5d6` and `edb6273`, respectively.
 
+- Observation: `mori registry dependents` identifies experimental Danwa as a concrete
+  combined Kiroku/Keiro Codd consumer and MLS Service v2 as a deployed direct
+  `pgmq-migration` consumer with a Kubernetes staging environment. The configured
+  `tan-ng`/`sennari` control plane could not list namespaces, Cloud SQL instances, or
+  backups because its Google credentials require interactive reauthentication. No live
+  database, backup, cluster object, or credential was read or mutated.
+
 
 ## Decision Log
 
@@ -245,6 +252,8 @@ choice and rationale in this plan and the MasterPlan before implementation.
 ## Revision Note
 
 2026-07-11: Recorded publication of all three owner revisions, corrected Keiro's Kiroku
-pin to the published canary commit, and captured the clean remote-only full-matrix proof.
-EP-15 remains in progress because operator-owned restoration evidence and two clean-copy
-passes for every staging scenario are still required.
+pin to the published canary commit, captured the clean remote-only full-matrix proof, and
+identified Danwa and MLS Service v2 as candidate staging owners through `mori`. EP-15
+remains in progress because cloud access requires independent reauthentication and
+operator-owned restoration evidence plus two clean-copy passes for every scenario are
+still required.

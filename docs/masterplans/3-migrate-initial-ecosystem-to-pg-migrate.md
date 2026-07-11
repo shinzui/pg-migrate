@@ -158,6 +158,12 @@ deployed database.
   it and pg-migrate `v1.0.0.0` from their remotes and passed `nix develop -c cabal test
   all` without the ignored local project override.
 
+- Observation: Reverse-dependency evidence from `mori` identifies experimental Danwa as a
+  combined Kiroku/Keiro Codd consumer and deployed MLS Service v2 as a direct PGMQ consumer.
+  The configured `tan-ng`/`sennari` control plane requires interactive Google
+  reauthentication before EP-15 can discover an existing approved staging clone or backup.
+  The audit made no cloud or database mutation.
+
 - Observation: EP-14's isolated Nix closure required the pg-migrate v1 bounds rather than
   pgmq-hs's older package-set defaults: `crypton` 1.1.4 and `optparse-applicative`
   0.19.0.0 are now pinned beside the immutable pg-migrate tag.
@@ -256,3 +262,7 @@ hasql-migration predecessor through `mori` and confirming a clean consumer workt
 correcting Keiro's Kiroku dependency to the canary commit, and passing the full Keiro test
 matrix from a clean remote-only worktree. The staging gate remains open for operator-owned
 restoration inputs and two passes per clean-copy scenario.
+
+2026-07-11: Identified Danwa and MLS Service v2 as candidate staging owners through `mori`.
+Cloud inventory stopped safely when the configured Google account required interactive
+reauthentication; no staging or production resource was read or changed.
