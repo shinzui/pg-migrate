@@ -32,14 +32,26 @@ hard gate for production cutover.
 - [ ] Milestone 1: Inventory/evidence templates are checked in; operator-owned snapshot
   references, PostgreSQL roles/majors, and restoration proof remain required.
 - [ ] Milestone 2: Run import rehearsals on restored staging copies.
-- [ ] Milestone 3: Append and validate the three component-owned canary migrations.
-- [ ] Milestone 4: Prove fresh and imported paths against the identical updated plans.
+- [x] (2026-07-10 21:28 PDT) Milestone 3: Appended observable schema-comment canaries as
+  Kiroku `0008` (`6399844`), Keiro `0017` (`49c6f2a`), and PGMQ `0002` (`edb6273`),
+  without modifying historical payloads or mappings.
+- [ ] Milestone 4: Repository-local fresh/imported proofs and all behavior suites pass;
+  the required repetitions on separately restored staging copies remain outstanding.
 - [ ] Milestone 5: Record two clean-copy passes per scenario and make the go/no-go decision.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: Once a canary is appended, verification immediately after importing only
+  the historical prefix correctly reports that canary as `PendingMigration`. Strict
+  verification becomes clean after `up` applies exactly the canary; treating the pre-up
+  pending result as an error would make the append-only proof impossible.
+
+- Observation: The Kiroku conversion and canary commits remain local and are not available
+  from the GitHub remote. Keiro's clean source-repository build therefore fails with
+  `upload-pack: not our ref`; local validation temporarily omitted the tracked source pin
+  and used the ignored local package override, then restored the tracked file unchanged.
+  Released staging artifacts cannot be built until the exact Kiroku revision is published.
 
 
 ## Decision Log
@@ -53,6 +65,18 @@ hard gate for production cutover.
 - Decision: Use reviewed, low-risk component-owned metadata changes as native canaries.
   Rationale: A real appended migration must change observable database state without
   introducing unrelated product behavior or disposable test tables.
+  Date: 2026-07-10
+
+- Decision: Use schema comments naming the owning component and terminal migration as all
+  three canaries.
+  Rationale: Comments are observable through `pg_catalog`, non-destructive, compatible
+  with old and new application binaries, and do not create disposable product objects.
+  Date: 2026-07-10
+
+- Decision: Before `up`, require verification to report exactly the known canary entries
+  as pending and no other issue; require strict clean verification immediately after `up`.
+  Rationale: This distinguishes the intended append-only delta from drift while preserving
+  the plan's final strict-verification gate.
   Date: 2026-07-10
 
 
@@ -136,7 +160,7 @@ is:
 ```bash
 <consumer-migrate> import <source> --check --strict-source --json
 <consumer-migrate> import <source> --reason "staging rehearsal" --confirm --strict-source --json
-<consumer-migrate> verify --json
+<consumer-migrate> verify --json  # exactly the declared canary/canaries are pending
 <consumer-migrate> up --json
 <consumer-migrate> verify --json
 ```

@@ -122,9 +122,11 @@ deployed database.
   fixtures, removes the predecessor surface and dependency, bumps pgmq-migration to
   0.4.0.0, and passes the full Cabal and standalone/Nix-packaged validation matrices.
 - [ ] EP-15: In progress. All owner repositories are resolved and the repository-owned
-  inventory/templates and append-only canary work have started. Operator-controlled
-  staging snapshot identifiers and restoration evidence are not available locally and
-  must be supplied before the staging gate can complete.
+  inventory/templates are checked in. Kiroku `0008`, Keiro `0017`, and PGMQ `0002`
+  append-only canaries and their local fresh/imported proofs pass, along with all three
+  repositories' behavior suites. Operator-controlled snapshot identifiers, restoration
+  evidence, published Kiroku artifacts, and two clean-copy passes per scenario remain
+  required before the staging gate can complete.
 
 
 ## Surprises & Discoveries
@@ -152,6 +154,11 @@ deployed database.
 - Observation: EP-14's isolated Nix closure required the pg-migrate v1 bounds rather than
   pgmq-hs's older package-set defaults: `crypton` 1.1.4 and `optparse-applicative`
   0.19.0.0 are now pinned beside the immutable pg-migrate tag.
+
+- Observation: An imported historical prefix verified against a canary-extended plan
+  necessarily reports only the new canary as pending before `up`; strict verification is
+  clean after `up`. EP-15 fixtures now assert that exact transition rather than accepting
+  any other pending or drift issue.
 
 - Observation: Keiro's 19-example Codd expected-schema/remediation suite remains green
   behind `legacy-codd-tools`, while its normal package and shared test fixture use the
