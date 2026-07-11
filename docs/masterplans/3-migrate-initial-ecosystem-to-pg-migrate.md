@@ -115,7 +115,8 @@ deployed database.
   proved atomic shared-ledger import and no replay, rewired framework fixtures, isolated
   Codd transition tools, and passed native, legacy, and full workspace test matrices.
 - [ ] EP-14: In progress. pgmq-hs and hasql-migration were resolved through `mori`, and
-  the consumer worktree is clean.
+  Milestone 1 is complete at pgmq-hs commit `9637cbc`: one exact-byte PGMQ 1.11 native
+  component with passing migration-package tests.
 
 
 ## Surprises & Discoveries

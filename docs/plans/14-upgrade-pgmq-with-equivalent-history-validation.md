@@ -29,8 +29,9 @@ fixtures and consumers use the new plan, and runtime dependencies no longer incl
 
 - [x] (2026-07-10 18:55 PDT) Selected EP-14 after EP-13 completion, resolved pgmq-hs and
   hasql-migration through `mori`, and confirmed the pgmq-hs worktree is clean.
-- [ ] Milestone 1: Preserve the vendored PGMQ 1.11 payload in a one-entry native
-  `pgmq` component.
+- [x] (2026-07-10 19:01 PDT) Milestone 1: Preserved the vendored PGMQ 1.11 payload
+  byte-for-byte in a one-entry native `pgmq` component, passed all eight migration-package
+  tests, and committed pgmq-hs as `9637cbc`.
 - [ ] Milestone 2: Import the direct full-install hasql-migration row by verified MD5 and
   exact payload.
 - [ ] Milestone 3: Prove the two-step equivalent route only with explicit opt-in and a
@@ -41,7 +42,14 @@ fixtures and consumers use the new plan, and runtime dependencies no longer incl
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: `cabal.project` still forced GHC 9.12.2 after the repository flake moved to
+  the shared 9.12.4 dev shell, so no Cabal target could start. Updating `with-compiler` to
+  9.12.4 aligned the project with the authoritative shell.
+
+- Observation: Global `tests: True` made Cabal 3.16 attempt pg-migrate's source-package
+  test components and hit `componentAvailableTargetStatus: impossible`. Explicitly
+  disabling tests for the dependency packages leaves pgmq-hs tests enabled and avoids the
+  planner bug.
 
 
 ## Decision Log
@@ -55,6 +63,11 @@ fixtures and consumers use the new plan, and runtime dependencies no longer incl
 - Decision: Compare a checked native baseline copy byte-for-byte with vendored `pgmq.sql`.
   Rationale: The manifest requires a local basename, while the vendored upstream subtree
   remains the upstream source of truth; an equality guard prevents silent divergence.
+  Date: 2026-07-10
+
+- Decision: Introduce `pgmqMigrations` additively before deleting predecessor wrappers.
+  Rationale: Milestone 1 remains independently buildable and testable while later fixture
+  rewiring can proceed without leaving downstream packages broken between commits.
   Date: 2026-07-10
 
 
@@ -198,3 +211,7 @@ accepts equivalent history.
 2026-07-10: Started implementation after confirming the initiative prerequisite, locating
 both the consumer and predecessor source through `mori`, and verifying a clean pgmq-hs
 worktree.
+
+2026-07-10: Completed Milestone 1 in pgmq-hs commit `9637cbc`, including the exact
+vendored-byte guard, one-entry native component, GHC project alignment, and passing
+migration-package tests.
