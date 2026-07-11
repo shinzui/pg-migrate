@@ -30,21 +30,43 @@ stanzas shed Codd and `postgresql-simple`.
 - [x] (2026-07-10 18:23 PDT) Verified EP-12 complete, selected EP-13 as the next
   implementable child plan, located Keiro and Kiroku through `mori`, and preserved the
   pre-existing `.seihou/manifest.json` and `docs/assets/` worktree changes.
-- [ ] Milestone 1: Preserve the sixteen SQL payloads in a native embedded manifest and
-  export the `keiro` component with dependency `kiroku`.
-- [ ] Milestone 2: Compose Kiroku then Keiro through a validated native plan and standard
-  CLI.
-- [ ] Milestone 3: Import the combined shared Codd ledger atomically through explicit
-  Kiroku and Keiro evidence mappings.
-- [ ] Milestone 4: Rewire fresh, imported, dependency-order, verification, concurrency,
-  and framework behavior tests to the native runner.
-- [ ] Milestone 5: Update package metadata and documentation, remove predecessor runtime
-  dependencies, and pass the full validation matrix.
+- [x] (2026-07-10 18:52 PDT) Milestone 1: Preserved all sixteen SQL payloads byte for
+  byte under `keiro-migrations/migrations/manifest` and exported component `keiro` with
+  dependency set `{kiroku}`.
+- [x] (2026-07-10 18:52 PDT) Milestone 2: Added `frameworkMigrationPlan`, rejected
+  missing/reversed Kiroku composition in tests, and replaced the executable with the
+  standard `pg-migrate` command surface.
+- [x] (2026-07-10 18:52 PDT) Milestone 3: Added one combined source config and 23 exact
+  Kiroku/Keiro mappings; V5 and legacy-ledger imports, idempotency, strict extras,
+  partial rows, verification, and no-replay behavior pass.
+- [x] (2026-07-10 18:52 PDT) Milestone 4: Rewired Keiro's shared template fixture to the
+  native plan, passed fresh/rerun/concurrency tests, and retained all 19 Codd snapshot,
+  remediation, and fixup examples behind `legacy-codd-tools`.
+- [x] (2026-07-10 18:52 PDT) Milestone 5: Released the source package version as
+  `0.2.0.0`, updated API and operator documentation, removed predecessor packages from
+  normal stanzas, passed `cabal check`, `nix fmt`, the full enabled Cabal test matrix,
+  and committed Keiro as `f8fcea7`.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: The completed EP-12 Kiroku revision `15e6fe2` is one commit ahead of its
+  GitHub remote. Keiro pins that exact revision but local validation must temporarily
+  omit the source-repository stanza and use the ignored `cabal.project.local` override.
+  Evidence: Cabal's remote fetch failed with `upload-pack: not our ref
+  15e6fe27c18f6fe6e7eaa72470611dda9dd36821`; the same build and full tests passed against
+  the `mori`-resolved local checkout.
+
+- Observation: The old Codd transition suite can remain executable without copying
+  Kiroku SQL. Its opt-in module reconstructs the legacy Kiroku migration set from
+  `kirokuLegacyMigrationNames` and `kirokuCoddSourcePayloads`, the evidence boundary EP-12
+  intentionally exported.
+
+- Observation: Keiro's compile-failure replay-safety probe imported transitive packages
+  directly and failed early once multiple Kiroku package instances were present. Reducing
+  the type-only fixture to import only `Keiro` restored its intended assertion on
+  `ValidatedEventStream`; the targeted three-example suite and the full 280-example Keiro
+  suite then passed.
 
 
 ## Decision Log
@@ -60,10 +82,37 @@ stanzas shed Codd and `postgresql-simple`.
   prefixes for both components should commit atomically.
   Date: 2026-07-10
 
+- Decision: Keep Codd snapshot, remediation, fixup, and timestamp-scaffolding code behind
+  the manual `legacy-codd-tools` flag while leaving exact Codd history import in the
+  normal native library.
+  Rationale: Operators still need transition evidence, but normal migration execution and
+  shared test provisioning must not pull Codd, `codd-extras`, or `file-embed`; the Hasql
+  adapter itself has no dependency on those predecessor runners.
+  Date: 2026-07-10
+
+- Decision: Pin Keiro to the exact EP-12 Kiroku commit and record remote publication as an
+  EP-15 staging prerequisite instead of weakening the dependency to the old remote
+  revision.
+  Rationale: The old revision does not export the native component/evidence API, while a
+  local path in committed project metadata would not be portable.
+  Date: 2026-07-10
+
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+Keiro now owns a sixteen-entry native component and composes the concrete seven-entry
+Kiroku component before it. All 23 historical Codd rows import atomically into the
+`pgmigrate` ledger from both supported shared-ledger schema names; strict verification and
+subsequent `up` prove that no legacy SQL replays. Fresh and concurrent native applies,
+the full Keiro framework matrix, the Jitsurei behavior suite, and every other enabled
+workspace test pass.
+
+The normal library, executable, and test-support stanzas no longer depend on `codd`,
+`codd-extras`, `file-embed`, or `postgresql-simple`. The checked expected-schema,
+remediation, and sentinel-fixup path remains demonstrably usable through a separately
+enabled 19-example suite. Before EP-15 stages exact artifacts, publish the already
+committed Kiroku revision so Keiro's immutable source pin is fetchable outside this local
+workspace.
 
 
 ## Context and Orientation
@@ -209,3 +258,8 @@ a migration-set abstraction or accept parsed Codd actions.
 2026-07-10: Started implementation after proving EP-12 complete, resolving both consumer
 repositories through `mori`, and recording the unrelated Keiro worktree paths that must be
 preserved.
+
+2026-07-10: Completed all five milestones in Keiro commit `f8fcea7`; recorded byte-level
+manifest preservation, composed-plan and shared-ledger import evidence, normal and legacy
+test results, predecessor-closure removal, documentation changes, and the Kiroku remote
+publication gate for staging.

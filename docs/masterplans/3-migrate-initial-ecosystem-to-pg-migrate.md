@@ -58,7 +58,7 @@ the exact `mori` project and working directory needed to execute it.
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
 | 12 | Upgrade Kiroku to a native migration component | docs/plans/12-upgrade-kiroku-to-a-native-migration-component.md | None | None | Complete |
-| 13 | Upgrade Keiro and compose its Kiroku dependency | docs/plans/13-upgrade-keiro-and-compose-its-kiroku-dependency.md | EP-12 | None | In Progress |
+| 13 | Upgrade Keiro and compose its Kiroku dependency | docs/plans/13-upgrade-keiro-and-compose-its-kiroku-dependency.md | EP-12 | None | Complete |
 | 14 | Upgrade PGMQ with equivalent-history validation | docs/plans/14-upgrade-pgmq-with-equivalent-history-validation.md | None | EP-12 | Not Started |
 | 15 | Prove staged imports and native append-only upgrades | docs/plans/15-prove-staged-imports-and-native-append-only-upgrades.md | EP-12, EP-13, EP-14 | None | Not Started |
 | 16 | Cut over production and retire predecessor runners | docs/plans/16-cut-over-production-and-retire-predecessor-runners.md | EP-15 | None | Not Started |
@@ -111,8 +111,9 @@ deployed database.
 - [x] EP-12: Upgraded Kiroku to a native component with seven byte-preserving manifest
   entries, composable Codd evidence, standard CLI, native test setup, clean production
   closure, and passing migration/store suites.
-- [ ] EP-13: In progress. Keiro and Kiroku were resolved through `mori`; implementation
-  will preserve Keiro's pre-existing `.seihou/manifest.json` and `docs/assets/` changes.
+- [x] EP-13: Upgraded Keiro to a sixteen-entry native component, composed Kiroku first,
+  proved atomic shared-ledger import and no replay, rewired framework fixtures, isolated
+  Codd transition tools, and passed native, legacy, and full workspace test matrices.
 
 
 ## Surprises & Discoveries
@@ -130,6 +131,17 @@ deployed database.
   `kirokuCoddSourcePayloads`, `kirokuCoddManifestText`, and
   `kirokuCoddHistoryMappings` so Keiro can combine both components into one atomic source
   selection and import.
+
+- Observation: EP-12's Kiroku commit `15e6fe2` and EP-13's Keiro commit `f8fcea7` are
+  local immutable revisions but the Kiroku revision is not yet available from its GitHub
+  remote. EP-15 must publish or otherwise make the exact Kiroku pin fetchable before
+  building staging artifacts; local validation passed through the ignored project
+  override.
+
+- Observation: Keiro's 19-example Codd expected-schema/remediation suite remains green
+  behind `legacy-codd-tools`, while its normal package and shared test fixture use the
+  native plan. This gives EP-15 both strict transition evidence and a predecessor-free
+  runtime path.
 
 
 ## Decision Log
@@ -169,6 +181,12 @@ deployed database.
   unavailable.
   Date: 2026-07-10
 
+- Decision: Preserve Keiro's Codd-only operational evidence behind a manual build flag
+  and keep exact history import in the native library.
+  Rationale: Staging still needs remediation and fixup proof, but the production migration
+  closure must not retain predecessor runners.
+  Date: 2026-07-10
+
 
 ## Outcomes & Retrospective
 
@@ -190,3 +208,8 @@ tests, clean Cabal package checks and production closure, and a successful Nix b
 2026-07-10: Started EP-13 after confirming EP-12 complete, resolving the Keiro/Kiroku
 integration sources through `mori`, and recording the unrelated Keiro worktree changes to
 preserve.
+
+2026-07-10: Marked EP-13 complete at Keiro commit `f8fcea7` after byte-preserving native
+conversion, dependency-order and shared-ledger import proofs, standard CLI/test-fixture
+rewiring, opt-in legacy evidence validation, clean package checks, and the full workspace
+test matrix. Recorded Kiroku commit publication as an EP-15 staging prerequisite.
