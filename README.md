@@ -7,12 +7,18 @@ forward-only, uses ledger schema v1, and supports PostgreSQL 17 and 18.
 
 The package set is:
 
-- `pg-migrate`: validated plans, runner, ledger, repair, inspection, and generic import.
-- `pg-migrate-embed`: manifest v1 validation, exact-byte embedding, and authoring.
-- `pg-migrate-cli`: reusable command parser, dispatcher, text output, and JSON schema v1.
-- `pg-migrate-import-codd`: Codd V1–V5 source adapter.
-- `pg-migrate-import-hasql-migration`: base64-MD5 predecessor adapter.
-- `pg-migrate-test-support`: opt-in `ephemeral-pg` test helper.
+- [`pg-migrate`](https://hackage.haskell.org/package/pg-migrate-1.0.0.0): validated
+  plans, runner, ledger, repair, inspection, and generic import.
+- [`pg-migrate-embed`](https://hackage.haskell.org/package/pg-migrate-embed-1.0.0.0):
+  manifest v1 validation, exact-byte embedding, and authoring.
+- [`pg-migrate-cli`](https://hackage.haskell.org/package/pg-migrate-cli-1.0.0.0):
+  reusable command parser, dispatcher, text output, and JSON schema v1.
+- [`pg-migrate-import-codd`](https://hackage.haskell.org/package/pg-migrate-import-codd-1.0.0.0):
+  Codd V1–V5 source adapter.
+- [`pg-migrate-import-hasql-migration`](https://hackage.haskell.org/package/pg-migrate-import-hasql-migration-1.0.0.0):
+  base64-MD5 predecessor adapter.
+- [`pg-migrate-test-support`](https://hackage.haskell.org/package/pg-migrate-test-support-1.0.0.0):
+  opt-in `ephemeral-pg` test helper.
 
 Start with the [quickstart](docs/user/quickstart.md) and the runnable
 [`examples/basic`](examples/basic). The remaining documentation is organized by audience:
@@ -39,15 +45,15 @@ crash as operationally ambiguous until an operator inspects the database.
 
 ## Release status
 
-> [!IMPORTANT]
-> This public repository is pre-release. There is no published Hackage or GitHub release
-> yet.
+Version [`1.0.0.0`](https://github.com/shinzui/pg-migrate/releases/tag/v1.0.0.0) is the
+first stable release. All six packages and their Haddocks are published on Hackage. Add
+only the packages an application needs; for example, a migration-owning library can use:
 
-All six Cabal packages currently use `1.0.0.0` as coherent, tested release-candidate
-metadata. That does not select it as the first published version. The exact initial PVP
-version must be explicitly confirmed before the release files are finalized, and tagging,
-pushing, Hackage uploads, documentation uploads, and the GitHub release require a
-separate publication approval.
+```cabal
+build-depends:
+    pg-migrate        >=1.0 && <1.1
+  , pg-migrate-embed  >=1.0 && <1.1
+```
 
 Package versions are independent of the ledger, manifest, and JSON contract versions,
 which are each currently v1. The complete release gate covers source distributions,
