@@ -27,18 +27,46 @@ databases both pass strict plan verification and Kiroku store behavior tests.
 
 ## Progress
 
-- [ ] (2026-07-11T00:28:25Z) Milestone 1: update package dependencies and establish the
-  native manifest/source layout while preserving legacy evidence.
-- [ ] Milestone 2: expose the native Kiroku component and authoring path.
-- [ ] Milestone 3: add the checked-in Codd history mapping and import proofs.
-- [ ] Milestone 4: migrate the executable and database behavior tests.
-- [ ] Milestone 5: update documentation, remove predecessor runtime dependencies, and run
-  final validation.
+- [x] (2026-07-11T00:28:25Z) Milestone 1: updated package dependencies and established
+  the native manifest/source layout while preserving every legacy SQL byte.
+- [x] (2026-07-11T01:06:37Z) Milestone 2: exposed the native Kiroku component, plan, and
+  exclusive numeric authoring path.
+- [x] (2026-07-11T01:06:37Z) Milestone 3: added checked-in current and legacy Codd history
+  mappings, manifest-backed evidence, import audit proofs, and shared-ledger exports.
+- [x] (2026-07-11T01:06:37Z) Milestone 4: migrated the executable, Kiroku test-support
+  consumer, native database tests, and full store behavior suite.
+- [x] (2026-07-11T01:06:37Z) Milestone 5: updated documentation and Mori/Nix metadata,
+  isolated the legacy snapshot tool, audited the production closure, and completed all
+  validation.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: the v1 packages are available from the released Git tag `v1.0.0.0`, but
+  they are not present in the local Hackage index. Kiroku therefore pins the immutable
+  release tag in `cabal.project` and the corresponding source hash in
+  `nix/haskell-overlay.nix`; package bounds remain `^>=1.0.0.0`.
+
+- Observation: making `kiroku-test-support` consume the native migration library while
+  keeping a direct `kiroku-store` dependency in the migration package's test suite formed
+  a Cabal component cycle. The migration suite now verifies schema behavior with Hasql,
+  while the existing 234-example `kiroku-store` suite consumes the native plan through
+  `kiroku-test-support` and proves append/read behavior without a reverse dependency.
+
+- Observation: Cabal's Nix translation lists disabled executable dependencies unless the
+  overlay clears them. The Codd expected-schema writer is disabled by default and the Nix
+  override both sets `-f-expected-schema-tool` and removes executable dependencies. The
+  explicitly enabled legacy tool still builds under Cabal.
+
+Validation evidence:
+
+```text
+kiroku-store-migrations-test: 10 examples, 0 failures
+kiroku-store-test: 234 examples, 0 failures
+nix build .#kiroku-store-migrations: PASS
+cabal build all -f-expected-schema-tool: PASS
+cabal check: No errors or warnings could be found in the package.
+```
 
 
 ## Decision Log
@@ -55,10 +83,44 @@ databases both pass strict plan verification and Kiroku store behavior tests.
   and must not keep Codd in the primary library closure.
   Date: 2026-07-10
 
+- Decision: Pin `pg-migrate` from its immutable `v1.0.0.0` Git release until Hackage
+  publication rather than committing a machine-relative development path.
+  Rationale: downstream Cabal and Nix builds need reproducible resolution while the
+  released packages are absent from Hackage.
+  Date: 2026-07-10
+
+- Decision: Export Kiroku's legacy filenames, exact payload map, manifest text, and
+  history mappings in addition to the convenience source-config builder.
+  Rationale: Keiro's shared Codd ledger must construct one combined selection, evidence
+  map, manifest, and `HistoryImport`; a Kiroku-only opaque config cannot be composed.
+  Date: 2026-07-10
+
+- Decision: Move native database setup into `kiroku-test-support` and keep the migration
+  package test independent of `kiroku-store`.
+  Rationale: this breaks the Cabal component cycle while ensuring all downstream store
+  behavior tests exercise the released migration plan instead of concatenating SQL.
+  Date: 2026-07-10
+
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+Kiroku now ships `kiroku-store-migrations-0.2.0.0` with component name `kiroku`, seven
+manifest-ordered migrations, a single-component plan helper, native authoring, and the
+standard `pg-migrate-cli` inspection, execution, repair, and authoring commands. The seven
+SQL files are 100-percent Git renames, so their historical bytes and SHA-256 evidence did
+not change.
+
+Current `codd` and legacy `codd_schema` fixtures import all seven rows into `pgmigrate`,
+strict verification passes, subsequent `up` reports `AlreadyApplied`, repeated import
+reports `AlreadyImported`, partial rows reject before target-ledger creation, and source
+row counts remain unchanged. Kiroku exposes the evidence pieces EP-13 needs for one
+combined Kiroku/Keiro shared-ledger import.
+
+The normal library/executable closure contains no `codd`, `codd-extras`,
+`postgresql-simple`, `file-embed`, or `pg-migrate-test-support`. The old expected-schema
+writer remains explicitly buildable behind `-fexpected-schema-tool` and is absent from
+normal Cabal and Nix builds. Commit `15e6fe27c18f6fe6e7eaa72470611dda9dd36821` in
+`shinzui/kiroku` contains the completed implementation.
 
 
 ## Context and Orientation
@@ -203,3 +265,10 @@ kirokuMigrationPlan :: Either PlanError MigrationPlan
 If the plan helper is omitted as trivial, the executable must still compose with
 `migrationPlan (component :| [])`. The history mapping module may expose source payload and
 selection builders but must not leak Codd library types.
+
+
+## Revision Note
+
+2026-07-10: Completed all five milestones, recorded released-tag resolution and the Cabal
+component-cycle discovery, documented the composable shared-ledger evidence interface,
+and captured final validation and outcome evidence.

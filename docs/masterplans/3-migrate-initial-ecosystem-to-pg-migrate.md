@@ -57,7 +57,7 @@ the exact `mori` project and working directory needed to execute it.
 
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
-| 12 | Upgrade Kiroku to a native migration component | docs/plans/12-upgrade-kiroku-to-a-native-migration-component.md | None | None | In Progress |
+| 12 | Upgrade Kiroku to a native migration component | docs/plans/12-upgrade-kiroku-to-a-native-migration-component.md | None | None | Complete |
 | 13 | Upgrade Keiro and compose its Kiroku dependency | docs/plans/13-upgrade-keiro-and-compose-its-kiroku-dependency.md | EP-12 | None | Not Started |
 | 14 | Upgrade PGMQ with equivalent-history validation | docs/plans/14-upgrade-pgmq-with-equivalent-history-validation.md | None | EP-12 | Not Started |
 | 15 | Prove staged imports and native append-only upgrades | docs/plans/15-prove-staged-imports-and-native-append-only-upgrades.md | EP-12, EP-13, EP-14 | None | Not Started |
@@ -108,13 +108,26 @@ deployed database.
 
 ## Progress
 
-- [ ] EP-12: Upgrade Kiroku to a native migration component. Implementation began after
-  confirming the integrations-and-release MasterPlan is complete.
+- [x] EP-12: Upgraded Kiroku to a native component with seven byte-preserving manifest
+  entries, composable Codd evidence, standard CLI, native test setup, clean production
+  closure, and passing migration/store suites.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: `pg-migrate` v1 is released as immutable Git tag `v1.0.0.0` but is not yet
+  available from Hackage. EP-12 pins that tag in Cabal and Nix. EP-13 and EP-14 should use
+  the same tag until publication rather than introducing different source revisions.
+
+- Observation: Kiroku's test-support package now owns native test database migration, so
+  all 234 store behavior examples exercise the `pgmigrate` plan. Keeping the migration
+  package's test independent of the store library avoids a cross-package component cycle.
+
+- Observation: EP-13 needs more than Kiroku's convenience Codd config to import a shared
+  ledger. EP-12 therefore exports `kirokuLegacyMigrationNames`,
+  `kirokuCoddSourcePayloads`, `kirokuCoddManifestText`, and
+  `kirokuCoddHistoryMappings` so Keiro can combine both components into one atomic source
+  selection and import.
 
 
 ## Decision Log
@@ -141,6 +154,19 @@ deployed database.
   downstream runbooks must name the schema the released core can actually create.
   Date: 2026-07-10
 
+- Decision: Standardize unreleased-to-Hackage downstream resolution on the immutable
+  `pg-migrate` `v1.0.0.0` Git tag.
+  Rationale: Kiroku proved both Cabal source-package and fixed-output Nix resolution; the
+  remaining consumer plans should not drift to local paths or different revisions.
+  Date: 2026-07-10
+
+- Decision: Treat the Kiroku shared-ledger evidence exports as the EP-13 integration
+  boundary.
+  Rationale: Keiro must union exact payload maps and manifest text before constructing one
+  Codd source config; combining only `HistoryMapping` values would leave evidence
+  unavailable.
+  Date: 2026-07-10
+
 
 ## Outcomes & Retrospective
 
@@ -154,3 +180,7 @@ core default `pgmigrate` and recorded the downstream coordination decision.
 
 2026-07-10: Started EP-12 after verifying that the integrations-and-release initiative is
 complete and that Kiroku has no unmet child-plan dependencies.
+
+2026-07-10: Marked EP-12 complete after byte-preserving source conversion, current and
+legacy Codd import proofs, native CLI/test-support integration, full migration and store
+tests, clean Cabal package checks and production closure, and a successful Nix build.
