@@ -32,10 +32,12 @@ fixtures and consumers use the new plan, and runtime dependencies no longer incl
 - [x] (2026-07-10 19:01 PDT) Milestone 1: Preserved the vendored PGMQ 1.11 payload
   byte-for-byte in a one-entry native `pgmq` component, passed all eight migration-package
   tests, and committed pgmq-hs as `9637cbc`.
-- [ ] Milestone 2: Import the direct full-install hasql-migration row by verified MD5 and
-  exact payload.
-- [ ] Milestone 3: Prove the two-step equivalent route only with explicit opt-in and a
-  read-only PGMQ 1.11 schema contract.
+- [x] (2026-07-10 19:13 PDT) Milestone 2: Imported the direct full-install row by
+  reproduced base64 MD5 and exact target payload, including altered-byte, altered-ledger,
+  duplicate-row, idempotency, and no-action-execution coverage.
+- [x] (2026-07-10 19:13 PDT) Milestone 3: Added the checked read-only PGMQ 1.11 catalog
+  contract and proved the two-step route requires explicit equivalent-history opt-in;
+  committed both milestones in pgmq-hs as `cd37dc1`.
 - [ ] Milestone 4: Rewire every fixture and consumer, remove runtime predecessor
   dependencies, update documentation, and pass the full validation matrix.
 
@@ -50,6 +52,10 @@ fixtures and consumers use the new plan, and runtime dependencies no longer incl
   test components and hit `componentAvailableTargetStatus: impossible`. Explicitly
   disabling tests for the dependency packages leaves pgmq-hs tests enabled and avoids the
   planner bug.
+
+- Observation: PostgreSQL rejects `constraint` as an unquoted catalog-table alias. The
+  contract query now uses `constraint_record`; the passing database fixture exercises the
+  generated query against the real 1.11 schema.
 
 
 ## Decision Log
@@ -68,6 +74,19 @@ fixtures and consumers use the new plan, and runtime dependencies no longer incl
 - Decision: Introduce `pgmqMigrations` additively before deleting predecessor wrappers.
   Rationale: Milestone 1 remains independently buildable and testable while later fixture
   rewiring can proceed without leaving downstream packages broken between commits.
+  Date: 2026-07-10
+
+- Decision: Represent direct and equivalent predecessor histories with an explicit
+  `AlternativeHistoryPolicy` and strict source selection.
+  Rationale: No call site can silently accept state equivalence or unselected predecessor
+  rows, while the direct route remains exact-payload by construction.
+  Date: 2026-07-10
+
+- Decision: Validate the consumer contract as checked Haskell data rendered into one
+  read-only `pg_catalog` query.
+  Rationale: The expected tables, key columns and constraints, composite types, and public
+  function signatures stay reviewable beside the code while validation performs no DDL or
+  queue mutation.
   Date: 2026-07-10
 
 
@@ -215,3 +234,8 @@ worktree.
 2026-07-10: Completed Milestone 1 in pgmq-hs commit `9637cbc`, including the exact
 vendored-byte guard, one-entry native component, GHC project alignment, and passing
 migration-package tests.
+
+2026-07-10: Completed Milestones 2 and 3 in pgmq-hs commit `cd37dc1`. The twelve-test
+migration suite proves direct import integrity and no replay, explicit equivalent-history
+policy, successful read-only state evidence, and rejection when a required function,
+composite type, or table is absent.

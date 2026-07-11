@@ -116,7 +116,10 @@ deployed database.
   Codd transition tools, and passed native, legacy, and full workspace test matrices.
 - [ ] EP-14: In progress. pgmq-hs and hasql-migration were resolved through `mori`, and
   Milestone 1 is complete at pgmq-hs commit `9637cbc`: one exact-byte PGMQ 1.11 native
-  component with passing migration-package tests.
+  component with passing migration-package tests. Milestones 2 and 3 are complete at
+  `cd37dc1`: exact direct-history import and explicitly opted-in equivalent two-step import
+  guarded by the checked read-only PGMQ 1.11 contract, with all twelve focused tests
+  passing.
 
 
 ## Surprises & Discoveries
