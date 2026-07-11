@@ -59,7 +59,7 @@ the exact `mori` project and working directory needed to execute it.
 |---|-------|------|-----------|-----------|--------|
 | 12 | Upgrade Kiroku to a native migration component | docs/plans/12-upgrade-kiroku-to-a-native-migration-component.md | None | None | Complete |
 | 13 | Upgrade Keiro and compose its Kiroku dependency | docs/plans/13-upgrade-keiro-and-compose-its-kiroku-dependency.md | EP-12 | None | Complete |
-| 14 | Upgrade PGMQ with equivalent-history validation | docs/plans/14-upgrade-pgmq-with-equivalent-history-validation.md | None | EP-12 | In Progress |
+| 14 | Upgrade PGMQ with equivalent-history validation | docs/plans/14-upgrade-pgmq-with-equivalent-history-validation.md | None | EP-12 | Complete |
 | 15 | Prove staged imports and native append-only upgrades | docs/plans/15-prove-staged-imports-and-native-append-only-upgrades.md | EP-12, EP-13, EP-14 | None | Not Started |
 | 16 | Cut over production and retire predecessor runners | docs/plans/16-cut-over-production-and-retire-predecessor-runners.md | EP-15 | None | Not Started |
 
@@ -114,12 +114,13 @@ deployed database.
 - [x] EP-13: Upgraded Keiro to a sixteen-entry native component, composed Kiroku first,
   proved atomic shared-ledger import and no replay, rewired framework fixtures, isolated
   Codd transition tools, and passed native, legacy, and full workspace test matrices.
-- [ ] EP-14: In progress. pgmq-hs and hasql-migration were resolved through `mori`, and
+- [x] EP-14: Completed. pgmq-hs and hasql-migration were resolved through `mori`, and
   Milestone 1 is complete at pgmq-hs commit `9637cbc`: one exact-byte PGMQ 1.11 native
   component with passing migration-package tests. Milestones 2 and 3 are complete at
   `cd37dc1`: exact direct-history import and explicitly opted-in equivalent two-step import
-  guarded by the checked read-only PGMQ 1.11 contract, with all twelve focused tests
-  passing.
+  guarded by the checked read-only PGMQ 1.11 contract. Commit `1b36244` rewires all
+  fixtures, removes the predecessor surface and dependency, bumps pgmq-migration to
+  0.4.0.0, and passes the full Cabal and standalone/Nix-packaged validation matrices.
 
 
 ## Surprises & Discoveries
@@ -143,6 +144,10 @@ deployed database.
   remote. EP-15 must publish or otherwise make the exact Kiroku pin fetchable before
   building staging artifacts; local validation passed through the ignored project
   override.
+
+- Observation: EP-14's isolated Nix closure required the pg-migrate v1 bounds rather than
+  pgmq-hs's older package-set defaults: `crypton` 1.1.4 and `optparse-applicative`
+  0.19.0.0 are now pinned beside the immutable pg-migrate tag.
 
 - Observation: Keiro's 19-example Codd expected-schema/remediation suite remains green
   behind `legacy-codd-tools`, while its normal package and shared test fixture use the

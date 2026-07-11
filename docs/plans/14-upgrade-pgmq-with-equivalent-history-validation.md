@@ -38,8 +38,10 @@ fixtures and consumers use the new plan, and runtime dependencies no longer incl
 - [x] (2026-07-10 19:13 PDT) Milestone 3: Added the checked read-only PGMQ 1.11 catalog
   contract and proved the two-step route requires explicit equivalent-history opt-in;
   committed both milestones in pgmq-hs as `cd37dc1`.
-- [ ] Milestone 4: Rewire every fixture and consumer, remove runtime predecessor
-  dependencies, update documentation, and pass the full validation matrix.
+- [x] (2026-07-10 20:52 PDT) Milestone 4: Rewired all migration, hasql, effectful,
+  config, and benchmark fixtures to the native runner; removed the predecessor surface
+  and dependency; bumped pgmq-migration to 0.4.0.0; passed the full Cabal and Nix matrices;
+  and committed pgmq-hs as `1b36244`.
 
 
 ## Surprises & Discoveries
@@ -56,6 +58,11 @@ fixtures and consumers use the new plan, and runtime dependencies no longer incl
 - Observation: PostgreSQL rejects `constraint` as an unquoted catalog-table alias. The
   contract query now uses `constraint_record`; the passing database fixture exercises the
   generated query against the real 1.11 schema.
+
+- Observation: The pgmq-hs Nix package set still supplied `crypton` 1.0.6 and
+  `optparse-applicative` 0.18.1.0, below pg-migrate v1's published bounds. Pinning crypton
+  1.1.4 and optparse-applicative 0.19.0.0 made the immutable tagged pg-migrate closure
+  compile without jailbreaking those version requirements.
 
 
 ## Decision Log
@@ -92,7 +99,17 @@ fixtures and consumers use the new plan, and runtime dependencies no longer incl
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+PGMQ now has one immutable exact-byte v1.11 native baseline, explicit direct and
+state-equivalent predecessor-history policies, and no runtime `hasql-migration` dependency
+or command surface. Every repository fixture runs the native plan. Focused migration tests
+cover fresh/idempotent execution, exact MD5 evidence, malformed ledgers, no replay,
+equivalent-policy opt-in, and missing function/type/table rejection.
+
+Validation completed with seven pgmq-migration tests, 55 pgmq-hasql tests, 17
+pgmq-effectful tests, and ten pgmq-config tests passing; the benchmark compiled; `cabal
+check` reported no warnings; `nix build .#pgmq-migration` and
+`nix build .#checks.aarch64-darwin.pgmq-migration-tests` succeeded. Commits `9637cbc`,
+`cd37dc1`, and `1b36244` form the independently buildable milestone sequence.
 
 
 ## Context and Orientation
@@ -239,3 +256,7 @@ migration-package tests.
 migration suite proves direct import integrity and no replay, explicit equivalent-history
 policy, successful read-only state evidence, and rejection when a required function,
 composite type, or table is absent.
+
+2026-07-10: Completed Milestone 4 and EP-14 in pgmq-hs commit `1b36244`. All consumers
+now use the native runner, the 0.4 package has no predecessor runner surface or dependency,
+and both the standalone Nix closure and Nix-packaged test derivation pass.
