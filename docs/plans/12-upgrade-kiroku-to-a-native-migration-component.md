@@ -27,7 +27,13 @@ databases both pass strict plan verification and Kiroku store behavior tests.
 
 ## Progress
 
-(No implementation work has started.)
+- [ ] (2026-07-11T00:28:25Z) Milestone 1: update package dependencies and establish the
+  native manifest/source layout while preserving legacy evidence.
+- [ ] Milestone 2: expose the native Kiroku component and authoring path.
+- [ ] Milestone 3: add the checked-in Codd history mapping and import proofs.
+- [ ] Milestone 4: migrate the executable and database behavior tests.
+- [ ] Milestone 5: update documentation, remove predecessor runtime dependencies, and run
+  final validation.
 
 
 ## Surprises & Discoveries

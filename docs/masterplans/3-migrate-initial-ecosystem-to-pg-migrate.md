@@ -57,7 +57,7 @@ the exact `mori` project and working directory needed to execute it.
 
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
-| 12 | Upgrade Kiroku to a native migration component | docs/plans/12-upgrade-kiroku-to-a-native-migration-component.md | None | None | Not Started |
+| 12 | Upgrade Kiroku to a native migration component | docs/plans/12-upgrade-kiroku-to-a-native-migration-component.md | None | None | In Progress |
 | 13 | Upgrade Keiro and compose its Kiroku dependency | docs/plans/13-upgrade-keiro-and-compose-its-kiroku-dependency.md | EP-12 | None | Not Started |
 | 14 | Upgrade PGMQ with equivalent-history validation | docs/plans/14-upgrade-pgmq-with-equivalent-history-validation.md | None | EP-12 | Not Started |
 | 15 | Prove staged imports and native append-only upgrades | docs/plans/15-prove-staged-imports-and-native-append-only-upgrades.md | EP-12, EP-13, EP-14 | None | Not Started |
@@ -108,7 +108,8 @@ deployed database.
 
 ## Progress
 
-(No implementation work has started.)
+- [ ] EP-12: Upgrade Kiroku to a native migration component. Implementation began after
+  confirming the integrations-and-release MasterPlan is complete.
 
 
 ## Surprises & Discoveries
@@ -150,3 +151,6 @@ deployed database.
 
 2026-07-10: Replaced the impossible reserved `pg_migrate` schema name with the corrected
 core default `pgmigrate` and recorded the downstream coordination decision.
+
+2026-07-10: Started EP-12 after verifying that the integrations-and-release initiative is
+complete and that Kiroku has no unmet child-plan dependencies.
