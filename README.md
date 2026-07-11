@@ -20,14 +20,16 @@ The package set is:
 - [`pg-migrate-test-support`](https://hackage.haskell.org/package/pg-migrate-test-support-1.0.0.0):
   opt-in `ephemeral-pg` test helper.
 
-Start with the [quickstart](docs/user/quickstart.md) and the runnable
-[`examples/basic`](examples/basic). The remaining documentation is organized by audience:
+Start with the [user guide](docs/user/README.md), its
+[quickstart](docs/user/quickstart.md), and the runnable [`examples/basic`](examples/basic).
+The remaining documentation is organized by audience:
 
 - Library authors: [component](docs/user/component-authoring.md),
   [manifest](docs/user/manifest-authoring.md), and
   [plan composition](docs/user/plan-composition.md).
 - Application owners: [CLI integration](docs/user/cli-integration.md) and
   [testing](docs/user/testing.md).
+- Developers diagnosing adoption problems: [troubleshooting](docs/user/troubleshooting.md).
 - Operators: [deployment](docs/operations/deployment.md),
   [locks/timeouts](docs/operations/locking-and-timeouts.md),
   [repair](docs/operations/nontransactional-repair.md), and

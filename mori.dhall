@@ -190,6 +190,14 @@ in  Schema.Project::{
               "mori://shinzui/haskell-jitsurei/docs/core-standards"
         }
       , Schema.DocRef::{
+        , key = "user-guide"
+        , kind = Schema.DocKind.Guide
+        , audience = Schema.DocAudience.User
+        , description = Some
+            "Adoption path, package selection, authoring, composition, CLI, testing, and troubleshooting"
+        , location = Schema.DocLocation.LocalFile "./docs/user/README.md"
+        }
+      , Schema.DocRef::{
         , key = "quickstart"
         , kind = Schema.DocKind.Guide
         , audience = Schema.DocAudience.User
