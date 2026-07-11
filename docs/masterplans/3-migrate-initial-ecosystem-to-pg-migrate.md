@@ -60,7 +60,7 @@ the exact `mori` project and working directory needed to execute it.
 | 12 | Upgrade Kiroku to a native migration component | docs/plans/12-upgrade-kiroku-to-a-native-migration-component.md | None | None | Complete |
 | 13 | Upgrade Keiro and compose its Kiroku dependency | docs/plans/13-upgrade-keiro-and-compose-its-kiroku-dependency.md | EP-12 | None | Complete |
 | 14 | Upgrade PGMQ with equivalent-history validation | docs/plans/14-upgrade-pgmq-with-equivalent-history-validation.md | None | EP-12 | Complete |
-| 15 | Prove staged imports and native append-only upgrades | docs/plans/15-prove-staged-imports-and-native-append-only-upgrades.md | EP-12, EP-13, EP-14 | None | Not Started |
+| 15 | Prove staged imports and native append-only upgrades | docs/plans/15-prove-staged-imports-and-native-append-only-upgrades.md | EP-12, EP-13, EP-14 | None | In Progress |
 | 16 | Cut over production and retire predecessor runners | docs/plans/16-cut-over-production-and-retire-predecessor-runners.md | EP-15 | None | Not Started |
 
 Status values: Not Started, In Progress, Complete, Cancelled.
@@ -121,6 +121,10 @@ deployed database.
   guarded by the checked read-only PGMQ 1.11 contract. Commit `1b36244` rewires all
   fixtures, removes the predecessor surface and dependency, bumps pgmq-migration to
   0.4.0.0, and passes the full Cabal and standalone/Nix-packaged validation matrices.
+- [ ] EP-15: In progress. All owner repositories are resolved and the repository-owned
+  inventory/templates and append-only canary work have started. Operator-controlled
+  staging snapshot identifiers and restoration evidence are not available locally and
+  must be supplied before the staging gate can complete.
 
 
 ## Surprises & Discoveries

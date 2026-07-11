@@ -27,7 +27,14 @@ hard gate for production cutover.
 
 ## Progress
 
-(No implementation work has started.)
+- [x] (2026-07-10 20:55 PDT) Confirmed EP-12, EP-13, and EP-14 complete; resolved all
+  three owner repositories through `mori`; and started the repository-owned staging work.
+- [ ] Milestone 1: Inventory/evidence templates are checked in; operator-owned snapshot
+  references, PostgreSQL roles/majors, and restoration proof remain required.
+- [ ] Milestone 2: Run import rehearsals on restored staging copies.
+- [ ] Milestone 3: Append and validate the three component-owned canary migrations.
+- [ ] Milestone 4: Prove fresh and imported paths against the identical updated plans.
+- [ ] Milestone 5: Record two clean-copy passes per scenario and make the go/no-go decision.
 
 
 ## Surprises & Discoveries
