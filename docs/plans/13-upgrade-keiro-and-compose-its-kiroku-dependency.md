@@ -27,7 +27,19 @@ stanzas shed Codd and `postgresql-simple`.
 
 ## Progress
 
-(No implementation work has started.)
+- [x] (2026-07-10 18:23 PDT) Verified EP-12 complete, selected EP-13 as the next
+  implementable child plan, located Keiro and Kiroku through `mori`, and preserved the
+  pre-existing `.seihou/manifest.json` and `docs/assets/` worktree changes.
+- [ ] Milestone 1: Preserve the sixteen SQL payloads in a native embedded manifest and
+  export the `keiro` component with dependency `kiroku`.
+- [ ] Milestone 2: Compose Kiroku then Keiro through a validated native plan and standard
+  CLI.
+- [ ] Milestone 3: Import the combined shared Codd ledger atomically through explicit
+  Kiroku and Keiro evidence mappings.
+- [ ] Milestone 4: Rewire fresh, imported, dependency-order, verification, concurrency,
+  and framework behavior tests to the native runner.
+- [ ] Milestone 5: Update package metadata and documentation, remove predecessor runtime
+  dependencies, and pass the full validation matrix.
 
 
 ## Surprises & Discoveries
@@ -190,3 +202,10 @@ frameworkMigrationPlan :: MigrationComponent -> MigrationComponent -> Either Pla
 
 The first argument is the concrete Kiroku component and the second is Keiro. Do not expose
 a migration-set abstraction or accept parsed Codd actions.
+
+
+## Revision Note
+
+2026-07-10: Started implementation after proving EP-12 complete, resolving both consumer
+repositories through `mori`, and recording the unrelated Keiro worktree paths that must be
+preserved.

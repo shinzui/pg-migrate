@@ -58,7 +58,7 @@ the exact `mori` project and working directory needed to execute it.
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
 | 12 | Upgrade Kiroku to a native migration component | docs/plans/12-upgrade-kiroku-to-a-native-migration-component.md | None | None | Complete |
-| 13 | Upgrade Keiro and compose its Kiroku dependency | docs/plans/13-upgrade-keiro-and-compose-its-kiroku-dependency.md | EP-12 | None | Not Started |
+| 13 | Upgrade Keiro and compose its Kiroku dependency | docs/plans/13-upgrade-keiro-and-compose-its-kiroku-dependency.md | EP-12 | None | In Progress |
 | 14 | Upgrade PGMQ with equivalent-history validation | docs/plans/14-upgrade-pgmq-with-equivalent-history-validation.md | None | EP-12 | Not Started |
 | 15 | Prove staged imports and native append-only upgrades | docs/plans/15-prove-staged-imports-and-native-append-only-upgrades.md | EP-12, EP-13, EP-14 | None | Not Started |
 | 16 | Cut over production and retire predecessor runners | docs/plans/16-cut-over-production-and-retire-predecessor-runners.md | EP-15 | None | Not Started |
@@ -111,6 +111,8 @@ deployed database.
 - [x] EP-12: Upgraded Kiroku to a native component with seven byte-preserving manifest
   entries, composable Codd evidence, standard CLI, native test setup, clean production
   closure, and passing migration/store suites.
+- [ ] EP-13: In progress. Keiro and Kiroku were resolved through `mori`; implementation
+  will preserve Keiro's pre-existing `.seihou/manifest.json` and `docs/assets/` changes.
 
 
 ## Surprises & Discoveries
@@ -184,3 +186,7 @@ complete and that Kiroku has no unmet child-plan dependencies.
 2026-07-10: Marked EP-12 complete after byte-preserving source conversion, current and
 legacy Codd import proofs, native CLI/test-support integration, full migration and store
 tests, clean Cabal package checks and production closure, and a successful Nix build.
+
+2026-07-10: Started EP-13 after confirming EP-12 complete, resolving the Keiro/Kiroku
+integration sources through `mori`, and recording the unrelated Keiro worktree changes to
+preserve.
