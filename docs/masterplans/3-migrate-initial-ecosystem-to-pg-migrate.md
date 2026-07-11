@@ -124,9 +124,11 @@ deployed database.
 - [ ] EP-15: In progress. All owner repositories are resolved and the repository-owned
   inventory/templates are checked in. Kiroku `0008`, Keiro `0017`, and PGMQ `0002`
   append-only canaries and their local fresh/imported proofs pass, along with all three
-  repositories' behavior suites. Operator-controlled snapshot identifiers, restoration
-  evidence, published Kiroku artifacts, and two clean-copy passes per scenario remain
-  required before the staging gate can complete.
+  repositories' behavior suites. Kiroku, Keiro, and PGMQ owner revisions are now remotely
+  fetchable, and Keiro's full matrix passes from a clean worktree using only those
+  published source revisions. Operator-controlled snapshot identifiers, restoration
+  evidence, and two clean-copy passes per scenario remain required before the staging gate
+  can complete.
 
 
 ## Surprises & Discoveries
@@ -150,6 +152,11 @@ deployed database.
   remote. EP-15 must publish or otherwise make the exact Kiroku pin fetchable before
   building staging artifacts; local validation passed through the ignored project
   override.
+
+- Resolution: EP-15 published Kiroku through `22fe479`, Keiro through `0a1b5d6`, and PGMQ
+  through `edb6273`. Keiro now pins Kiroku canary commit `6399844`; a clean worktree fetched
+  it and pg-migrate `v1.0.0.0` from their remotes and passed `nix develop -c cabal test
+  all` without the ignored local project override.
 
 - Observation: EP-14's isolated Nix closure required the pg-migrate v1 bounds rather than
   pgmq-hs's older package-set defaults: `crypton` 1.1.4 and `optparse-applicative`
@@ -209,6 +216,12 @@ deployed database.
   closure must not retain predecessor runners.
   Date: 2026-07-10
 
+- Decision: Publish all three EP-15 owner revisions and pin Keiro to Kiroku's published
+  canary commit before accepting any staging artifact.
+  Rationale: A local override cannot prove that operators can reproduce the composed
+  25-entry Kiroku/Keiro plan from immutable remote sources.
+  Date: 2026-07-11
+
 
 ## Outcomes & Retrospective
 
@@ -238,3 +251,8 @@ test matrix. Recorded Kiroku commit publication as an EP-15 staging prerequisite
 
 2026-07-10: Started EP-14 after EP-13 completion, resolving pgmq-hs and its
 hasql-migration predecessor through `mori` and confirming a clean consumer worktree.
+
+2026-07-11: Advanced EP-15 by publishing Kiroku, Keiro, and PGMQ owner revisions,
+correcting Keiro's Kiroku dependency to the canary commit, and passing the full Keiro test
+matrix from a clean remote-only worktree. The staging gate remains open for operator-owned
+restoration inputs and two passes per clean-copy scenario.

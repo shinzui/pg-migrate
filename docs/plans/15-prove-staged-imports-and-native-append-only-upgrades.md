@@ -29,14 +29,17 @@ hard gate for production cutover.
 
 - [x] (2026-07-10 20:55 PDT) Confirmed EP-12, EP-13, and EP-14 complete; resolved all
   three owner repositories through `mori`; and started the repository-owned staging work.
-- [ ] Milestone 1: Inventory/evidence templates are checked in; operator-owned snapshot
-  references, PostgreSQL roles/majors, and restoration proof remain required.
+- [ ] Milestone 1: Inventory/evidence templates are checked in and all three owner
+  revisions are remotely fetchable; operator-owned snapshot references, PostgreSQL
+  roles/majors, and restoration proof remain required.
 - [ ] Milestone 2: Run import rehearsals on restored staging copies.
 - [x] (2026-07-10 21:28 PDT) Milestone 3: Appended observable schema-comment canaries as
   Kiroku `0008` (`6399844`), Keiro `0017` (`49c6f2a`), and PGMQ `0002` (`edb6273`),
   without modifying historical payloads or mappings.
-- [ ] Milestone 4: Repository-local fresh/imported proofs and all behavior suites pass;
-  the required repetitions on separately restored staging copies remain outstanding.
+- [ ] Milestone 4: Repository-local fresh/imported proofs and all behavior suites pass.
+  Keiro also passes its full matrix from a clean worktree using only published source
+  revisions; the required repetitions on separately restored staging copies remain
+  outstanding.
 - [ ] Milestone 5: Record two clean-copy passes per scenario and make the go/no-go decision.
 
 
@@ -52,6 +55,12 @@ hard gate for production cutover.
   `upload-pack: not our ref`; local validation temporarily omitted the tracked source pin
   and used the ignored local package override, then restored the tracked file unchanged.
   Released staging artifacts cannot be built until the exact Kiroku revision is published.
+
+- Resolution: Kiroku `master` now publishes the conversion and canary through `22fe479`,
+  including canary commit `6399844`. Keiro pins both Kiroku source packages to `6399844`
+  at commit `0a1b5d6`, and a clean worktree fetched that revision from GitHub and passed
+  `nix develop -c cabal test all` without `cabal.project.local`. Keiro and PGMQ `master`
+  are published through `0a1b5d6` and `edb6273`, respectively.
 
 
 ## Decision Log
@@ -78,6 +87,12 @@ hard gate for production cutover.
   Rationale: This distinguishes the intended append-only delta from drift while preserving
   the plan's final strict-verification gate.
   Date: 2026-07-10
+
+- Decision: Pin Keiro's Kiroku source packages to the published canary commit `6399844`
+  and validate from a clean worktree with no local package override.
+  Rationale: Keiro's composed plan and tests require Kiroku `0008`; the pre-canary
+  `15e6fe2` pin could not reproduce the declared 25-entry plan even after publication.
+  Date: 2026-07-11
 
 
 ## Outcomes & Retrospective
@@ -225,3 +240,11 @@ PGMQ: pgmq/0001..0002
 
 If owner-approved canary content differs from the suggested metadata change, record the
 choice and rationale in this plan and the MasterPlan before implementation.
+
+
+## Revision Note
+
+2026-07-11: Recorded publication of all three owner revisions, corrected Keiro's Kiroku
+pin to the published canary commit, and captured the clean remote-only full-matrix proof.
+EP-15 remains in progress because operator-owned restoration evidence and two clean-copy
+passes for every staging scenario are still required.
