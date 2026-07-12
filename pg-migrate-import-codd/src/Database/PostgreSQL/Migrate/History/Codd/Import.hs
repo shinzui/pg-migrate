@@ -1,5 +1,6 @@
 module Database.PostgreSQL.Migrate.History.Codd.Import
   ( importCoddHistory,
+    importCoddHistoryWithValidators,
     buildCoddEvidence,
   )
 where
@@ -29,7 +30,21 @@ importCoddHistory ::
   NonEmpty HistoryMapping ->
   IO (Either CoddImportError HistoryImportReport)
 importCoddHistory options config targetProvider plan mappings =
-  case validateImportDefinition config plan mappings of
+  importCoddHistoryWithValidators options [] config targetProvider plan mappings
+
+-- | As 'importCoddHistory', with read-only state validators available to
+-- 'EquivalentState' mappings. The source advisory lock remains held while the
+-- target import validates state and writes its ledger rows.
+importCoddHistoryWithValidators ::
+  ImportOptions ->
+  [StateValidator] ->
+  CoddSourceConfig ->
+  ConnectionProvider ->
+  MigrationPlan ->
+  NonEmpty HistoryMapping ->
+  IO (Either CoddImportError HistoryImportReport)
+importCoddHistoryWithValidators options validators config targetProvider plan mappings =
+  case validateImportDefinition config validators plan mappings of
     Left err -> pure (Left err)
     Right () ->
       withLockedCoddHistory config $ \sourceConnection -> do
@@ -37,7 +52,7 @@ importCoddHistory options config targetProvider plan mappings =
         case loaded of
           Left err -> pure (Left err)
           Right history ->
-            case buildHistoryImport config history mappings of
+            case buildHistoryImport config history validators mappings of
               Left err -> pure (Left err)
               Right historyImportDefinition -> do
                 imported <- importMigrationHistory options targetProvider plan historyImportDefinition
@@ -45,10 +60,11 @@ importCoddHistory options config targetProvider plan mappings =
 
 validateImportDefinition ::
   CoddSourceConfig ->
+  [StateValidator] ->
   MigrationPlan ->
   NonEmpty HistoryMapping ->
   Either CoddImportError ()
-validateImportDefinition config@CoddSourceConfig {selectedFilenames, confirmation, sourceManifest} plan mappings = do
+validateImportDefinition config@CoddSourceConfig {selectedFilenames, confirmation, sourceManifest} validators plan mappings = do
   if any isSamePayload mappings && confirmation /= Confirmed
     then Left CoddConfirmationRequired
     else pure ()
@@ -56,7 +72,7 @@ validateImportDefinition config@CoddSourceConfig {selectedFilenames, confirmatio
     then Left CoddSamePayloadRequiresManifest
     else pure ()
   placeholderEvidence <- buildPlaceholderEvidence selectedFilenames
-  case historyImport "codd" placeholderEvidence [] mappings (importReason config) of
+  case historyImport "codd" placeholderEvidence validators mappings (importReason config) of
     Left err -> Left (CoddHistoryDefinitionFailed err)
     Right _ -> Right ()
   first
@@ -85,13 +101,14 @@ buildPlaceholderEvidence filenames =
 buildHistoryImport ::
   CoddSourceConfig ->
   CoddHistory ->
+  [StateValidator] ->
   NonEmpty HistoryMapping ->
   Either CoddImportError HistoryImport
-buildHistoryImport config history mappings = do
+buildHistoryImport config history validators mappings = do
   evidence <- buildCoddEvidence config history
   first
     CoddHistoryDefinitionFailed
-    (historyImport "codd" evidence [] mappings (importReason config))
+    (historyImport "codd" evidence validators mappings (importReason config))
 
 buildCoddEvidence ::
   CoddSourceConfig ->
@@ -124,22 +141,27 @@ rowEvidence CoddSourceConfig {sourcePayloads, sourceManifest} version row@CoddHi
         first
           CoddHistoryDefinitionFailed
           (ledgerOnlyEvidence (Text.pack filename) timestamp maybeChecksum details)
-      Just (CoddManifest manifest) -> do
-        expected <- maybe (Left (CoddManifestEntryMissing filename)) Right (Map.lookup filename manifest)
-        bytes <- maybe (Left (CoddSourcePayloadMissing filename)) Right maybeBytes
-        let actualChecksum = migrationFingerprint bytes
-            actual = checksumText actualChecksum
-        if actual /= expected
-          then Left (CoddManifestChecksumMismatch filename expected actual)
-          else
+      Just (CoddManifest manifest) ->
+        case Map.lookup filename manifest of
+          Nothing ->
             first
               CoddHistoryDefinitionFailed
-              ( sourceManifestVerifiedEvidence
-                  (Text.pack filename)
-                  timestamp
-                  (Just actualChecksum)
-                  details
-              )
+              (ledgerOnlyEvidence (Text.pack filename) timestamp Nothing details)
+          Just expected -> do
+            bytes <- maybe (Left (CoddSourcePayloadMissing filename)) Right maybeBytes
+            let actualChecksum = migrationFingerprint bytes
+                actual = checksumText actualChecksum
+            if actual /= expected
+              then Left (CoddManifestChecksumMismatch filename expected actual)
+              else
+                first
+                  CoddHistoryDefinitionFailed
+                  ( sourceManifestVerifiedEvidence
+                      (Text.pack filename)
+                      timestamp
+                      (Just actualChecksum)
+                      details
+                  )
   Right (key, evidence)
 
 rowDetails :: CoddSchemaVersion -> CoddHistoryRow -> Aeson.Value

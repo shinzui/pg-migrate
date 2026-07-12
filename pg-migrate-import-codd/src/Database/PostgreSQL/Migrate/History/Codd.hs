@@ -16,11 +16,12 @@ module Database.PostgreSQL.Migrate.History.Codd
     parseCoddManifest,
     readCoddHistory,
     importCoddHistory,
+    importCoddHistoryWithValidators,
     coddImportCommandParser,
   )
 where
 
-import Database.PostgreSQL.Migrate.History.Codd.Import (importCoddHistory)
+import Database.PostgreSQL.Migrate.History.Codd.Import (importCoddHistory, importCoddHistoryWithValidators)
 import Database.PostgreSQL.Migrate.History.Codd.Ledger (readCoddHistory)
 import Database.PostgreSQL.Migrate.History.Codd.Manifest (parseCoddManifest)
 import Database.PostgreSQL.Migrate.History.Codd.Parser (coddImportCommandParser)

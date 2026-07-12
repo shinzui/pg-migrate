@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Control.Exception qualified as Exception
+import Data.Aeson qualified as Aeson
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as ByteString
 import Data.Foldable (toList)
@@ -45,7 +46,8 @@ tests settings =
       testCase "partial and duplicate rows are rejected" (testInvalidRows settings),
       testCase "lenient selection reports extras and strict selection rejects them" (testSelection settings),
       testCase "legacy lock contention prevents target acquisition" (testLockContention settings),
-      testCase "import is audited, action-free, source-preserving, and idempotent" (testImportLifecycle settings)
+      testCase "import is audited, action-free, source-preserving, and idempotent" (testImportLifecycle settings),
+      testCase "a partial manifest supports mixed payload and state evidence" (testMixedEvidenceImport settings)
     ]
 
 testSupportedFixture :: Settings.Settings -> CoddSchemaVersion -> Assertion
@@ -109,6 +111,94 @@ testImportLifecycle settings =
     repeatedFacts @?= facts
     afterSnapshot <- sourceSnapshot settings CoddV5
     afterSnapshot @?= before
+
+testMixedEvidenceImport :: Settings.Settings -> Assertion
+testMixedEvidenceImport settings =
+  withCleanSchemas settings $ do
+    runScript settings (fixtureSql CoddV5 <> appliedInsertSql CoddV5 mixedSameFilename <> appliedInsertSql CoddV5 mixedEquivalentFilename)
+    first <- runMixedImport settings >>= requireCoddRight
+    importOutcomes first @?= [Imported, Imported]
+    facts <- query settings mixedTargetFactsStatement
+    facts @?= (2, 2, False, False)
+    second <- runMixedImport settings >>= requireCoddRight
+    importOutcomes second @?= [AlreadyImported, AlreadyImported]
+
+runMixedImport :: Settings.Settings -> IO (Either CoddImportError HistoryImportReport)
+runMixedImport settings =
+  importCoddHistoryWithValidators
+    (withEquivalentHistory AllowEquivalentHistory importOptions)
+    [mixedStateValidator]
+    (mixedSourceConfig settings)
+    (connectionProviderFromSettings settings)
+    mixedTargetPlan
+    mixedMappings
+
+mixedSourceConfig :: Settings.Settings -> CoddSourceConfig
+mixedSourceConfig settings =
+  expectRight
+    ( coddSourceConfig
+        (connectionProviderFromSettings settings)
+        (mixedSameFilename :| [mixedEquivalentFilename])
+        False
+        (Map.singleton mixedSameFilename mixedSamePayload)
+        (Just mixedManifest)
+        "verified mixed-evidence cutover"
+        Confirmed
+    )
+
+mixedManifest :: CoddManifest
+mixedManifest = expectRight (parseCoddManifest (checksumText mixedSamePayload <> " " <> Text.pack mixedSameFilename <> "\n"))
+
+mixedMappings :: NonEmpty HistoryMapping
+mixedMappings =
+  historyMapping mixedSameTarget (Evidence mixedSameSourceKey) (SamePayload mixedSameSourceKey)
+    :| [ historyMapping
+           mixedEquivalentTarget
+           (AllOf (Evidence mixedEquivalentSourceKey :| [Evidence mixedStateKey]))
+           EquivalentState
+       ]
+
+mixedStateValidator :: StateValidator
+mixedStateValidator = stateValidator mixedStateKey (pure (Right (Aeson.object ["state" Aeson..= ("verified" :: Text)])))
+
+mixedStateKey :: EvidenceKey
+mixedStateKey = expectRight (evidenceKey "codd:mixed-equivalent-state")
+
+mixedSameSourceKey :: EvidenceKey
+mixedSameSourceKey = expectRight (coddEvidenceKey mixedSameFilename)
+
+mixedEquivalentSourceKey :: EvidenceKey
+mixedEquivalentSourceKey = expectRight (coddEvidenceKey mixedEquivalentFilename)
+
+mixedSameTarget :: MigrationId
+mixedSameTarget = expectRight (migrationId "codd-target" "0001-mixed-same")
+
+mixedEquivalentTarget :: MigrationId
+mixedEquivalentTarget = expectRight (migrationId "codd-target" "0002-mixed-equivalent")
+
+mixedTargetPlan :: MigrationPlan
+mixedTargetPlan =
+  expectRight
+    ( migrationPlan
+        ( expectRight
+            ( migrationComponent
+                "codd-target"
+                Set.empty
+                ( expectRight (sqlMigration "0001-mixed-same" mixedSamePayload)
+                    :| [expectRight (sqlMigration "0002-mixed-equivalent" mixedEquivalentPayload)]
+                )
+            )
+            :| []
+        )
+    )
+
+mixedSameFilename, mixedEquivalentFilename :: FilePath
+mixedSameFilename = "20240101000000-mixed-same.sql"
+mixedEquivalentFilename = "20240101000001-mixed-equivalent.sql"
+
+mixedSamePayload, mixedEquivalentPayload :: ByteString
+mixedSamePayload = "CREATE TABLE pgmigrate_codd_target.mixed_same_should_not_exist (id bigint)"
+mixedEquivalentPayload = "CREATE TABLE pgmigrate_codd_target.mixed_equivalent_should_not_exist (id bigint)"
 
 runImport :: Settings.Settings -> IO (Either CoddImportError HistoryImportReport)
 runImport settings =
@@ -212,6 +302,28 @@ targetFactsStatement =
             <$> required Decoders.int8
             <*> required Decoders.int8
             <*> required Decoders.bool
+            <*> required Decoders.bool
+            <*> required Decoders.bool
+        )
+    )
+  where
+    required = Decoders.column . Decoders.nonNullable
+
+mixedTargetFactsStatement :: Statement () (Int64, Int64, Bool, Bool)
+mixedTargetFactsStatement =
+  Statement.unpreparable
+    ( Text.unwords
+        [ "SELECT (SELECT count(*) FROM " <> targetSchema <> ".migrations),",
+          "(SELECT count(*) FROM " <> targetSchema <> ".history_imports),",
+          "to_regclass('" <> targetSchema <> ".mixed_same_should_not_exist') IS NOT NULL,",
+          "to_regclass('" <> targetSchema <> ".mixed_equivalent_should_not_exist') IS NOT NULL"
+        ]
+    )
+    Encoders.noParams
+    ( Decoders.singleRow
+        ( (,,,)
+            <$> required Decoders.int8
+            <*> required Decoders.int8
             <*> required Decoders.bool
             <*> required Decoders.bool
         )
