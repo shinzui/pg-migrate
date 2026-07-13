@@ -204,6 +204,9 @@ validatePayload policy available mapping planned usedKeys =
           (Left (HistoryPayloadEvidenceMissing (target mapping) key))
           Right
           (Map.lookup key available)
+      when
+        (strength sourceEvidence < SourceManifestVerified)
+        (Left (HistoryPayloadEvidenceTooWeak (target mapping) key))
       sourceChecksum <-
         maybe
           (Left (HistoryPayloadChecksumMissing (target mapping) key))

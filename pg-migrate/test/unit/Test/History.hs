@@ -34,6 +34,7 @@ tests =
       testCase "component gaps are rejected" testPrefixGap,
       testCase "unknown targets are rejected" testUnknownTarget,
       testCase "payload checksum mismatches are rejected" testChecksumMismatch,
+      testCase "same-payload evidence requires manifest strength" testPayloadEvidenceStrength,
       testCase "same-payload cannot import Haskell migrations" testHaskellSamePayload,
       testCase "equivalent state requires policy and verified evidence" testEquivalentState,
       testCase "multiple satisfied AnyOf branches are ambiguous" testAmbiguousRequirement
@@ -189,6 +190,19 @@ testChecksumMismatch = do
       imported = requireHistoryImport mismatchedEvidence [prefixMapping 1] []
   resolveHistoryImport RejectEquivalentHistory prefixPlan mismatchedEvidence imported
     @?= Left (HistoryPayloadChecksumMismatch (prefixTarget 1) (prefixKey 1))
+
+testPayloadEvidenceStrength :: IO ()
+testPayloadEvidenceStrength = do
+  let target = prefixTarget 1
+      sourceKey = prefixKey 1
+      checksum = migrationFingerprint "SELECT 1"
+      available =
+        Map.singleton
+          sourceKey
+          (requireRight (ledgerOnlyEvidence "legacy/0001.sql" Nothing (Just checksum) Aeson.Null))
+      imported = requireHistoryImport available [historyMapping target (Evidence sourceKey) (SamePayload sourceKey)] []
+  resolveHistoryImport RejectEquivalentHistory prefixPlan available imported
+    @?= Left (HistoryPayloadEvidenceTooWeak target sourceKey)
 
 testHaskellSamePayload :: IO ()
 testHaskellSamePayload = do

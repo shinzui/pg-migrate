@@ -68,11 +68,16 @@ validateHasqlMigrationRows HasqlMigrationSourceConfig {selectedFilenames, strict
     byFilename = Map.fromList [(filename row, row) | row <- rows]
     selectRow selected =
       maybe (Left (HasqlMigrationSelectedFilenameMissing selected)) Right (Map.lookup selected byFilename)
-    verifyChecksum row =
-      let actual = legacyMd5 (sourcePayloads Map.! filename row)
-       in if storedMd5 row == actual
-            then Right ()
-            else Left (HasqlMigrationChecksumMismatch (filename row) (storedMd5 row) actual)
+    verifyChecksum row = do
+      payloadBytes <-
+        maybe
+          (Left (HasqlMigrationDefinitionFailed (MissingHasqlMigrationPayload (filename row))))
+          Right
+          (Map.lookup (filename row) sourcePayloads)
+      let actual = legacyMd5 payloadBytes
+      if storedMd5 row == actual
+        then Right ()
+        else Left (HasqlMigrationChecksumMismatch (filename row) (storedMd5 row) actual)
 
 legacyMd5 :: ByteString -> Text
 legacyMd5 = Text.Encoding.decodeUtf8 . convertToBase Base64 . hashWith MD5

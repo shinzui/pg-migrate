@@ -62,13 +62,18 @@ placeholderEvidence HasqlMigrationSourceConfig {sourcePayloads} filenames =
   where
     placeholder migrationFilename = do
       key <- first HasqlMigrationDefinitionFailed (hasqlMigrationEvidenceKey migrationFilename)
+      payloadBytes <-
+        maybe
+          (Left (HasqlMigrationDefinitionFailed (MissingHasqlMigrationPayload migrationFilename)))
+          Right
+          (Map.lookup migrationFilename sourcePayloads)
       evidence <-
         first
           HasqlMigrationHistoryDefinitionFailed
           ( sourceLedgerChecksumVerifiedEvidence
               (Text.pack migrationFilename)
               Nothing
-              (Just (migrationFingerprint (sourcePayloads Map.! migrationFilename)))
+              (Just (migrationFingerprint payloadBytes))
               Aeson.Null
           )
       Right (key, evidence)
@@ -93,13 +98,18 @@ buildHasqlMigrationEvidence HasqlMigrationSourceConfig {sourcePayloads, sourceTa
   where
     rowEvidence row@HasqlMigrationRow {filename, executedAt} = do
       key <- first HasqlMigrationDefinitionFailed (hasqlMigrationEvidenceKey filename)
+      payloadBytes <-
+        maybe
+          (Left (HasqlMigrationDefinitionFailed (MissingHasqlMigrationPayload filename)))
+          Right
+          (Map.lookup filename sourcePayloads)
       evidence <-
         first
           HasqlMigrationHistoryDefinitionFailed
           ( sourceLedgerChecksumVerifiedEvidence
               (Text.pack filename)
               (Just (LocalTimeWithoutZone executedAt))
-              (Just (migrationFingerprint (sourcePayloads Map.! filename)))
+              (Just (migrationFingerprint payloadBytes))
               (rowDetails sourceTable row)
           )
       Right (key, evidence)

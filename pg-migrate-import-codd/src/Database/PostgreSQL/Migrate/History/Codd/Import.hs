@@ -135,7 +135,6 @@ rowEvidence ::
 rowEvidence CoddSourceConfig {sourcePayloads, sourceManifest} version row@CoddHistoryRow {filename, appliedAt} = do
   key <- first CoddDefinitionFailed (coddEvidenceKey filename)
   let maybeBytes = Map.lookup filename sourcePayloads
-      maybeChecksum = migrationFingerprint <$> maybeBytes
       details = rowDetails version row
       timestamp = AbsoluteTime <$> appliedAt
   evidence <-
@@ -143,7 +142,7 @@ rowEvidence CoddSourceConfig {sourcePayloads, sourceManifest} version row@CoddHi
       Nothing ->
         first
           CoddHistoryDefinitionFailed
-          (ledgerOnlyEvidence (Text.pack filename) timestamp maybeChecksum details)
+          (ledgerOnlyEvidence (Text.pack filename) timestamp Nothing details)
       Just (CoddManifest manifest) ->
         case Map.lookup filename manifest of
           Nothing ->

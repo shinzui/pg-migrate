@@ -171,6 +171,7 @@ data HistoryValidationError
   | HistoryRequirementUnsatisfied !MigrationId
   | HistoryRequirementAmbiguous !MigrationId
   | HistoryPayloadEvidenceMissing !MigrationId !EvidenceKey
+  | HistoryPayloadEvidenceTooWeak !MigrationId !EvidenceKey
   | HistoryPayloadChecksumMissing !MigrationId !EvidenceKey
   | HistoryPayloadChecksumMismatch !MigrationId !EvidenceKey
   | HistorySamePayloadForHaskell !MigrationId

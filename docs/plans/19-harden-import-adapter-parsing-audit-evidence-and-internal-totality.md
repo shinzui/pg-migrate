@@ -51,7 +51,7 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-13 11:43 PDT) Milestone 1 implementation: lock-key reader parses through `Integer`, bounds-checks before conversion, and has boundary-value regression tests.
 - [x] (2026-07-13 11:44 PDT) Milestone 1 validation: `cabal test pg-migrate-import-codd:pg-migrate-import-codd-test` passed all 23 tests, including all new bounds cases.
 - [x] (2026-07-13 11:51 PDT) Milestone 2: audit details record the rendered source table; strict Codd manifests reject missing selected rows; dead constructors are removed; manifest/parser Haddocks are accurate; and Codd exposes `--allow-equivalent` parity. Both adapter unit and PostgreSQL integration suites pass (25 + 11 Codd tests; 14 + 6 hasql-migration tests).
-- [ ] Milestone 3: totality and evidence strength (no `Map.!` on public paths, no unverified checksum in `LedgerOnly` evidence, core `SamePayload` strength gate).
+- [x] (2026-07-13 11:58 PDT) Milestone 3: adapter source trees contain no `Map.!`; Codd ledger-only evidence carries no unverified checksum; and core rejects `SamePayload` evidence weaker than `SourceManifestVerified` with `HistoryPayloadEvidenceTooWeak`. Sequential validation passed 104 core, 25 Codd, and 14 hasql-migration unit tests.
 - [ ] Milestone 4: `CoddUnlockFailed` preserves committed reports (pattern from plan 18).
 - [ ] Docs and changelogs updated; `cabal test all` green.
 
@@ -66,6 +66,18 @@ implementation. Provide concise evidence.
   `pg-migrate-import-codd-test` and `pg-migrate-import-hasql-migration-test`.
   Evidence: Cabal reported `[Cabal-7131] Unknown target` and suggested the real component;
   `rg '^test-suite'` in both package files confirmed the names.
+
+- Observation: Independent `cabal test` processes cannot safely rebuild the same local
+  package in parallel against one `dist-newstyle` directory.
+  Evidence: concurrent core, Codd, and hasql-migration runs raced while renaming
+  `History/Types.o.tmp`; the hasql-migration run completed, while the other two exited with
+  `[Cabal-7125]`. Validation runs are therefore sequential for the remainder of this plan.
+
+- Observation: `pg-migrate-cli` has no history-import error renderer or error golden. It
+  renders only successful `HistoryImportReport` values; adapter applications own their
+  `CoddImportError` or `HasqlMigrationImportError` failure output.
+  Evidence: `renderHistoryImportJson` accepts a report rather than an `Either`, and the
+  only history-import golden is the successful `test/golden/json/import.json` fixture.
 
 
 ## Decision Log
@@ -95,6 +107,15 @@ implementation. Provide concise evidence.
   schema-qualified rendering used to query the predecessor ledger.
   Rationale: The quoted form is unambiguous for identifiers containing spaces, dots, or
   quotes and proves exactly which validated relation supplied the evidence.
+  Date: 2026-07-13
+
+- Decision: Do not invent a new CLI history-error rendering API or golden for
+  `HistoryPayloadEvidenceTooWeak`; rely on the existing derived `Show` representation at
+  adapter-owned text boundaries.
+  Rationale: The plan's request to update CLI JSON/text error tables assumed a contract
+  that does not exist. Adding one would be new feature/API work outside this audit
+  remediation and could not render the adapter-specific outer error types without
+  reversing package dependencies.
   Date: 2026-07-13
 
 
