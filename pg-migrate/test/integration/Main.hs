@@ -80,7 +80,9 @@ tests settings =
       testCase "terminated nontransactional helper leaves Running" (testCrashAmbiguity settings),
       testCase "nontransactional callback failure leaves Applied" (testNonTransactionalCallback settings),
       testCase "history import is atomic, audited, and idempotent" (testHistoryImport settings),
-      testCase "history import conflicts with ordinary applied rows" (testHistoryExistingConflict settings),
+      testCase "native-then-import conflicts on the native row" (testHistoryExistingConflict settings),
+      testCase "suffix-only history import reports a prefix gap" (testHistorySuffixOnlyPrefixGap settings),
+      testCase "import-then-native applies only the remaining migration" (testHistoryImportThenNative settings),
       testCase "history import honors the unknown-migrations policy" (testHistoryUnknownPolicy settings),
       testCase "history audit failure rolls back target rows" (testHistoryAtomicity settings),
       testCase "equivalent history uses read-only state validation" (testHistoryEquivalentState settings),
@@ -570,6 +572,38 @@ testHistoryExistingConflict settings =
     length (storedMigrations snapshot) @?= 1
     auditCount <- useSession connection (Session.statement () (historyAuditCountStatement config))
     auditCount @?= 0
+
+testHistorySuffixOnlyPrefixGap :: Settings.Settings -> IO ()
+testHistorySuffixOnlyPrefixGap settings =
+  withTestLedger settings "history_suffix_only" $ \_ config ->
+    importMigrationHistory
+      (historyOptions config)
+      (connectionProviderFromSettings settings)
+      (historySqlPlan config)
+      (historySqlImportMappings config False (2 :| []))
+      >>= assertHistoryPrefixGap (migrationIdComponent (historyTarget 2)) 1
+
+testHistoryImportThenNative :: Settings.Settings -> IO ()
+testHistoryImportThenNative settings =
+  withTestLedger settings "history_import_then_native" $ \connection config -> do
+    let plan = historySqlPlan config
+        options = historyOptions config
+        runOptions = withLedger config defaultRunOptions
+    imported <-
+      importMigrationHistory
+        options
+        (connectionProviderFromSettings settings)
+        plan
+        (historySqlImport config False)
+        >>= requireHistoryRight
+    historyOutcomes imported @?= zip (historyTarget <$> [1, 2]) (repeat Imported)
+    report <- runMigrationPlan runOptions settings plan >>= requireRunRight
+    reportOutcomes report @?= [AlreadyApplied, AlreadyApplied, AppliedNow]
+    tableNames <- useSession connection (Session.statement (ledgerSchema config) tableNamesStatement)
+    assertBool
+      "imported target actions were executed"
+      (all (`notElem` tableNames) ["import_action_1", "import_action_2"])
+    assertBool "remaining native action was not executed" ("import_action_3" `elem` tableNames)
 
 testHistoryUnknownPolicy :: Settings.Settings -> IO ()
 testHistoryUnknownPolicy settings =
@@ -1122,6 +1156,14 @@ assertHistoryUnknownBlocked expected = \case
   Left importError -> assertFailure ("expected history PlanVerificationFailed, received " <> show importError)
   Right report -> assertFailure ("expected history PlanVerificationFailed, received " <> show report)
 
+assertHistoryPrefixGap :: ComponentName -> Int -> Either HistoryImportError HistoryImportReport -> IO ()
+assertHistoryPrefixGap expectedComponent expectedPosition = \case
+  Left (HistoryImportValidationFailed (HistoryComponentPrefixGap actualComponent actualPosition)) -> do
+    actualComponent @?= expectedComponent
+    actualPosition @?= expectedPosition
+  Left importError -> assertFailure ("expected HistoryComponentPrefixGap, received " <> show importError)
+  Right report -> assertFailure ("expected HistoryComponentPrefixGap, received " <> show report)
+
 assertHistoryDatabaseFailure :: Either HistoryImportError HistoryImportReport -> IO ()
 assertHistoryDatabaseFailure = \case
   Left (HistoryImportRunnerError DatabaseSessionFailed {}) -> pure ()
@@ -1239,12 +1281,16 @@ historySqlPlan config =
 
 historySqlImport :: LedgerConfig -> Bool -> HistoryImport
 historySqlImport config changed =
+  historySqlImportMappings config changed (1 :| [2])
+
+historySqlImportMappings :: LedgerConfig -> Bool -> NonEmpty Int -> HistoryImport
+historySqlImportMappings config changed mappingNumbers =
   requireRight
     ( historyImport
         "legacy-engine"
         (Map.fromList [(historyEvidenceKey number, historyEvidence number) | number <- [1 .. 3]])
         []
-        (historyMappingFor 1 :| [historyMappingFor 2])
+        (historyMappingFor <$> mappingNumbers)
         "verified staging cutover"
     )
   where

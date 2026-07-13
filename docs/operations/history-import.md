@@ -24,3 +24,21 @@ configured `RunOptions`, matching normal execution and repair. The default
 component. For an intentionally shared ledger, pass run options with
 `AllowUnknownMigrations` through `withImportRunOptions`; unknown rows are retained and
 reported without weakening mapping, evidence, prefix, or conflict validation.
+
+## Order import before native application
+
+For each affected component, import mappings must cover a gap-free prefix beginning at
+position 1. Existing target rows do not fill gaps in the mapping set: mapping only position
+2 fails with `HistoryComponentPrefixGap` even if position 1 already exists in the target
+ledger.
+
+Perform the history import before applying any migration from that component natively. A
+natively applied row has no matching history-import audit record, so a later import that
+targets it fails with `HistoryImportConflict` even when its migration metadata matches.
+This prevents an import from silently adopting a target row without source evidence.
+
+The supported sequence is to import the legacy prefix into a fresh target component, then
+run the full plan normally. The runner reports the imported prefix as `AlreadyApplied` and
+executes only later native migrations. Re-importing the same prefix is idempotent only when
+the source, reason, resolved target metadata, and complete evidence JSON are identical; an
+altered value is a conflict rather than an update.

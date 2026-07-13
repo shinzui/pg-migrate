@@ -33,6 +33,13 @@ constructors and the `CleanupFailed` constructor.
   line numbers.
 - Reject zero and negative temporary statement timeouts before acquiring a connection;
   `Nothing` remains the way to leave the PostgreSQL session default untouched.
+- Honor an explicitly configured `AllowUnknownMigrations` policy during repair and history
+  import, matching normal execution. The strict default remains unchanged.
+- Replace the transactional runner's per-migration full-ledger reload with a keyed
+  existence query and build history-import classification maps once per import.
+- Pin and document the conservative mixed native/import contract: import a gap-free legacy
+  prefix before applying that component natively; native rows without matching import audit
+  evidence remain conflicts.
 
 ## 1.0.0.0 — 2026-07-10
 

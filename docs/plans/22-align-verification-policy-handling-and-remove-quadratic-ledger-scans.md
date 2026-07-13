@@ -51,8 +51,9 @@ This section must always reflect the actual current state of the work.
 
 - [x] (2026-07-13T20:20:42Z) Milestone 1: repair and import honor `runUnknownMigrationsPolicy`; strict and allow-policy entry-point tests pass, policy docs are updated, all 110 unit tests pass, and all 28 PostgreSQL integration tests pass.
 - [x] (2026-07-13T20:22:26Z) Milestone 2: a keyed `SELECT EXISTS` replaces each post-transaction full-ledger reload, importer maps are built once before classification, and all 110 unit plus 28 PostgreSQL integration tests pass.
-- [ ] Milestone 3: mixed native/import prefix semantics pinned by integration tests and documented.
-- [ ] Core changelog updated; `cabal test all` green.
+- [x] (2026-07-13T20:24:03Z) Milestone 3: native-first conflict, suffix-only prefix-gap, and import-first/native-remainder semantics are pinned by integration tests and documented; all 30 PostgreSQL integration tests pass.
+- [x] (2026-07-13T20:24:03Z) Core changelog records the policy, performance, and mixed-state contracts.
+- [ ] Final validation: `nix fmt` and `cabal test all` pass on the complete EP-6 change.
 
 
 ## Surprises & Discoveries
@@ -283,3 +284,7 @@ documented why the new regressions live at the audited callers.
 Revision note (2026-07-13): Recorded the behavior-preserving removal of per-transaction
 full-ledger reloads and per-mapping map reconstruction after the core unit and integration
 suites passed, including the condemned-transaction and import conflict cases.
+
+Revision note (2026-07-13): Pinned and documented conservative mixed native/import ordering
+with three PostgreSQL scenarios, recorded the release-note impact, and left only full
+workspace validation outstanding.
