@@ -13,6 +13,7 @@
         "id": "accounts/0002",
         "outcome": "alreadyImported"
       }
-    ]
+    ],
+    "cleanup_issues": []
   }
 }

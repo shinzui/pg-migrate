@@ -107,7 +107,7 @@ testRepairLifecycle settings =
         )
     exitClass repaired @?= ExitSucceeded
     case payload repaired of
-      Right (RepairPayload (RepairReport identifier MarkApplied Failed Applied)) ->
+      Right (RepairPayload (RepairReport identifier MarkApplied Failed Applied [])) ->
         identifier @?= failingMigrationId
       other -> assertFailure ("unexpected repair outcome: " <> show other)
 
@@ -138,7 +138,7 @@ testFilteredVerification settings =
 assertSingleOutcome :: MigrationOutcome -> CliOutcome -> Assertion
 assertSingleOutcome expected outcome =
   case payload outcome of
-    Right (UpPayload (MigrationReport _ _ (MigrationResult _ actual _ :| []))) ->
+    Right (UpPayload (MigrationReport _ _ (MigrationResult _ actual _ :| []) [])) ->
       actual @?= expected
     other -> assertFailure ("unexpected up outcome: " <> show other)
 

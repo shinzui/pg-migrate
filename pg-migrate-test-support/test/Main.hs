@@ -24,6 +24,7 @@ main =
         [ testCase "plan is migrated before a fresh callback connection" testMigratedDatabase,
           testCase "migration failures are structurally distinct" testMigrationFailure,
           testCase "callback failures are structurally distinct" testCallbackFailure,
+          testCase "asynchronous callback exceptions propagate" testAsyncCallbackException,
           testCase "startup failures are structurally distinct" testStartupFailure
         ]
     )
@@ -51,6 +52,16 @@ testCallbackFailure = do
   case result of
     Left MigratedDatabaseCallbackFailed {} -> pure ()
     other -> assertFailure ("expected callback failure, received: " <> show other)
+
+testAsyncCallbackException :: Assertion
+testAsyncCallbackException = do
+  result <-
+    Exception.try @Exception.AsyncException
+      (withMigratedDatabase fixturePlan (const (Exception.throwIO Exception.UserInterrupt) :: Connection.Connection -> IO ()))
+  case result of
+    Left Exception.UserInterrupt -> pure ()
+    Left exception -> assertFailure ("expected UserInterrupt, received: " <> show exception)
+    Right callbackResult -> assertFailure ("expected propagated async exception, received: " <> show callbackResult)
 
 testStartupFailure :: Assertion
 testStartupFailure = do

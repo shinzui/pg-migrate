@@ -4,6 +4,7 @@ module Database.PostgreSQL.Migrate.Repair
 where
 
 import Data.Int (Int32, Int64)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text qualified as Text
 import Data.Version (showVersion)
 import Database.PostgreSQL.Migrate.Ledger
@@ -31,12 +32,29 @@ repairMigration ::
   RepairRequest ->
   IO (Either RepairError RepairReport)
 repairMigration options provider plan request = do
-  result <-
+  (result, observedCleanupIssues) <-
     withRunLifecycle options provider $ \connection ->
-      Right <$> repairLocked options connection plan request
+      repairLocked options connection plan request >>= \case
+        Left (RepairRunnerError migrationError) -> pure (Left migrationError)
+        repairResult -> pure (Right repairResult)
   pure $ case result of
-    Left migrationError -> Left (RepairRunnerError migrationError)
-    Right repairResult -> repairResult
+    Left migrationError -> Left (RepairRunnerError (attachCleanup observedCleanupIssues migrationError))
+    Right (Left repairError) -> Left repairError
+    Right
+      ( Right
+          RepairReport
+            { repairedMigration,
+              operation,
+              oldStatus,
+              newStatus
+            }
+        ) ->
+        Right RepairReport {repairedMigration, operation, oldStatus, newStatus, cleanupIssues = observedCleanupIssues}
+  where
+    attachCleanup cleanup migrationError =
+      case NonEmpty.nonEmpty cleanup of
+        Nothing -> migrationError
+        Just issues -> CleanupFailed migrationError issues
 
 repairLocked ::
   RunOptions ->
@@ -143,7 +161,8 @@ markApplied options connection request oldStatus = do
           { repairedMigration = repairMigrationId request,
             operation = MarkApplied,
             oldStatus,
-            newStatus = Applied
+            newStatus = Applied,
+            cleanupIssues = []
           }
 
 retry ::
@@ -184,7 +203,8 @@ retry options connection request oldStatus position migration = do
                   { repairedMigration = repairMigrationId request,
                     operation = Retry,
                     oldStatus,
-                    newStatus = Applied
+                    newStatus = Applied,
+                    cleanupIssues = []
                   }
 
 runRepairTransaction ::

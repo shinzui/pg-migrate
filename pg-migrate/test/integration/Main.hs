@@ -67,6 +67,7 @@ tests settings =
       testCase "server version and statement timeout lifecycle are supported" (testConnectionLifecycle settings),
       testCase "lock no-wait and finite timeout preserve session settings" (testLockLifecycle settings),
       testCase "transactional plans apply once and then report applied" (testTransactionalRunner settings),
+      testCase "unlock failure preserves the migration report" (testCleanupIssuePreservesReport settings),
       testCase "transactional SQL failure rolls back action and ledger" (testTransactionalRollback settings),
       testCase "condemned Haskell transactions are detected" (testTransactionCondemn settings),
       testCase "nontransactional CREATE INDEX CONCURRENTLY applies" (testNonTransactionalSuccess settings),
@@ -212,6 +213,33 @@ testTransactionalRunner settings =
     snapshot <- useSession connection (loadLedger config)
     length (storedMigrations snapshot) @?= 2
 
+testCleanupIssuePreservesReport :: Settings.Settings -> IO ()
+testCleanupIssuePreservesReport settings =
+  withTestLedger settings "cleanup_success" $ \connection config -> do
+    let plan =
+          sqlPlan
+            "cleanup-success"
+            [ ( "0001-apply-and-unlock",
+                Text.unlines
+                  [ "CREATE TABLE " <> quotedSchema config <> ".durable_effect (value integer NOT NULL);",
+                    "SELECT pg_advisory_unlock_all()"
+                  ]
+              )
+            ]
+        options = withLedger config defaultRunOptions
+    firstReport <- runMigrationPlan options settings plan >>= requireRunRight
+    reportOutcomes firstReport @?= [AppliedNow]
+    case firstReport of
+      MigrationReport {cleanupIssues = [AdvisoryUnlockReturnedFalse]} -> pure ()
+      other -> assertFailure ("expected preserved unlock issue, received " <> show other)
+    snapshot <- useSession connection (loadLedger config)
+    storedStatuses snapshot @?= [Applied]
+    secondReport <- runMigrationPlan options settings plan >>= requireRunRight
+    reportOutcomes secondReport @?= [AlreadyApplied]
+    case secondReport of
+      MigrationReport {cleanupIssues = []} -> pure ()
+      other -> assertFailure ("expected clean second report, received " <> show other)
+
 testTransactionalRollback :: Settings.Settings -> IO ()
 testTransactionalRollback settings =
   withTestLedger settings "rollback" $ \connection config -> do
@@ -327,7 +355,8 @@ testRepairMarkApplied settings =
         { repairedMigration = targetId,
           operation = MarkApplied,
           oldStatus = Failed,
-          newStatus = Applied
+          newStatus = Applied,
+          cleanupIssues = []
         }
     snapshot <- useSession connection (loadLedger config)
     storedStatuses snapshot @?= [Applied]
@@ -360,7 +389,8 @@ testRepairRetry settings =
         { repairedMigration = targetId,
           operation = Retry,
           oldStatus = Failed,
-          newStatus = Applied
+          newStatus = Applied,
+          cleanupIssues = []
         }
     snapshot <- useSession connection (loadLedger config)
     storedStatuses snapshot @?= [Applied]

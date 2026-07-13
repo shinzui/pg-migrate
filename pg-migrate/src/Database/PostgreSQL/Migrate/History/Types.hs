@@ -157,9 +157,10 @@ data HistoryImportResult = HistoryImportResult
   }
   deriving stock (Generic, Eq, Show)
 
--- | Non-empty successful result set for an import operation.
-newtype HistoryImportReport = HistoryImportReport
-  { importResults :: NonEmpty HistoryImportResult
+-- | Non-empty successful result set and lifecycle cleanup observations for an import operation.
+data HistoryImportReport = HistoryImportReport
+  { importResults :: !(NonEmpty HistoryImportResult),
+    cleanupIssues :: ![CleanupIssue]
   }
   deriving stock (Generic, Eq, Show)
 

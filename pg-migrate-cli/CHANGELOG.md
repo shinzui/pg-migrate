@@ -16,6 +16,8 @@ changes the `check` command syntax.
 - Changed `check MANIFEST` to `check --manifest PATH`, matching `new --manifest`.
 - Stopped exposing the internal `PgMigrate.CLI.Prelude` module.
 - Added `CliInputError` to the public `CliError` sum for command-input failures.
+- Updated public report construction for the core package's new `cleanupIssues` fields and
+  mandatory-primary `CleanupFailed` shape.
 
 ### Fixes and behavior changes
 
@@ -29,6 +31,8 @@ changes the `check` command syntax.
   report issues as well as migration lists while retaining the full-report verification
   exit class.
 - Share one checksum renderer between text and JSON output without changing rendered bytes.
+- Render successful migration and repair cleanup observations in text and as an additive
+  `cleanup_issues` array in JSON schema v1; history-import JSON exposes the same field.
 
 ## 1.0.0.0 — 2026-07-10
 

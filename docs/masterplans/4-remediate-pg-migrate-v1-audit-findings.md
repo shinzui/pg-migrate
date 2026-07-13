@@ -83,7 +83,7 @@ behavior against a live database, so they verify differently and stay separate.
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
 | 1 | Fix CLI runner-option overrides and authoring input safety | docs/plans/17-fix-cli-runner-option-overrides-and-authoring-input-safety.md | None | None | Complete |
-| 2 | Preserve durable success through cleanup failures and async exceptions | docs/plans/18-preserve-durable-success-through-cleanup-failures-and-async-exceptions.md | None | EP-1 | Not Started |
+| 2 | Preserve durable success through cleanup failures and async exceptions | docs/plans/18-preserve-durable-success-through-cleanup-failures-and-async-exceptions.md | None | EP-1 | In Progress |
 | 3 | Harden import adapter parsing, audit evidence, and internal totality | docs/plans/19-harden-import-adapter-parsing-audit-evidence-and-internal-totality.md | None | EP-2 | Not Started |
 | 4 | Fix embed authoring numbering, recompilation tracking, and byte embedding | docs/plans/20-fix-embed-authoring-numbering-recompilation-tracking-and-byte-embedding.md | None | None | Not Started |
 | 5 | Harden SQL validation against BOM, misplaced directives, and wrong diagnostics | docs/plans/21-harden-sql-validation-against-bom-misplaced-directives-and-wrong-diagnostics.md | None | None | Not Started |

@@ -36,7 +36,7 @@ renderMigrationCommandJson CliOutcome {command, exitClass, payload} =
 
 -- | Render an adapter import report using JSON schema v1.
 renderHistoryImportJson :: Text -> HistoryImportReport -> Value
-renderHistoryImportJson sourceName HistoryImportReport {importResults} =
+renderHistoryImportJson sourceName HistoryImportReport {importResults, cleanupIssues} =
   object
     [ "schemaVersion" .= jsonSchemaVersion,
       "command" .= ("import" :: Text),
@@ -44,7 +44,8 @@ renderHistoryImportJson sourceName HistoryImportReport {importResults} =
       "data"
         .= object
           [ "source" .= sourceName,
-            "results" .= (historyImportResultValue <$> NonEmpty.toList importResults)
+            "results" .= (historyImportResultValue <$> NonEmpty.toList importResults),
+            "cleanup_issues" .= (cleanupIssueValue <$> cleanupIssues)
           ]
     ]
 
@@ -196,11 +197,12 @@ mismatchValue issueType identifier expected actual =
   object ["type" .= issueType, "id" .= migrationIdText identifier, expected, actual]
 
 migrationReportValue :: MigrationReport -> Value
-migrationReportValue (MigrationReport startedAt finishedAt results) =
+migrationReportValue MigrationReport {startedAt, finishedAt, results, cleanupIssues} =
   object
     [ "startedAt" .= utcText startedAt,
       "finishedAt" .= utcText finishedAt,
-      "results" .= (migrationResultValue <$> NonEmpty.toList results)
+      "results" .= (migrationResultValue <$> NonEmpty.toList results),
+      "cleanup_issues" .= (cleanupIssueValue <$> cleanupIssues)
     ]
 
 migrationResultValue :: MigrationResult -> Value
@@ -212,13 +214,29 @@ migrationResultValue (MigrationResult identifier outcome duration) =
     ]
 
 repairReportValue :: RepairReport -> Value
-repairReportValue (RepairReport identifier operation oldStatus newStatus) =
+repairReportValue RepairReport {repairedMigration, operation, oldStatus, newStatus, cleanupIssues} =
   object
-    [ "id" .= migrationIdText identifier,
+    [ "id" .= migrationIdText repairedMigration,
       "operation" .= repairOperationText operation,
       "oldStatus" .= statusText oldStatus,
-      "newStatus" .= statusText newStatus
+      "newStatus" .= statusText newStatus,
+      "cleanup_issues" .= (cleanupIssueValue <$> cleanupIssues)
     ]
+
+cleanupIssueValue :: CleanupIssue -> Value
+cleanupIssueValue cleanupIssue =
+  case cleanupIssue of
+    AdvisoryUnlockReturnedFalse -> object ["type" .= ("advisoryUnlockReturnedFalse" :: Text)]
+    AdvisoryUnlockFailed sessionError ->
+      object
+        [ "type" .= ("advisoryUnlockFailed" :: Text),
+          "message" .= Text.pack (show sessionError)
+        ]
+    StatementTimeoutRestoreFailed sessionError ->
+      object
+        [ "type" .= ("statementTimeoutRestoreFailed" :: Text),
+          "message" .= Text.pack (show sessionError)
+        ]
 
 errorValue :: CliError -> Value
 errorValue cliError =

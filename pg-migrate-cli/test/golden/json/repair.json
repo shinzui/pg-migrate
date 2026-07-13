@@ -6,6 +6,7 @@
     "id": "accounts/0001",
     "operation": "markApplied",
     "oldStatus": "failed",
-    "newStatus": "applied"
+    "newStatus": "applied",
+    "cleanup_issues": []
   }
 }

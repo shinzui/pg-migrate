@@ -46,9 +46,9 @@ Use a checklist to summarize granular steps. Every stopping point must be docume
 even if it requires splitting a partially completed task into two ("done" vs. "remaining").
 This section must always reflect the actual current state of the work.
 
-- [ ] Milestone 1: core lifecycle returns cleanup issues as data; reports gain `cleanupIssues`; `CleanupFailed` reshaped; unit + integration tests.
-- [ ] Milestone 2: CLI JSON/text rendering, goldens, and `docs/reference/json-v1.md` updated for the new shapes.
-- [ ] Milestone 3: test-support rethrows async exceptions, preserves callback values, closes the unmasked acquire window.
+- [x] (2026-07-13T18:26:56Z) Milestone 1: core lifecycle returns cleanup issues as data; reports gain `cleanupIssues`; `CleanupFailed` reshaped; 103 unit and 26 integration tests pass.
+- [x] (2026-07-13T18:29:04Z) Milestone 2: CLI JSON/text rendering, goldens, and `docs/reference/json-v1.md` updated; 43 unit/golden and 3 integration tests pass.
+- [x] (2026-07-13T18:30:29Z) Milestone 3: test-support rethrows async exceptions, preserves callback values, closes the unmasked acquire window; all 5 tests pass.
 - [ ] Docs (`errors-and-events.md`, `public-api.md`, operations runbooks) and changelogs updated; `cabal test all` green.
 
 
@@ -57,7 +57,12 @@ This section must always reflect the actual current state of the work.
 Document unexpected behaviors, bugs, optimizations, or insights discovered during
 implementation. Provide concise evidence.
 
-(None yet.)
+- Report types previously derived `Eq`, while the original plan described `CleanupIssue`
+  as deliberately Eq-free. Hasql 1.10's `SessionError` does derive `Eq`, so deriving `Eq`
+  for `CleanupIssue` preserves the reports' existing `Eq` API instead of removing useful
+  instances. Evidence: the first `cabal build pg-migrate` failed at `MigrationReport`'s
+  derived `Eq`; `Hasql.Engine.Errors.SessionError` in the mori-resolved Hasql source derives
+  `Show, Eq`.
 
 
 ## Decision Log
@@ -83,6 +88,14 @@ implementation. Provide concise evidence.
   Rationale: The connection belongs to an ephemeral database that `ephemeral-pg` tears down
   wholesale; failing a green test over an unreleasable connection inverts the tool's
   purpose. Recorded in the haddock so the trade-off is visible.
+  Date: 2026-07-13
+
+- Decision: Derive `Eq` for `CleanupIssue` so adding cleanup observations does not remove
+  the existing `Eq` instances from `MigrationReport`, `RepairReport`, and
+  `HistoryImportReport`.
+  Rationale: Every `CleanupIssue` payload is equality-comparable in the pinned Hasql 1.10
+  API, and preserving report equality is less disruptive than silently dropping three
+  public instances.
   Date: 2026-07-13
 
 

@@ -94,12 +94,13 @@ renderVerification (VerificationReport issues applied pending unknown) =
     )
 
 renderMigrationReport :: MigrationReport -> Text
-renderMigrationReport (MigrationReport startedAt finishedAt results) =
+renderMigrationReport MigrationReport {startedAt, finishedAt, results, cleanupIssues} =
   Text.unlines
     ( [ "started=" <> Text.pack (show startedAt),
         "finished=" <> Text.pack (show finishedAt)
       ]
         <> (renderMigrationResult <$> NonEmpty.toList results)
+        <> (renderCleanupIssue <$> cleanupIssues)
     )
 
 renderMigrationResult :: MigrationResult -> Text
@@ -112,15 +113,20 @@ renderMigrationResult (MigrationResult identifier outcome duration) =
     ]
 
 renderRepairReport :: RepairReport -> Text
-renderRepairReport (RepairReport identifier operation oldStatus newStatus) =
-  Text.intercalate
-    " "
-    [ renderMigrationId identifier,
-      "operation=" <> renderRepairOperation operation,
-      "old_status=" <> renderStatusName oldStatus,
-      "new_status=" <> renderStatusName newStatus
-    ]
-    <> "\n"
+renderRepairReport RepairReport {repairedMigration, operation, oldStatus, newStatus, cleanupIssues} =
+  Text.unlines
+    ( Text.intercalate
+        " "
+        [ renderMigrationId repairedMigration,
+          "operation=" <> renderRepairOperation operation,
+          "old_status=" <> renderStatusName oldStatus,
+          "new_status=" <> renderStatusName newStatus
+        ]
+        : (renderCleanupIssue <$> cleanupIssues)
+    )
+
+renderCleanupIssue :: CleanupIssue -> Text
+renderCleanupIssue cleanupIssue = "cleanup_issue=" <> Text.pack (show cleanupIssue)
 
 renderStoredMigrationId :: StoredMigration -> Text
 renderStoredMigrationId StoredMigration {storedMigrationId} = renderMigrationId storedMigrationId

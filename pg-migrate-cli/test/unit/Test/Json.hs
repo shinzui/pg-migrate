@@ -28,6 +28,7 @@ tests =
       goldenCase "status" statusOutcome,
       goldenCase "verify" verifyOutcome,
       goldenCase "up" upOutcome,
+      goldenCase "up-cleanup" upCleanupOutcome,
       goldenCase "repair" repairOutcome,
       goldenCase "error" errorOutcome,
       testCase "import matches its golden contract" testImportGolden,
@@ -70,6 +71,7 @@ fixtureOutcomes =
     statusOutcome,
     verifyOutcome,
     upOutcome,
+    upCleanupOutcome,
     repairOutcome,
     errorOutcome
   ]
@@ -112,6 +114,20 @@ upOutcome =
             fixtureStartedAt
             fixtureFinishedAt
             (MigrationResult migrationIdentifier AppliedNow (Just 0.125) :| [])
+            []
+        )
+    )
+
+upCleanupOutcome :: CliOutcome
+upCleanupOutcome =
+  successful
+    "up"
+    ( UpPayload
+        ( MigrationReport
+            fixtureStartedAt
+            fixtureFinishedAt
+            (MigrationResult migrationIdentifier AppliedNow (Just 0.125) :| [])
+            [AdvisoryUnlockReturnedFalse]
         )
     )
 
@@ -119,7 +135,7 @@ repairOutcome :: CliOutcome
 repairOutcome =
   successful
     "repair"
-    (RepairPayload (RepairReport migrationIdentifier MarkApplied Failed Applied))
+    (RepairPayload (RepairReport migrationIdentifier MarkApplied Failed Applied []))
 
 errorOutcome :: CliOutcome
 errorOutcome =
@@ -150,9 +166,11 @@ fixtureFinishedAt = read "2026-07-10 12:00:01 UTC"
 importReport :: HistoryImportReport
 importReport =
   HistoryImportReport
-    ( HistoryImportResult migrationIdentifier Imported
-        :| [HistoryImportResult (expectRight (migrationId "accounts" "0002")) AlreadyImported]
-    )
+    { importResults =
+        HistoryImportResult migrationIdentifier Imported
+          :| [HistoryImportResult (expectRight (migrationId "accounts" "0002")) AlreadyImported],
+      cleanupIssues = []
+    }
 
 expectRight :: (Show error) => Either error value -> value
 expectRight = either (error . show) id

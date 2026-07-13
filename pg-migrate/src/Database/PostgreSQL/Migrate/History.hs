@@ -40,6 +40,7 @@ where
 
 import Data.Aeson qualified as Aeson
 import Data.ByteString.Lazy qualified as LazyByteString
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
 import Data.Time (UTCTime, getCurrentTime)
@@ -73,12 +74,21 @@ importMigrationHistory ::
   HistoryImport ->
   IO (Either HistoryImportError HistoryImportReport)
 importMigrationHistory options provider plan history = do
-  result <-
+  (result, observedCleanupIssues) <-
     withRunLifecycle (importRunOptions options) provider $ \connection ->
-      Right <$> importLocked options connection plan history
+      importLocked options connection plan history >>= \case
+        Left (HistoryImportRunnerError migrationError) -> pure (Left migrationError)
+        importResult -> pure (Right importResult)
   pure $ case result of
-    Left migrationError -> Left (HistoryImportRunnerError migrationError)
-    Right imported -> imported
+    Left migrationError -> Left (HistoryImportRunnerError (attachCleanup observedCleanupIssues migrationError))
+    Right (Left importError) -> Left importError
+    Right (Right HistoryImportReport {importResults}) ->
+      Right HistoryImportReport {importResults, cleanupIssues = observedCleanupIssues}
+  where
+    attachCleanup cleanup migrationError =
+      case NonEmpty.nonEmpty cleanup of
+        Nothing -> migrationError
+        Just issues -> CleanupFailed migrationError issues
 
 importLocked ::
   ImportOptions ->
@@ -224,9 +234,10 @@ persistImports options connection history imports = do
     Left sessionError -> Left (HistoryImportRunnerError (DatabaseSessionFailed sessionError))
     Right () ->
       Right
-        ( HistoryImportReport
-            (toResult <$> imports)
-        )
+        HistoryImportReport
+          { importResults = toResult <$> imports,
+            cleanupIssues = []
+          }
   where
     toResult = \case
       ImportPending resolved -> HistoryImportResult (resolvedTarget resolved) Imported

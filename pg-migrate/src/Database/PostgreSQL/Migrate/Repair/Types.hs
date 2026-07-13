@@ -58,7 +58,8 @@ data RepairReport = RepairReport
   { repairedMigration :: !MigrationId,
     operation :: !RepairOperation,
     oldStatus :: !MigrationStatus,
-    newStatus :: !MigrationStatus
+    newStatus :: !MigrationStatus,
+    cleanupIssues :: ![CleanupIssue]
   }
   deriving stock (Generic, Eq, Show)
 

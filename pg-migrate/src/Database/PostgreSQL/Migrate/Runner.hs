@@ -69,40 +69,44 @@ runMigrationPlanWith ::
   ConnectionProvider ->
   MigrationPlan ->
   IO (Either MigrationError MigrationReport)
-runMigrationPlanWith options ConnectionProvider {useDedicatedConnection} plan =
-  withRunLifecycle
-    options
-    (ConnectionProvider useDedicatedConnection)
-    (\connection -> runLocked options connection plan)
+runMigrationPlanWith options ConnectionProvider {useDedicatedConnection} plan = do
+  (result, observedCleanupIssues) <-
+    withRunLifecycle
+      options
+      (ConnectionProvider useDedicatedConnection)
+      (\connection -> runLocked options connection plan)
+  pure $ case attachCleanup observedCleanupIssues result of
+    Left migrationError -> Left migrationError
+    Right report -> Right report {cleanupIssues = observedCleanupIssues}
 
 withRunLifecycle ::
   RunOptions ->
   ConnectionProvider ->
   (Connection.Connection -> IO (Either MigrationError value)) ->
-  IO (Either MigrationError value)
+  IO (Either MigrationError value, [CleanupIssue])
 withRunLifecycle options ConnectionProvider {useDedicatedConnection} action =
   case validateOptions options of
-    Left optionsError -> pure (Left optionsError)
+    Left optionsError -> pure (Left optionsError, [])
     Right () -> do
       acquired <- useDedicatedConnection (\connection -> runOnConnection options connection action)
       pure $ case acquired of
-        Left connectionError -> Left (ConnectionAcquisitionFailed connectionError)
+        Left connectionError -> (Left (ConnectionAcquisitionFailed connectionError), [])
         Right result -> result
 
 runOnConnection ::
   RunOptions ->
   Connection.Connection ->
   (Connection.Connection -> IO (Either MigrationError value)) ->
-  IO (Either MigrationError value)
+  IO (Either MigrationError value, [CleanupIssue])
 runOnConnection options connection action = do
   serverVersion <- checkServerVersion connection
   case serverVersion of
-    Left migrationError -> pure (Left migrationError)
+    Left migrationError -> pure (Left migrationError, [])
     Right _ ->
       withStatementTimeoutResource options connection $ do
         waitEvent <- invokeEvent options (LockWaitStarted (runLockWait options))
         case waitEvent of
-          Left eventError -> pure (Left eventError)
+          Left eventError -> pure (Left eventError, [])
           Right () ->
             withAdvisoryLockResource options connection $ \lockDuration -> do
               acquiredEvent <- invokeEvent options (LockAcquired lockDuration)
@@ -113,13 +117,13 @@ runOnConnection options connection action = do
 withStatementTimeoutResource ::
   RunOptions ->
   Connection.Connection ->
-  IO (Either MigrationError value) ->
-  IO (Either MigrationError value)
+  IO (Either MigrationError value, [CleanupIssue]) ->
+  IO (Either MigrationError value, [CleanupIssue])
 withStatementTimeoutResource options connection action =
   mask $ \restore -> do
     applied <- applyStatementTimeout connection (runStatementTimeout options)
     case applied of
-      Left migrationError -> pure (Left migrationError)
+      Left migrationError -> pure (Left migrationError, [])
       Right previous -> do
         captured <- try @SomeException (restore action)
         cleanup <- restoreStatementTimeout connection previous
@@ -129,7 +133,7 @@ withAdvisoryLockResource ::
   RunOptions ->
   Connection.Connection ->
   (NominalDiffTime -> IO (Either MigrationError value)) ->
-  IO (Either MigrationError value)
+  IO (Either MigrationError value, [CleanupIssue])
 withAdvisoryLockResource options connection action =
   mask $ \restore -> do
     acquired <-
@@ -140,24 +144,25 @@ withAdvisoryLockResource options connection action =
             (runLockWait options)
         )
     case acquired of
-      Left migrationError -> pure (Left migrationError)
+      Left migrationError -> pure (Left migrationError, [])
       Right lockDuration -> do
-        captured <- try @SomeException (restore (action lockDuration))
+        captured <- try @SomeException (restore ((,[]) <$> action lockDuration))
         cleanup <-
           releaseAdvisoryLock connection (ledgerLockKey (runLedgerConfig options))
         finishResource captured [cleanup]
 
 finishResource ::
-  Either SomeException (Either MigrationError value) ->
+  Either SomeException (Either MigrationError value, [CleanupIssue]) ->
   [Either CleanupIssue ()] ->
-  IO (Either MigrationError value)
+  IO (Either MigrationError value, [CleanupIssue])
 finishResource captured cleanupResults = do
-  let (cleanupIssues, _) = partitionEithers cleanupResults
+  let (observedCleanupIssues, _) = partitionEithers cleanupResults
   case captured of
     Left exception
       | isAsyncException exception -> throwIO exception
-      | otherwise -> pure (attachCleanup cleanupIssues (Left (MigrationActionFailed exception)))
-    Right result -> pure (attachCleanup cleanupIssues result)
+      | otherwise -> pure (Left (MigrationActionFailed exception), observedCleanupIssues)
+    Right (result, existingCleanupIssues) ->
+      pure (result, existingCleanupIssues <> observedCleanupIssues)
 
 attachCleanup ::
   [CleanupIssue] ->
@@ -166,12 +171,9 @@ attachCleanup ::
 attachCleanup cleanupIssues result =
   case NonEmpty.nonEmpty cleanupIssues of
     Nothing -> result
-    Just issues ->
-      Left
-        ( CleanupFailed
-            (case result of Left primary -> Just primary; Right _ -> Nothing)
-            issues
-        )
+    Just issues -> case result of
+      Left primary -> Left (CleanupFailed primary issues)
+      Right value -> Right value
 
 runLocked ::
   RunOptions ->
@@ -250,7 +252,8 @@ executeVerified options connection planned appliedIds pending = do
                     MigrationReport
                       { startedAt = reportStartedAt,
                         finishedAt = reportFinishedAt,
-                        results
+                        results,
+                        cleanupIssues = []
                       }
                 )
   where

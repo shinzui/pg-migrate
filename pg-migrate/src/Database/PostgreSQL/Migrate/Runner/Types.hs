@@ -81,7 +81,8 @@ data MigrationResult = MigrationResult
 data MigrationReport = MigrationReport
   { startedAt :: !UTCTime,
     finishedAt :: !UTCTime,
-    results :: !(NonEmpty MigrationResult)
+    results :: !(NonEmpty MigrationResult),
+    cleanupIssues :: ![CleanupIssue]
   }
   deriving stock (Generic, Eq, Show)
 
@@ -90,7 +91,7 @@ data CleanupIssue
   = AdvisoryUnlockReturnedFalse
   | AdvisoryUnlockFailed !Errors.SessionError
   | StatementTimeoutRestoreFailed !Errors.SessionError
-  deriving stock (Generic, Show)
+  deriving stock (Generic, Eq, Show)
 
 -- | Structured acquisition, validation, execution, event, or cleanup failure.
 data MigrationError
@@ -111,7 +112,7 @@ data MigrationError
   | NonTransactionalMigrationFailed !MigrationId !Errors.SessionError
   | LedgerTransitionDidNotMatch !MigrationId !MigrationStatus !MigrationStatus
   | NonTransactionalFailureRecordingFailed !MigrationId !MigrationError !MigrationError
-  | CleanupFailed !(Maybe MigrationError) !(NonEmpty CleanupIssue)
+  | CleanupFailed !MigrationError !(NonEmpty CleanupIssue)
   deriving stock (Generic, Show)
 
 -- | Rank-2 provider that brackets one dedicated PostgreSQL connection per operation.

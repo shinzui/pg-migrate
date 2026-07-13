@@ -12,6 +12,10 @@
         "durationMilliseconds": 125
       }
     ],
-    "cleanup_issues": []
+    "cleanup_issues": [
+      {
+        "type": "advisoryUnlockReturnedFalse"
+      }
+    ]
   }
 }
