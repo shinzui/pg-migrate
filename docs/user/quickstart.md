@@ -182,7 +182,7 @@ main = do
         (Aeson.encode (renderMigrationCommandJson outcome))
   System.Exit.exitWith
     ( case exitClass outcome of
-        ExitSuccess -> System.Exit.ExitSuccess
+        ExitSucceeded -> System.Exit.ExitSuccess
         _ -> System.Exit.ExitFailure 1
     )
 
@@ -218,7 +218,7 @@ the SQL payloads and reports a `DefinitionError` before command dispatch:
 ```console
 DATABASE_URL="$PG_CONNECTION_STRING" cabal run my-service-migrate -- plan
 DATABASE_URL="$PG_CONNECTION_STRING" cabal run my-service-migrate -- list
-DATABASE_URL="$PG_CONNECTION_STRING" cabal run my-service-migrate -- check migrations/manifest
+DATABASE_URL="$PG_CONNECTION_STRING" cabal run my-service-migrate -- check --manifest migrations/manifest
 ```
 
 `plan` shows component order and dependencies. `list` shows migration identity, position,

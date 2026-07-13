@@ -3,14 +3,13 @@ module Database.PostgreSQL.Migrate.CLI.Text
   )
 where
 
-import Data.ByteString qualified as ByteString
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Database.PostgreSQL.Migrate
 import Database.PostgreSQL.Migrate.CLI.Outcome
+import Database.PostgreSQL.Migrate.CLI.Types (checksumText)
 import Database.PostgreSQL.Migrate.Internal
-import Numeric qualified
 import PgMigrate.CLI.Prelude
 
 -- | Render a stable human-oriented outcome.
@@ -131,15 +130,6 @@ renderMigrationId identifier =
   componentNameText (migrationIdComponent identifier)
     <> "/"
     <> migrationNameText (migrationIdName identifier)
-
-checksumText :: MigrationChecksum -> Text
-checksumText =
-  Text.pack . concatMap renderByte . ByteString.unpack . migrationChecksumBytes
-  where
-    renderByte byte =
-      case Numeric.showHex byte "" of
-        [digit] -> ['0', digit]
-        digits -> digits
 
 renderKind :: MigrationKind -> Text
 renderKind kind = case kind of SqlKind -> "sql"; HaskellKind -> "haskell"

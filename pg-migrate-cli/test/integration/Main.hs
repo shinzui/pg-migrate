@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Control.Exception qualified as Exception
+import Data.ByteString (ByteString)
 import Data.IORef qualified as IORef
 import Data.Int (Int64)
 import Data.List.NonEmpty (NonEmpty (..))
@@ -30,7 +31,8 @@ tests settings =
   testGroup
     "pg-migrate CLI PostgreSQL"
     [ testCase "status verify and full up preserve their contracts" (testCommandLifecycle settings),
-      testCase "confirmed repair dispatches through the shared lifecycle" (testRepairLifecycle settings)
+      testCase "confirmed repair dispatches through the shared lifecycle" (testRepairLifecycle settings),
+      testCase "filtered verification keeps full-report exit classification" (testFilteredVerification settings)
     ]
 
 testCommandLifecycle :: Settings.Settings -> Assertion
@@ -44,7 +46,7 @@ testCommandLifecycle settings =
         environment = cliEnvironment settings commandPlan configuredOptions
 
     statusBefore <- runMigrationCommand environment statusCommand
-    exitClass statusBefore @?= ExitSuccess
+    exitClass statusBefore @?= ExitSucceeded
     case payload statusBefore of
       Right (StatusPayload (StatusReport issues applied pending unknown)) -> do
         issues @?= []
@@ -62,13 +64,13 @@ testCommandLifecycle settings =
       other -> assertFailure ("unexpected pre-run verify outcome: " <> show other)
 
     firstUp <- runMigrationCommand environment upCommand
-    exitClass firstUp @?= ExitSuccess
+    exitClass firstUp @?= ExitSucceeded
     assertSingleOutcome AppliedNow firstUp
     events <- IORef.readIORef observedEvents
     assertBool "application lock-wait setting survives absent CLI flags" (LockWaitStarted NoWait `elem` events)
 
     verifyAfter <- runMigrationCommand environment verifyCommand
-    exitClass verifyAfter @?= ExitSuccess
+    exitClass verifyAfter @?= ExitSucceeded
     case payload verifyAfter of
       Right (VerifyPayload (VerificationReport issues applied pending unknown)) -> do
         issues @?= []
@@ -78,7 +80,7 @@ testCommandLifecycle settings =
       other -> assertFailure ("unexpected post-run verify outcome: " <> show other)
 
     secondUp <- runMigrationCommand environment upCommand
-    exitClass secondUp @?= ExitSuccess
+    exitClass secondUp @?= ExitSucceeded
     assertSingleOutcome AlreadyApplied secondUp
 
 testRepairLifecycle :: Settings.Settings -> Assertion
@@ -103,14 +105,35 @@ testRepairLifecycle settings =
                 jsonOutput
             )
         )
-    exitClass repaired @?= ExitSuccess
+    exitClass repaired @?= ExitSucceeded
     case payload repaired of
       Right (RepairPayload (RepairReport identifier MarkApplied Failed Applied)) ->
         identifier @?= failingMigrationId
       other -> assertFailure ("unexpected repair outcome: " <> show other)
 
     verified <- runMigrationCommand environment verifyCommand
-    exitClass verified @?= ExitSuccess
+    exitClass verified @?= ExitSucceeded
+
+testFilteredVerification :: Settings.Settings -> Assertion
+testFilteredVerification settings =
+  withCleanLedger settings "pgmigrate_cli_filters" 0x70676D636C690003 $ \options -> do
+    let originalEnvironment = cliEnvironment settings (filteredPlan "SELECT 2") options
+        changedEnvironment = cliEnvironment settings (filteredPlan "SELECT 3") options
+        selectedInspection = InspectionOptions (Just filterAccounts) Nothing
+        selectedVerification = Verify (VerifyOptions selectedInspection noConnectionOverride jsonOutput)
+
+    applied <- runMigrationCommand originalEnvironment upCommand
+    exitClass applied @?= ExitSucceeded
+
+    filtered <- runMigrationCommand changedEnvironment selectedVerification
+    exitClass filtered @?= ExitVerificationFailed
+    case payload filtered of
+      Right (VerifyPayload (VerificationReport issues appliedMigrations pending unknown)) -> do
+        issues @?= []
+        appliedMigrations @?= [filterAccountsMigration]
+        pending @?= []
+        unknown @?= []
+      other -> assertFailure ("unexpected filtered verification outcome: " <> show other)
 
 assertSingleOutcome :: MigrationOutcome -> CliOutcome -> Assertion
 assertSingleOutcome expected outcome =
@@ -168,6 +191,32 @@ commandPlan =
             :| []
         )
     )
+
+filteredPlan :: ByteString -> MigrationPlan
+filteredPlan billingSql =
+  expectRight
+    ( migrationPlan
+        ( expectRight
+            ( migrationComponent
+                "filter-accounts"
+                Set.empty
+                (expectRight (sqlMigration "0001" "SELECT 1") :| [])
+            )
+            :| [ expectRight
+                   ( migrationComponent
+                       "filter-billing"
+                       (Set.singleton "filter-accounts")
+                       (expectRight (sqlMigration "0001" billingSql) :| [])
+                   )
+               ]
+        )
+    )
+
+filterAccounts :: ComponentName
+filterAccounts = expectRight (componentName "filter-accounts")
+
+filterAccountsMigration :: MigrationId
+filterAccountsMigration = expectRight (migrationId "filter-accounts" "0001")
 
 failingPlan :: MigrationPlan
 failingPlan =

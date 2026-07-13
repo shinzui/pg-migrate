@@ -14,7 +14,7 @@ validates SQL and the application constructs every component.
 Also run the CLI manifest check explicitly in CI:
 
 ```console
-cabal run my-service-migrate -- check migrations/accounts/manifest
+cabal run my-service-migrate -- check --manifest migrations/accounts/manifest
 cabal run my-service-migrate -- plan
 cabal run my-service-migrate -- list
 ```

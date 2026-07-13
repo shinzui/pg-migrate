@@ -26,7 +26,7 @@ import PgMigrate.CLI.Prelude
 
 -- | Stable process-exit classification chosen by the application.
 data ExitClass
-  = ExitSuccess
+  = ExitSucceeded
   | ExitVerificationFailed
   | ExitUsageFailed
   | ExitExecutionFailed

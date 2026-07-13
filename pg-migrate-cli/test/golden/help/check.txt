@@ -1,9 +1,9 @@
-Usage: pg-migrate-cli-help-fixture check MANIFEST [--json]
+Usage: pg-migrate-cli-help-fixture check --manifest PATH [--json]
 
   Validate an ordered SQL manifest without a database
 
 Available options:
-  MANIFEST                 Path to the ordered migration manifest
+  --manifest PATH          Ordered migration manifest to validate
   -h,--help                Show this help text
 
 Output

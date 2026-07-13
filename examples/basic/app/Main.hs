@@ -31,7 +31,7 @@ main = do
     TextOutput -> Text.IO.putStrLn (renderMigrationCommandText outcome)
     JsonOutput -> LazyByteString.putStrLn (Aeson.encode (renderMigrationCommandJson outcome))
   System.Exit.exitWith
-    (case exitClass outcome of ExitSuccess -> System.Exit.ExitSuccess; _ -> System.Exit.ExitFailure 1)
+    (case exitClass outcome of ExitSucceeded -> System.Exit.ExitSuccess; _ -> System.Exit.ExitFailure 1)
 
 examplePlan :: Either DefinitionError (Either PlanError MigrationPlan)
 examplePlan = do

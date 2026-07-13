@@ -130,7 +130,7 @@ The application also chooses how the result maps to process exit:
 exitCode :: ExitClass -> System.Exit.ExitCode
 exitCode exit =
   case exit of
-    ExitSuccess -> System.Exit.ExitSuccess
+    ExitSucceeded -> System.Exit.ExitSuccess
     ExitVerificationFailed -> System.Exit.ExitFailure 2
     ExitUsageFailed -> System.Exit.ExitFailure 64
     ExitExecutionFailed -> System.Exit.ExitFailure 1
@@ -146,7 +146,7 @@ mapping stable within the application if deployment automation relies on it.
 | --- | --- | --- |
 | `plan` | no | show component order and dependencies |
 | `list` | no | list declared migration metadata and checksums |
-| `check MANIFEST` | no | validate manifest syntax, file membership, and checksums |
+| `check --manifest PATH` | no | validate manifest syntax, file membership, and checksums |
 | `status` | yes | summarize applied, pending, unknown, and inconsistent ledger state |
 | `verify` | yes | strictly compare the complete declared plan with the ledger |
 | `up` | yes | apply the complete validated pending plan |
@@ -155,8 +155,12 @@ mapping stable within the application if deployment automation relies on it.
 
 All commands support `--json`. `plan`, `list`, `status`, and `verify` accept
 `--component COMPONENT` and `--migration MIGRATION` display filters. These filters never
-change validation or execution. In particular, `up` has no component, count, or target
-option: it always advances the complete plan.
+change validation or execution. A filter that names no migration in the application's plan
+is a usage error rather than an empty successful result. Filtered status and verification
+payloads include only issues for the selected migrations, but the exit class is still
+computed from the complete report so a filtered view cannot conceal a failure. In
+particular, `up` has no component, count, or target option: it always advances the complete
+plan.
 
 ### Inspect before execution
 

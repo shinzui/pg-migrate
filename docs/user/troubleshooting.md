@@ -11,7 +11,7 @@ diagnostics, not machine protocols.
 fails. Run the same check directly for a shorter feedback loop:
 
 ```console
-my-service-migrate check path/to/manifest
+my-service-migrate check --manifest path/to/manifest
 ```
 
 Common causes are an empty or blank line, a comment in the manifest, whitespace around a

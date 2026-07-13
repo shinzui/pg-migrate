@@ -130,8 +130,8 @@ Prefer normal transactional SQL whenever PostgreSQL permits it.
 The mounted CLI can validate a manifest without connecting to PostgreSQL:
 
 ```console
-my-service-migrate check migrations/accounts/manifest
-my-service-migrate check migrations/accounts/manifest --json
+my-service-migrate check --manifest migrations/accounts/manifest
+my-service-migrate check --manifest migrations/accounts/manifest --json
 ```
 
 Successful output lists the files and the SHA-256 checksum of each exact payload. It checks

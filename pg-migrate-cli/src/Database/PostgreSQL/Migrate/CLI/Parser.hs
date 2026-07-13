@@ -80,7 +80,7 @@ listOptionsParser =
 checkOptionsParser :: Parser CheckOptions
 checkOptionsParser =
   CheckOptions
-    <$> strArgument (metavar "MANIFEST" <> help "Path to the ordered migration manifest")
+    <$> strOption (long "manifest" <> metavar "PATH" <> help "Ordered migration manifest to validate")
     <*> outputOptionsParser
 
 statusOptionsParser :: Parser StatusOptions

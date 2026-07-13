@@ -28,6 +28,7 @@ tests =
       testCase "repair requires an operation and confirmation" testRepairConfirmation,
       testCase "repair validates the component/migration target" testRepairTarget,
       testCase "parsing does not imply database settings" testNoImplicitDatabaseSettings,
+      testCase "check uses the same manifest flag as new" testCheckManifestFlag,
       testCase "plain completion derives all commands from the parser" testPlainCompletion,
       testCase "enriched completion derives execution flags and descriptions" testEnrichedCompletion,
       testGroup "help goldens" (uncurry goldenHelpCase <$> helpGoldens)
@@ -115,6 +116,14 @@ testNoImplicitDatabaseSettings =
   case parseSuccess ["status"] of
     Status StatusOptions {connection = ConnectionOptions {databaseSettings = Nothing}} -> pure ()
     result -> assertFailure ("expected status without database settings, received: " <> show result)
+
+testCheckManifestFlag :: Assertion
+testCheckManifestFlag = do
+  case parseSuccess ["check", "--manifest", "migrations/manifest"] of
+    Check CheckOptions {manifestPath = "migrations/manifest"} -> pure ()
+    parsedCommand -> assertFailure ("expected check command, received: " <> show parsedCommand)
+  positionalFailure <- parseFailure ["check", "migrations/manifest"]
+  assertContains "--manifest" positionalFailure
 
 testPlainCompletion :: Assertion
 testPlainCompletion = do

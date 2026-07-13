@@ -29,10 +29,7 @@ common common
 library
   import:          common
   hs-source-dirs:  src
-  exposed-modules:
-    Database.PostgreSQL.Migrate.CLI
-    PgMigrate.CLI.Prelude
-
+  exposed-modules: Database.PostgreSQL.Migrate.CLI
   other-modules:
     Database.PostgreSQL.Migrate.CLI.Handler
     Database.PostgreSQL.Migrate.CLI.Json
@@ -40,6 +37,7 @@ library
     Database.PostgreSQL.Migrate.CLI.Parser
     Database.PostgreSQL.Migrate.CLI.Text
     Database.PostgreSQL.Migrate.CLI.Types
+    PgMigrate.CLI.Prelude
 
   build-depends:
     , aeson                 >=2.2  && <2.3

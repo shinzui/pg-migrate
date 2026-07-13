@@ -13,21 +13,26 @@ module Database.PostgreSQL.Migrate.CLI.Types
     RepairOptions (..),
     NewOptions (..),
     MigrationCommand (..),
+    checksumText,
     validateDescription,
   )
 where
 
+import Data.ByteString qualified as ByteString
 import Data.Char qualified as Char
 import Data.Text qualified as Text
 import Database.PostgreSQL.Migrate
   ( ComponentName,
     Confirmation,
     LockWait,
+    MigrationChecksum,
     MigrationId,
     MigrationName,
     RepairOperation,
   )
+import Database.PostgreSQL.Migrate.Internal (migrationChecksumBytes)
 import Hasql.Connection.Settings qualified as Settings
+import Numeric qualified
 import PgMigrate.CLI.Prelude
 
 -- | Human-readable or versioned JSON rendering.
@@ -139,6 +144,15 @@ data MigrationCommand
   | Repair !RepairOptions
   | New !NewOptions
   deriving stock (Generic, Eq, Show)
+
+checksumText :: MigrationChecksum -> Text
+checksumText =
+  Text.pack . concatMap renderByte . ByteString.unpack . migrationChecksumBytes
+  where
+    renderByte byte =
+      case Numeric.showHex byte "" of
+        [digit] -> ['0', digit]
+        digits -> digits
 
 validateDescription :: Text -> Either Text Text
 validateDescription description =

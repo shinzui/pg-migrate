@@ -130,7 +130,7 @@ errorOutcome =
     }
 
 successful :: Text -> CliPayload -> CliOutcome
-successful command payload = CliOutcome {command, exitClass = ExitSuccess, payload = Right payload}
+successful command payload = CliOutcome {command, exitClass = ExitSucceeded, payload = Right payload}
 
 accounts :: ComponentName
 accounts = expectRight (componentName "accounts")

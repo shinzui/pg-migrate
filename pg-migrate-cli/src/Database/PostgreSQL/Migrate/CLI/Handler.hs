@@ -18,6 +18,7 @@ import Database.PostgreSQL.Migrate
     RunOptions,
     StatusReport (..),
     StoredMigration (..),
+    VerificationIssue (..),
     VerificationReport (..),
     connectionProviderFromSettings,
     migrationFingerprint,
@@ -42,8 +43,10 @@ import Database.PostgreSQL.Migrate.Internal
   ( ComponentDescription (..),
     MigrationDescription (..),
     PlanDescription (..),
+    componentNameText,
     migrationIdComponent,
     migrationIdName,
+    migrationNameText,
     planDescription,
   )
 import Hasql.Connection.Settings qualified as Settings
@@ -77,22 +80,19 @@ runMigrationCommand :: CliEnvironment -> MigrationCommand -> IO CliOutcome
 runMigrationCommand environment commandValue =
   case commandValue of
     Plan PlanOptions {inspection} ->
-      pure
-        ( success
-            "plan"
-            (PlanPayload (filterPlan inspection (planDescription (migrationPlan environment))))
-        )
+      case validateInspection (migrationPlan environment) inspection of
+        Left inputError -> pure (failure "plan" ExitUsageFailed (CliInputError inputError))
+        Right description ->
+          pure (success "plan" (PlanPayload (filterPlan inspection description)))
     List ListOptions {inspection} ->
-      pure
-        ( success
-            "list"
-            ( ListPayload
-                ( filterMigrations
-                    inspection
-                    (flattenPlanDescription (planDescription (migrationPlan environment)))
-                )
+      case validateInspection (migrationPlan environment) inspection of
+        Left inputError -> pure (failure "list" ExitUsageFailed (CliInputError inputError))
+        Right description ->
+          pure
+            ( success
+                "list"
+                (ListPayload (filterMigrations inspection (flattenPlanDescription description)))
             )
-        )
     Check CheckOptions {manifestPath} -> runCheck manifestPath
     Status StatusOptions {inspection, connection} -> runStatus environment inspection connection
     Verify VerifyOptions {inspection, connection} -> runVerify environment inspection connection
@@ -115,31 +115,37 @@ runCheck manifestPath = do
         )
 
 runStatus :: CliEnvironment -> InspectionOptions -> ConnectionOptions -> IO CliOutcome
-runStatus environment inspection connection = do
-  result <-
-    migrationStatusWith
-      (runnerOptions environment)
-      (selectProvider environment connection)
-      (migrationPlan environment)
-  pure $ case result of
-    Left migrationError -> failure "status" ExitExecutionFailed (CliMigrationError migrationError)
-    Right report -> success "status" (StatusPayload (filterStatus inspection report))
+runStatus environment inspection connection =
+  case validateInspection (migrationPlan environment) inspection of
+    Left inputError -> pure (failure "status" ExitUsageFailed (CliInputError inputError))
+    Right description -> do
+      result <-
+        migrationStatusWith
+          (runnerOptions environment)
+          (selectProvider environment connection)
+          (migrationPlan environment)
+      pure $ case result of
+        Left migrationError -> failure "status" ExitExecutionFailed (CliMigrationError migrationError)
+        Right report -> success "status" (StatusPayload (filterStatus description inspection report))
 
 runVerify :: CliEnvironment -> InspectionOptions -> ConnectionOptions -> IO CliOutcome
-runVerify environment inspection connection = do
-  result <-
-    verifyMigrationPlanWith
-      (runnerOptions environment)
-      (selectProvider environment connection)
-      (migrationPlan environment)
-  pure $ case result of
-    Left migrationError -> failure "verify" ExitExecutionFailed (CliMigrationError migrationError)
-    Right report ->
-      CliOutcome
-        { command = "verify",
-          exitClass = verificationExitClass report,
-          payload = Right (VerifyPayload (filterVerification inspection report))
-        }
+runVerify environment inspection connection =
+  case validateInspection (migrationPlan environment) inspection of
+    Left inputError -> pure (failure "verify" ExitUsageFailed (CliInputError inputError))
+    Right description -> do
+      result <-
+        verifyMigrationPlanWith
+          (runnerOptions environment)
+          (selectProvider environment connection)
+          (migrationPlan environment)
+      pure $ case result of
+        Left migrationError -> failure "verify" ExitExecutionFailed (CliMigrationError migrationError)
+        Right report ->
+          CliOutcome
+            { command = "verify",
+              exitClass = verificationExitClass report,
+              payload = Right (VerifyPayload (filterVerification description inspection report))
+            }
 
 runUp :: CliEnvironment -> ConnectionOptions -> ExecutionOptions -> IO CliOutcome
 runUp environment connection execution = do
@@ -209,7 +215,7 @@ applyExecution ExecutionOptions {lockWait, statementTimeout} =
 
 verificationExitClass :: VerificationReport -> ExitClass
 verificationExitClass VerificationReport {issues}
-  | null issues = ExitSuccess
+  | null issues = ExitSucceeded
   | otherwise = ExitVerificationFailed
 
 authoringExitClass :: AuthoringError -> ExitClass
@@ -227,7 +233,7 @@ manifestExitClass manifestError =
     _ -> ExitUsageFailed
 
 success :: Text -> CliPayload -> CliOutcome
-success command payload = CliOutcome {command, exitClass = ExitSuccess, payload = Right payload}
+success command payload = CliOutcome {command, exitClass = ExitSucceeded, payload = Right payload}
 
 failure :: Text -> ExitClass -> CliError -> CliOutcome
 failure command exitClass cliError = CliOutcome {command, exitClass, payload = Left cliError}
@@ -251,18 +257,18 @@ filterPlan inspection (PlanDescription components) =
 filterMigrations :: InspectionOptions -> [MigrationDescription] -> [MigrationDescription]
 filterMigrations inspection = filter (matchesMigrationDescription inspection)
 
-filterStatus :: InspectionOptions -> StatusReport -> StatusReport
-filterStatus inspection (StatusReport issues applied pending unknown) =
+filterStatus :: PlanDescription -> InspectionOptions -> StatusReport -> StatusReport
+filterStatus description inspection (StatusReport issues applied pending unknown) =
   StatusReport
-    issues
+    (filter (matchesVerificationIssue description inspection) issues)
     (filter (matchesMigrationId inspection) applied)
     (filter (matchesMigrationId inspection) pending)
     (filter (matchesMigrationId inspection . storedMigrationId) unknown)
 
-filterVerification :: InspectionOptions -> VerificationReport -> VerificationReport
-filterVerification inspection (VerificationReport issues applied pending unknown) =
+filterVerification :: PlanDescription -> InspectionOptions -> VerificationReport -> VerificationReport
+filterVerification description inspection (VerificationReport issues applied pending unknown) =
   VerificationReport
-    issues
+    (filter (matchesVerificationIssue description inspection) issues)
     (filter (matchesMigrationId inspection) applied)
     (filter (matchesMigrationId inspection) pending)
     (filter (matchesMigrationId inspection . storedMigrationId) unknown)
@@ -278,3 +284,47 @@ matchesMigrationId InspectionOptions {component, migration} identifier =
 
 matchesComponent :: InspectionOptions -> ComponentName -> Bool
 matchesComponent InspectionOptions {component} candidate = maybe True (== candidate) component
+
+validateInspection :: MigrationPlan -> InspectionOptions -> Either Text PlanDescription
+validateInspection plan inspection@InspectionOptions {component, migration} = do
+  let description = planDescription plan
+      migrations = flattenPlanDescription description
+  case component of
+    Just requestedComponent
+      | not (any (matchesComponent inspection . migrationIdComponent . migrationId) migrations) ->
+          Left ("unknown component filter: " <> componentNameText requestedComponent)
+    _ -> Right ()
+  case migration of
+    Just requestedMigration
+      | not (any (matchesMigrationDescription inspection) migrations) ->
+          Left ("unknown migration filter: " <> migrationNameText requestedMigration)
+    _ -> Right ()
+  Right description
+
+matchesVerificationIssue :: PlanDescription -> InspectionOptions -> VerificationIssue -> Bool
+matchesVerificationIssue description inspection issue =
+  case issue of
+    DuplicateStoredMigration identifier -> matchesMigrationId inspection identifier
+    DuplicateStoredPosition issueComponent issuePosition ->
+      matchesDuplicateStoredPosition description inspection issueComponent issuePosition
+    StoredMigrationRunning identifier -> matchesMigrationId inspection identifier
+    StoredMigrationFailed identifier -> matchesMigrationId inspection identifier
+    MigrationPositionMismatch identifier _ _ -> matchesMigrationId inspection identifier
+    MigrationChecksumMismatch identifier _ _ -> matchesMigrationId inspection identifier
+    MigrationKindMismatch identifier _ _ -> matchesMigrationId inspection identifier
+    MigrationTransactionModeMismatch identifier _ _ -> matchesMigrationId inspection identifier
+    AppliedMigrationAfterGap identifier missing ->
+      matchesMigrationId inspection identifier || matchesMigrationId inspection missing
+    UnknownStoredMigration identifier -> matchesMigrationId inspection identifier
+    PendingMigration identifier -> matchesMigrationId inspection identifier
+
+matchesDuplicateStoredPosition :: PlanDescription -> InspectionOptions -> ComponentName -> Int -> Bool
+matchesDuplicateStoredPosition description inspection@InspectionOptions {migration} issueComponent issuePosition
+  | not (matchesComponent inspection issueComponent) = False
+  | otherwise =
+      case migration of
+        Nothing -> True
+        Just _ ->
+          any
+            (\MigrationDescription {migrationId, position} -> position == issuePosition && matchesMigrationId inspection migrationId)
+            (flattenPlanDescription description)

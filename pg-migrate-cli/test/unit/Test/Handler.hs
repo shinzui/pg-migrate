@@ -23,6 +23,7 @@ tests =
     "handler"
     [ testCase "plan text is stable and preserves component order" testPlanText,
       testCase "list filters narrow output without changing plan order" testListFilter,
+      testCase "unknown inspection filters fail before IO" testUnknownInspectionFilters,
       testCase "check returns exact-byte checksums" testCheck,
       testCase "new creates and appends a migration without applying it" testNew,
       testCase "new rejects control characters before writing files" testNewRejectsControlCharacters,
@@ -38,7 +39,7 @@ testPlanText = do
     runMigrationCommand
       fixtureEnvironment
       (Plan (PlanOptions noInspection textOutput))
-  exitClass outcome @?= ExitSuccess
+  exitClass outcome @?= ExitSucceeded
   renderMigrationCommandText outcome
     @?= Text.unlines
       [ "1. accounts depends=[] migrations=1",
@@ -52,13 +53,33 @@ testListFilter = do
     runMigrationCommand
       fixtureEnvironment
       (List (ListOptions (InspectionOptions (Just billing) Nothing) textOutput))
-  exitClass outcome @?= ExitSuccess
+  exitClass outcome @?= ExitSucceeded
   let rendered = renderMigrationCommandText outcome
   assertBool "billing migration is present" ("billing/0001" `Text.isInfixOf` rendered)
   assertBool "accounts migration is filtered out" (not ("accounts/0001" `Text.isInfixOf` rendered))
   assertBool "checksums are lowercase hexadecimal" (Text.all validOutputCharacter rendered)
   where
     validOutputCharacter character = not (character >= 'A' && character <= 'F')
+
+testUnknownInspectionFilters :: Assertion
+testUnknownInspectionFilters = do
+  let unknownComponent = expectRight (componentName "missing")
+      unknownMigration = expectRight (migrationName "missing")
+      accounts = expectRight (componentName "accounts")
+      commands =
+        [ Plan (PlanOptions (InspectionOptions (Just unknownComponent) Nothing) textOutput),
+          List (ListOptions (InspectionOptions (Just unknownComponent) Nothing) textOutput),
+          Status (StatusOptions (InspectionOptions (Just unknownComponent) Nothing) (ConnectionOptions Nothing) textOutput),
+          Verify (VerifyOptions (InspectionOptions (Just accounts) (Just unknownMigration)) (ConnectionOptions Nothing) textOutput)
+        ]
+  outcomes <- mapM (runMigrationCommand fixtureEnvironment) commands
+  mapM_ assertUnknownFilter outcomes
+  where
+    assertUnknownFilter outcome = do
+      exitClass outcome @?= ExitUsageFailed
+      case payload outcome of
+        Left (CliInputError message) -> assertBool "diagnostic names the unknown filter" ("unknown" `Text.isInfixOf` message)
+        result -> assertFailure ("expected typed unknown-filter error, received: " <> show result)
 
 testCheck :: Assertion
 testCheck =
@@ -70,7 +91,7 @@ testCheck =
       runMigrationCommand
         fixtureEnvironment
         (Check (CheckOptions manifest textOutput))
-    exitClass outcome @?= ExitSuccess
+    exitClass outcome @?= ExitSucceeded
     let rendered = renderMigrationCommandText outcome
     assertBool "manifest entry is rendered" ("0001.sql checksum=" `Text.isPrefixOf` rendered)
     Text.length (Text.takeWhileEnd (/= '=') (Text.strip rendered)) @?= 64
@@ -85,7 +106,7 @@ testNew =
       runMigrationCommand
         fixtureEnvironment
         (New (NewOptions manifest "add profile" Nothing textOutput))
-    exitClass outcome @?= ExitSuccess
+    exitClass outcome @?= ExitSucceeded
     renderMigrationCommandText outcome @?= "created " <> Text.pack (directory </> "0002.sql") <> "\n"
     ByteString.readFile (directory </> "0002.sql") >>= (@?= "-- add profile\n\n")
     ByteString.readFile manifest >>= (@?= "0001.sql\n0002.sql\n")

@@ -7,15 +7,14 @@ where
 
 import Data.Aeson (Value, object, (.=))
 import Data.Aeson.Types (Pair)
-import Data.ByteString qualified as ByteString
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Data.Time (UTCTime, defaultTimeLocale, formatTime)
 import Database.PostgreSQL.Migrate
 import Database.PostgreSQL.Migrate.CLI.Outcome
+import Database.PostgreSQL.Migrate.CLI.Types (checksumText)
 import Database.PostgreSQL.Migrate.Internal
-import Numeric qualified
 import PgMigrate.CLI.Prelude
 
 -- | Supported machine-readable CLI schema version.
@@ -28,7 +27,7 @@ renderMigrationCommandJson CliOutcome {command, exitClass, payload} =
   object
     ( [ "schemaVersion" .= jsonSchemaVersion,
         "command" .= command,
-        "ok" .= (exitClass == ExitSuccess)
+        "ok" .= (exitClass == ExitSucceeded)
       ]
         <> case payload of
           Left cliError -> ["error" .= errorValue cliError]
@@ -275,15 +274,6 @@ migrationIdText identifier =
   componentNameText (migrationIdComponent identifier)
     <> "/"
     <> migrationNameText (migrationIdName identifier)
-
-checksumText :: MigrationChecksum -> Text
-checksumText =
-  Text.pack . concatMap renderByte . ByteString.unpack . migrationChecksumBytes
-  where
-    renderByte byte =
-      case Numeric.showHex byte "" of
-        [digit] -> ['0', digit]
-        digits -> digits
 
 kindText :: MigrationKind -> Text
 kindText kind = case kind of SqlKind -> "sql"; HaskellKind -> "haskell"
