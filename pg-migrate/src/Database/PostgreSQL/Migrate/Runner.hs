@@ -307,13 +307,17 @@ executeTransactional options connection planned = do
             Right (Left sessionError) ->
               finishFailure startedMonotonic (DatabaseSessionFailed sessionError)
             Right (Right ()) -> do
-              loaded <- runSession connection (loadLedger (runLedgerConfig options))
-              case loaded of
+              stored <-
+                runSession
+                  connection
+                  ( Session.statement
+                      identifier
+                      (storedMigrationExistsStatement (runLedgerConfig options))
+                  )
+              case stored of
                 Left migrationError -> finishFailure startedMonotonic migrationError
-                Right snapshot
-                  | any ((== identifier) . storedMigrationId) (storedMigrations snapshot) ->
-                      finishSuccess startedMonotonic
-                  | otherwise -> finishFailure startedMonotonic (TransactionCondemned identifier)
+                Right True -> finishSuccess startedMonotonic
+                Right False -> finishFailure startedMonotonic (TransactionCondemned identifier)
   where
     identifier = plannedId planned
     finishSuccess started = do

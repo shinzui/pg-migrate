@@ -5,6 +5,7 @@ module Database.PostgreSQL.Migrate.Ledger.Sql
     loadLedgerMetadataStatement,
     insertLedgerMetadataStatement,
     loadStoredMigrationsStatement,
+    storedMigrationExistsStatement,
     AppliedLedgerRow (..),
     FailedLedgerRow (..),
     insertAppliedMigrationStatement,
@@ -99,6 +100,25 @@ loadStoredMigrationsStatement config =
     )
     Encoders.noParams
     (Decoders.rowList storedMigrationRow)
+
+storedMigrationExistsStatement :: LedgerConfig -> Statement MigrationId Bool
+storedMigrationExistsStatement config =
+  Statement.unpreparable
+    ( Text.unwords
+        [ "SELECT EXISTS (SELECT 1 FROM",
+          qualifiedLedgerTable config "migrations",
+          "WHERE component = $1 AND migration = $2)"
+        ]
+    )
+    migrationIdEncoder
+    (Decoders.singleRow (Decoders.column (Decoders.nonNullable Decoders.bool)))
+
+migrationIdEncoder :: Encoders.Params MigrationId
+migrationIdEncoder =
+  mconcat
+    [ contramap (componentNameText . migrationIdComponent) (Encoders.param (Encoders.nonNullable Encoders.text)),
+      contramap (migrationNameText . migrationIdName) (Encoders.param (Encoders.nonNullable Encoders.text))
+    ]
 
 storedMigrationRow :: Decoders.Row StoredMigration
 storedMigrationRow =

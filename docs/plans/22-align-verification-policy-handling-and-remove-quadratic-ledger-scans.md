@@ -50,7 +50,7 @@ even if it requires splitting a partially completed task into two ("done" vs. "r
 This section must always reflect the actual current state of the work.
 
 - [x] (2026-07-13T20:20:42Z) Milestone 1: repair and import honor `runUnknownMigrationsPolicy`; strict and allow-policy entry-point tests pass, policy docs are updated, all 110 unit tests pass, and all 28 PostgreSQL integration tests pass.
-- [ ] Milestone 2: single-row ledger lookup replaces the full reload; importer maps hoisted; behavior-preserving tests pass.
+- [x] (2026-07-13T20:22:26Z) Milestone 2: a keyed `SELECT EXISTS` replaces each post-transaction full-ledger reload, importer maps are built once before classification, and all 110 unit plus 28 PostgreSQL integration tests pass.
 - [ ] Milestone 3: mixed native/import prefix semantics pinned by integration tests and documented.
 - [ ] Core changelog updated; `cabal test all` green.
 
@@ -279,3 +279,7 @@ but touches disjoint modules (`Repair.hs`, `History.hs`, `Runner.hs`'s execute p
 Revision note (2026-07-13): Recorded completion of policy alignment after the existing
 pure comparator coverage, 110 unit tests, and 28 real entry-point integration tests passed;
 documented why the new regressions live at the audited callers.
+
+Revision note (2026-07-13): Recorded the behavior-preserving removal of per-transaction
+full-ledger reloads and per-mapping map reconstruction after the core unit and integration
+suites passed, including the condemned-transaction and import conflict cases.

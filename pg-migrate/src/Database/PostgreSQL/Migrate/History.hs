@@ -135,9 +135,13 @@ importAgainstSnapshot options connection plan history snapshot storedAudits =
           case resolveHistoryImport (equivalentHistoryPolicy options) plan availableEvidence history of
             Left validationError -> pure (Left (HistoryImportValidationFailed validationError))
             Right resolved -> do
-              let classified =
+              let migrationsById =
+                    Map.fromList [(storedMigrationId row, row) | row <- storedMigrations snapshot]
+                  auditsById =
+                    Map.fromList [(storedHistoryMigrationId row, row) | row <- storedAudits]
+                  classified =
                     traverse
-                      (classifyImport history snapshot storedAudits)
+                      (classifyImport history migrationsById auditsById)
                       resolved
               case classified of
                 Left importError -> pure (Left importError)
@@ -172,11 +176,11 @@ runValidators connection history = go (evidence history) (validators history)
 
 classifyImport ::
   HistoryImport ->
-  LedgerSnapshot ->
-  [StoredHistoryImport] ->
+  Map MigrationId StoredMigration ->
+  Map MigrationId StoredHistoryImport ->
   ResolvedHistoryMapping ->
   Either HistoryImportError ClassifiedImport
-classifyImport history snapshot storedAudits resolved =
+classifyImport history migrationsById auditsById resolved =
   case (Map.lookup identifier migrationsById, Map.lookup identifier auditsById) of
     (Nothing, Nothing) -> Right (ImportPending resolved)
     (Just storedMigration, Just storedAudit)
@@ -185,8 +189,6 @@ classifyImport history snapshot storedAudits resolved =
     _ -> Left (HistoryImportConflict identifier)
   where
     identifier = resolvedTarget resolved
-    migrationsById = Map.fromList [(storedMigrationId row, row) | row <- storedMigrations snapshot]
-    auditsById = Map.fromList [(storedHistoryMigrationId row, row) | row <- storedAudits]
 
 migrationMatches :: ResolvedHistoryMapping -> StoredMigration -> Bool
 migrationMatches
