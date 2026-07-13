@@ -48,6 +48,7 @@ tests settings =
       testCase "legacy lock contention prevents target acquisition" (testLockContention settings),
       testCase "strict source rejects a selected row omitted from the manifest" (testStrictManifestSymmetry settings),
       testCase "import is audited, action-free, source-preserving, and idempotent" (testImportLifecycle settings),
+      testCase "source unlock failure preserves the committed import report" (testUnlockFailurePreservesImportReport settings),
       testCase "a partial manifest supports mixed payload and state evidence" (testMixedEvidenceImport settings)
     ]
 
@@ -125,6 +126,17 @@ testImportLifecycle settings =
     repeatedFacts @?= facts
     afterSnapshot <- sourceSnapshot settings CoddV5
     afterSnapshot @?= before
+
+testUnlockFailurePreservesImportReport :: Settings.Settings -> Assertion
+testUnlockFailurePreservesImportReport settings =
+  withCleanSchemas settings $ do
+    runScript settings unlockingFixtureSql
+    report <- runImport settings >>= requireCoddRight
+    importOutcomes report @?= [Imported]
+    let HistoryImportReport {cleanupIssues = observedCleanupIssues} = report
+    observedCleanupIssues @?= [AdvisoryUnlockReturnedFalse]
+    facts <- query settings targetFactsStatement
+    facts @?= (1, 1, False, True, True)
 
 testMixedEvidenceImport :: Settings.Settings -> Assertion
 testMixedEvidenceImport settings =
@@ -391,6 +403,23 @@ fixtureSql version =
         CoddV3 -> ", application_duration interval, num_applied_statements int, no_txn_failed_at timestamptz);"
         CoddV4 -> ", application_duration interval, num_applied_statements int, no_txn_failed_at timestamptz, txnid bigint, connid int);"
         CoddV5 -> ", application_duration interval, num_applied_statements int, no_txn_failed_at timestamptz, txnid bigint, connid int);"
+    ]
+
+unlockingFixtureSql :: Text
+unlockingFixtureSql =
+  Text.unwords
+    [ "CREATE SCHEMA codd;",
+      "CREATE VIEW codd.sql_migrations AS SELECT",
+      "1::integer AS id,",
+      "'2024-01-01 00:00:00+00'::timestamptz AS migration_timestamp,",
+      "CASE WHEN pg_advisory_unlock(" <> Text.pack (show defaultCoddLockKey) <> ")",
+      "THEN '2024-01-01 00:00:01+00'::timestamptz ELSE NULL::timestamptz END AS applied_at,",
+      "'" <> Text.pack selectedFilename <> "'::text AS name,",
+      "NULL::interval AS application_duration,",
+      "1::integer AS num_applied_statements,",
+      "NULL::timestamptz AS no_txn_failed_at,",
+      "NULL::bigint AS txnid,",
+      "NULL::integer AS connid;"
     ]
 
 fixtureSchema :: CoddSchemaVersion -> Text

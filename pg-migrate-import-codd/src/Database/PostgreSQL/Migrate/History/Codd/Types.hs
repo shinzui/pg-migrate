@@ -86,6 +86,10 @@ data CoddDefinitionError
   deriving stock (Generic, Eq, Show)
 
 -- | Structured source-read, validation, lock, or target-import failure.
+--
+-- In 'CoddUnlockFailed', the first optional error is the primary source-read or
+-- import failure. The second is the unlock session failure; it is 'Nothing' when
+-- @pg_advisory_unlock@ returned false rather than raising a session error.
 data CoddImportError
   = CoddDefinitionFailed !CoddDefinitionError
   | CoddConnectionFailed !Errors.ConnectionError

@@ -13,7 +13,9 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Database.PostgreSQL.Migrate
 import Database.PostgreSQL.Migrate.History.Codd.Ledger
-  ( readCoddHistoryOnConnection,
+  ( coddUnlockFailure,
+    readCoddHistoryOnConnection,
+    sourceUnlockCleanupIssue,
     withLockedCoddHistory,
   )
 import Database.PostgreSQL.Migrate.History.Codd.Types
@@ -46,17 +48,29 @@ importCoddHistoryWithValidators ::
 importCoddHistoryWithValidators options validators config targetProvider plan mappings =
   case validateImportDefinition config validators plan mappings of
     Left err -> pure (Left err)
-    Right () ->
-      withLockedCoddHistory config $ \sourceConnection -> do
-        loaded <- readCoddHistoryOnConnection config sourceConnection
-        case loaded of
-          Left err -> pure (Left err)
-          Right history ->
-            case buildHistoryImport config history validators mappings of
-              Left err -> pure (Left err)
-              Right historyImportDefinition -> do
-                imported <- importMigrationHistory options targetProvider plan historyImportDefinition
-                pure (first CoddTargetImportFailed imported)
+    Right () -> do
+      (sourceResult, sourceUnlockIssues) <-
+        withLockedCoddHistory config $ \sourceConnection -> do
+          loaded <- readCoddHistoryOnConnection config sourceConnection
+          case loaded of
+            Left err -> pure (Left err)
+            Right history ->
+              case buildHistoryImport config history validators mappings of
+                Left err -> pure (Left err)
+                Right historyImportDefinition -> do
+                  imported <- importMigrationHistory options targetProvider plan historyImportDefinition
+                  pure (first CoddTargetImportFailed imported)
+      pure $ case sourceResult of
+        Left primary ->
+          case sourceUnlockIssues of
+            issue : _ -> Left (coddUnlockFailure (sourceLockKey config) (Just primary) issue)
+            [] -> Left primary
+        Right HistoryImportReport {importResults, cleanupIssues} ->
+          Right
+            HistoryImportReport
+              { importResults,
+                cleanupIssues = cleanupIssues <> (sourceUnlockCleanupIssue <$> sourceUnlockIssues)
+              }
 
 validateImportDefinition ::
   CoddSourceConfig ->

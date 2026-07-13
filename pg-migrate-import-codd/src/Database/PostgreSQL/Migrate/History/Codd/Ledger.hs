@@ -1,6 +1,9 @@
 module Database.PostgreSQL.Migrate.History.Codd.Ledger
   ( readCoddHistory,
     withLockedCoddHistory,
+    SourceUnlockIssue,
+    coddUnlockFailure,
+    sourceUnlockCleanupIssue,
     readCoddHistoryOnConnection,
     classifyCoddSchema,
     validateCoddRows,
@@ -13,11 +16,13 @@ import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Database.PostgreSQL.Migrate (CleanupIssue (..))
 import Database.PostgreSQL.Migrate.History.Codd.Types
 import Database.PostgreSQL.Migrate.Internal (useConnectionProvider)
 import Hasql.Connection qualified as Connection
 import Hasql.Decoders qualified as Decoders
 import Hasql.Encoders qualified as Encoders
+import Hasql.Errors qualified as Errors
 import Hasql.Session qualified as Session
 import Hasql.Statement (Statement)
 import Hasql.Statement qualified as Statement
@@ -25,43 +30,61 @@ import PgMigrate.History.Codd.Prelude
 
 -- | Read and verify selected legacy rows without mutating source objects.
 readCoddHistory :: CoddSourceConfig -> IO (Either CoddImportError CoddHistory)
-readCoddHistory config = withLockedCoddHistory config (readCoddHistoryOnConnection config)
+readCoddHistory config@CoddSourceConfig {sourceLockKey} = do
+  (result, unlockIssues) <-
+    withLockedCoddHistory config (readCoddHistoryOnConnection config)
+  pure $ case (result, unlockIssues) of
+    (Left primary, issue : _) -> Left (coddUnlockFailure sourceLockKey (Just primary) issue)
+    (Left primary, []) -> Left primary
+    (Right _, issue : _) -> Left (coddUnlockFailure sourceLockKey Nothing issue)
+    (Right history, []) -> Right history
+
+data SourceUnlockIssue
+  = SourceUnlockReturnedFalse
+  | SourceUnlockSessionFailed !Errors.SessionError
 
 withLockedCoddHistory ::
   CoddSourceConfig ->
   (Connection.Connection -> IO (Either CoddImportError value)) ->
-  IO (Either CoddImportError value)
+  IO (Either CoddImportError value, [SourceUnlockIssue])
 withLockedCoddHistory CoddSourceConfig {sourceProvider, sourceLockKey} action = do
   acquired <-
     useConnectionProvider sourceProvider $ \connection ->
       Exception.mask $ \restore -> do
         locked <- runSession connection (Session.statement sourceLockKey tryLockStatement)
         case locked of
-          Left err -> pure (Left err)
-          Right False -> pure (Left (CoddLockUnavailable sourceLockKey))
+          Left err -> pure (Left err, [])
+          Right False -> pure (Left (CoddLockUnavailable sourceLockKey), [])
           Right True -> do
-            primary <-
-              restore (action connection)
-                `Exception.onException` releaseIgnoringFailure connection sourceLockKey
-            unlocked <- runSession connection (Session.statement sourceLockKey unlockStatement)
-            pure $ case unlocked of
-              Right True -> primary
-              Right False -> Left (CoddUnlockFailed sourceLockKey (either Just (const Nothing) primary) Nothing)
-              Left cleanupFailure ->
-                Left
-                  ( CoddUnlockFailed
-                      sourceLockKey
-                      (either Just (const Nothing) primary)
-                      (Just cleanupFailure)
-                  )
+            captured <- Exception.try @Exception.SomeException (restore (action connection))
+            unlockIssues <- unlockSource connection sourceLockKey
+            case captured of
+              Left exception -> Exception.throwIO exception
+              Right primary -> pure (primary, unlockIssues)
   pure $ case acquired of
-    Left connectionError -> Left (CoddConnectionFailed connectionError)
+    Left connectionError -> (Left (CoddConnectionFailed connectionError), [])
     Right result -> result
 
-releaseIgnoringFailure :: Connection.Connection -> Int64 -> IO ()
-releaseIgnoringFailure connection lockKey = do
-  _ <- Connection.use connection (Session.statement lockKey unlockStatement)
-  pure ()
+unlockSource :: Connection.Connection -> Int64 -> IO [SourceUnlockIssue]
+unlockSource connection lockKey = do
+  unlocked <- Connection.use connection (Session.statement lockKey unlockStatement)
+  pure $ case unlocked of
+    Left sessionError -> [SourceUnlockSessionFailed sessionError]
+    Right False -> [SourceUnlockReturnedFalse]
+    Right True -> []
+
+coddUnlockFailure :: Int64 -> Maybe CoddImportError -> SourceUnlockIssue -> CoddImportError
+coddUnlockFailure lockKey primary unlockIssue =
+  case unlockIssue of
+    SourceUnlockReturnedFalse -> CoddUnlockFailed lockKey primary Nothing
+    SourceUnlockSessionFailed sessionError ->
+      CoddUnlockFailed lockKey primary (Just (CoddSessionFailed sessionError))
+
+sourceUnlockCleanupIssue :: SourceUnlockIssue -> CleanupIssue
+sourceUnlockCleanupIssue unlockIssue =
+  case unlockIssue of
+    SourceUnlockReturnedFalse -> AdvisoryUnlockReturnedFalse
+    SourceUnlockSessionFailed sessionError -> AdvisoryUnlockFailed sessionError
 
 readCoddHistoryOnConnection ::
   CoddSourceConfig ->

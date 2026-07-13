@@ -52,7 +52,7 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-13 11:44 PDT) Milestone 1 validation: `cabal test pg-migrate-import-codd:pg-migrate-import-codd-test` passed all 23 tests, including all new bounds cases.
 - [x] (2026-07-13 11:51 PDT) Milestone 2: audit details record the rendered source table; strict Codd manifests reject missing selected rows; dead constructors are removed; manifest/parser Haddocks are accurate; and Codd exposes `--allow-equivalent` parity. Both adapter unit and PostgreSQL integration suites pass (25 + 11 Codd tests; 14 + 6 hasql-migration tests).
 - [x] (2026-07-13 11:58 PDT) Milestone 3: adapter source trees contain no `Map.!`; Codd ledger-only evidence carries no unverified checksum; and core rejects `SamePayload` evidence weaker than `SourceManifestVerified` with `HistoryPayloadEvidenceTooWeak`. Sequential validation passed 104 core, 25 Codd, and 14 hasql-migration unit tests.
-- [ ] Milestone 4: `CoddUnlockFailed` preserves committed reports (pattern from plan 18).
+- [x] (2026-07-13 12:08 PDT) Milestone 4: Codd source unlock observations append to `HistoryImportReport.cleanupIssues` after target cleanup observations, while primary failures retain `CoddUnlockFailed`. The 12-case PostgreSQL suite proves a committed report survives `pg_advisory_unlock` returning false.
 - [ ] Docs and changelogs updated; `cabal test all` green.
 
 
@@ -78,6 +78,12 @@ implementation. Provide concise evidence.
   `CoddImportError` or `HasqlMigrationImportError` failure output.
   Evidence: `renderHistoryImportJson` accepts a report rather than an `Either`, and the
   only history-import golden is the successful `test/golden/json/import.json` fixture.
+
+- Observation: A Codd-compatible PostgreSQL view can deterministically exercise the
+  lost-report branch by calling `pg_advisory_unlock` while its `applied_at` column is read.
+  Evidence: the integration run emits PostgreSQL's expected "you don't own a lock"
+  warning on wrapper cleanup, then returns `Right HistoryImportReport` with
+  `[AdvisoryUnlockReturnedFalse]`; all 12 Codd integration cases pass.
 
 
 ## Decision Log
@@ -116,6 +122,21 @@ implementation. Provide concise evidence.
   that does not exist. Adding one would be new feature/API work outside this audit
   remediation and could not render the adapter-specific outer error types without
   reversing package dependencies.
+  Date: 2026-07-13
+
+- Decision: Reuse `HistoryImportReport.cleanupIssues` for Codd source-lock cleanup and
+  append source observations after any target-runner observations.
+  Rationale: EP-2 deliberately made successful import reports the common carrier for
+  cleanup facts. Reuse preserves the public import return type, gives callers one ordered
+  list, and avoids an adapter-only report wrapper.
+  Date: 2026-07-13
+
+- Decision: Retain the public positional shape of `CoddUnlockFailed`, but document both
+  optional error slots and construct it only when no successful import report can carry
+  cleanup data.
+  Rationale: The first slot preserves a primary source/import failure; the second
+  distinguishes a session error from `pg_advisory_unlock` returning false. This is the
+  smallest compatible application of EP-2's success-versus-failure contract.
   Date: 2026-07-13
 
 
