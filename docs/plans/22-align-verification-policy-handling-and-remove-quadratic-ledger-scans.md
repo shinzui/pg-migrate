@@ -53,7 +53,7 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-13T20:22:26Z) Milestone 2: a keyed `SELECT EXISTS` replaces each post-transaction full-ledger reload, importer maps are built once before classification, and all 110 unit plus 28 PostgreSQL integration tests pass.
 - [x] (2026-07-13T20:24:03Z) Milestone 3: native-first conflict, suffix-only prefix-gap, and import-first/native-remainder semantics are pinned by integration tests and documented; all 30 PostgreSQL integration tests pass.
 - [x] (2026-07-13T20:24:03Z) Core changelog records the policy, performance, and mixed-state contracts.
-- [ ] Final validation: `nix fmt` and `cabal test all` pass on the complete EP-6 change.
+- [x] (2026-07-13T20:26:36Z) Final validation: `nix fmt` reports zero changes and `just acceptance` passes all builds, all 11 Cabal test suites, production-closure validation, and all 15 PostgreSQL 17 acceptance groups.
 
 
 ## Surprises & Discoveries
@@ -100,33 +100,46 @@ implementation. Provide concise evidence.
 Summarize outcomes, gaps, and lessons learned at major milestones or at completion.
 Compare the result against the original purpose.
 
-(To be filled during and after implementation.)
+EP-6 is complete. Execution, repair, and history import now all use the
+`UnknownMigrationsPolicy` in their `RunOptions`. The strict default is unchanged, while an
+application that explicitly allows foreign rows in a shared ledger can use repair and
+import without those operations silently reverting to strict verification. Real
+PostgreSQL tests cover both the strict rejection and allowed success paths.
+
+Transactional completion now checks the committed migration with one keyed `SELECT
+EXISTS` instead of reloading and scanning the full ledger after every migration. History
+import constructs its migration and audit maps once per import rather than once per
+mapping. The existing condemned-transaction, ordinary-success, import-conflict,
+already-imported, and pending-import tests all preserve their behavior.
+
+The mixed native/import contract is explicit and executable: mappings form a gap-free
+prefix without treating existing native rows as implicit mappings; a native row without an
+import audit conflicts; and the supported workflow imports the legacy prefix before the
+runner applies later migrations. Formatting changed no files, and the final acceptance
+recipe built all packages, passed all 11 Cabal test suites, validated the production
+dependency closure, and passed all 15 PostgreSQL 17 acceptance groups.
 
 
 ## Context and Orientation
 
 All code is in the core package `pg-migrate/`. Key sites:
 
-- Policy: `src/Database/PostgreSQL/Migrate/Repair.hs`, `repairVerified` (around line 85)
-  calls `comparePlanWithLedger RejectUnknownMigrations …` — hardcoded.
-  `src/Database/PostgreSQL/Migrate/History.hs`, `importAgainstSnapshot` (line ~117) does
-  the same. The runner's equivalent, `runVerified` in
-  `src/Database/PostgreSQL/Migrate/Runner.hs` (line ~204), correctly uses
-  `runUnknownMigrationsPolicy options`. `comparePlanWithLedger` itself lives in
+- Policy: `src/Database/PostgreSQL/Migrate/Repair.hs`, `repairVerified`, uses
+  `runUnknownMigrationsPolicy options`; `src/Database/PostgreSQL/Migrate/History.hs`,
+  `importAgainstSnapshot`, uses the same accessor on `importRunOptions`. The runner's
+  equivalent, `runVerified` in `src/Database/PostgreSQL/Migrate/Runner.hs`, uses the same
+  policy. `comparePlanWithLedger` itself lives in
   `src/Database/PostgreSQL/Migrate/Ledger.hs` and, under `AllowUnknownMigrations`, reports
   unknown rows in the report's `unknownMigrations` list without generating issues.
   `RunOptions`, the policy type, and `runUnknownMigrationsPolicy` are in
   `src/Database/PostgreSQL/Migrate/Runner/Types.hs`; import options wrap `RunOptions` as
   `importRunOptions` (`src/Database/PostgreSQL/Migrate/History/Types.hs`, line ~142).
-- Quadratic reload: `executeTransactional` in `Runner.hs` (line ~307) — after a successful
-  transaction it calls `loadLedger` (which selects every row of the migrations table, see
-  `loadStoredMigrationsStatement` in `src/Database/PostgreSQL/Migrate/Ledger/Sql.hs`) and
-  scans for the one just-inserted row; absence means the transaction was condemned (rolled
-  back via hasql-transaction's `condemn`) and yields `TransactionCondemned`.
-- Quadratic maps: `classifyImport` in `History.hs` (lines ~161-177) builds `migrationsById`
-  and `auditsById` in a `where` clause evaluated per resolved mapping; the call site is the
-  `traverse (classifyImport history snapshot storedAudits) resolved` in
-  `importAgainstSnapshot`.
+- Transaction completion: `executeTransactional` in `Runner.hs` uses
+  `storedMigrationExistsStatement` from `src/Database/PostgreSQL/Migrate/Ledger/Sql.hs` to
+  check only the inserted `MigrationId`; absence still means the transaction was condemned
+  (rolled back via hasql-transaction's `condemn`) and yields `TransactionCondemned`.
+- Import classification: `importAgainstSnapshot` in `History.hs` builds `migrationsById`
+  and `auditsById` once, then passes both maps through the traversal to `classifyImport`.
 - Mixed-state semantics: `validatePrefixes` and `firstMissingPrefixPosition` in
   `src/Database/PostgreSQL/Migrate/History/Validation.hs` (lines ~103-121);
   `classifyImport`'s conflict cases in `History.hs`.
@@ -288,3 +301,7 @@ suites passed, including the condemned-transaction and import conflict cases.
 Revision note (2026-07-13): Pinned and documented conservative mixed native/import ordering
 with three PostgreSQL scenarios, recorded the release-note impact, and left only full
 workspace validation outstanding.
+
+Revision note (2026-07-13): Recorded clean formatting and the successful full acceptance
+recipe, updated the current-code orientation, finalized the retrospective, and completed
+EP-6.

@@ -87,7 +87,7 @@ behavior against a live database, so they verify differently and stay separate.
 | 3 | Harden import adapter parsing, audit evidence, and internal totality | docs/plans/19-harden-import-adapter-parsing-audit-evidence-and-internal-totality.md | None | EP-2 | Complete |
 | 4 | Fix embed authoring numbering, recompilation tracking, and byte embedding | docs/plans/20-fix-embed-authoring-numbering-recompilation-tracking-and-byte-embedding.md | None | None | Complete |
 | 5 | Harden SQL validation against BOM, misplaced directives, and wrong diagnostics | docs/plans/21-harden-sql-validation-against-bom-misplaced-directives-and-wrong-diagnostics.md | None | None | Complete |
-| 6 | Align verification policy handling and remove quadratic ledger scans | docs/plans/22-align-verification-policy-handling-and-remove-quadratic-ledger-scans.md | None | None | In Progress |
+| 6 | Align verification policy handling and remove quadratic ledger scans | docs/plans/22-align-verification-policy-handling-and-remove-quadratic-ledger-scans.md | None | None | Complete |
 
 Status values: Not Started, In Progress, Complete, Cancelled.
 Hard Deps and Soft Deps reference other rows by their # prefix (e.g., EP-1, EP-3).
@@ -179,9 +179,9 @@ and the milestone. This section provides an at-a-glance view of the entire initi
 - [x] EP-5: BOM rejected at definition time in scanner and embed manifest
 - [x] EP-5: Misplaced directives rejected; line numbers corrected
 - [x] EP-5: `statement_timeout` zero semantics resolved and documented
-- [ ] EP-6: Repair/import unknown-migrations policy decision implemented and documented
-- [ ] EP-6: Quadratic ledger reload and map rebuilds removed
-- [ ] EP-6: Mixed native/imported prefix semantics tested and documented
+- [x] EP-6: Repair/import unknown-migrations policy decision implemented and documented
+- [x] EP-6: Quadratic ledger reload and map rebuilds removed
+- [x] EP-6: Mixed native/imported prefix semantics tested and documented
 
 
 ## Surprises & Discoveries
@@ -234,6 +234,13 @@ interactions between child plans. Provide concise evidence.
   changelog and must preserve these major-release notes when adding its entries. Evidence:
   `nix fmt` changed no files and all 11 Cabal test suites passed.
 
+- EP-6 found that the pure allow/reject comparator already had direct unit coverage; the
+  audited defect was entirely in the repair and import callers. Entry-point PostgreSQL
+  regressions now prove both the strict default and explicit shared-ledger behavior. The
+  final implementation also replaces per-transaction full-ledger reloads with keyed
+  existence checks and builds import classification maps once. Evidence: `just acceptance`
+  passed all 11 Cabal suites, the production-closure check, and all 15 PostgreSQL 17 groups.
+
 
 ## Decision Log
 
@@ -285,25 +292,42 @@ interactions between child plans. Provide concise evidence.
   can track names that do not yet exist.
   Date: 2026-07-13
 
+- Decision: Apply `UnknownMigrationsPolicy` consistently to execution, repair, and history
+  import while retaining the conservative rule that import mappings alone form the legacy
+  prefix and native rows without import audits remain conflicts.
+  Rationale: Configuration must not change meaning between entry points, but importing may
+  not silently adopt target rows for which it has no source evidence. The default remains
+  strict, and the documented import-first workflow supports safe cutover.
+  Date: 2026-07-13
+
 
 ## Outcomes & Retrospective
 
 Summarize outcomes, gaps, and lessons learned at major milestones or at completion.
 Compare the result against the original vision.
 
-EP-1 completed the highest-severity CLI remediation, EP-2 completed the cross-package
-durable-success invariant, EP-3 hardened both history-import adapters, EP-4 completed the
-embed remediation, and EP-5 hardened core SQL and timeout validation. Five of six child
-plans are complete. Migration, repair, and history-import reports preserve cleanup
-observations; Codd source cleanup now follows the same rule; CLI schema v1 exposes report
-cleanup additively; and test-support propagates cancellation after cleanup. Import audit
-evidence identifies its source table, strict Codd manifests are symmetric, lock-key
-overflow is rejected, adapter payload lookups are total, and `SamePayload` requires
-verified evidence strength. Embed authoring now handles numbering rollover, primitive byte
-embedding, BOM diagnostics, post-rename clobber detection, and GHC 9.12 directory
-membership changes. Core SQL validation rejects leading BOMs and misplaced directives
-with file-absolute diagnostics, while non-positive statement timeouts fail before
-connection acquisition. All 11 Cabal test suites pass. EP-6 remains Not Started.
+All six child plans are complete, and every finding in the 2026-07-13 audit is remediated
+within the initiative's scope. The CLI preserves application runner options and safely
+authors descriptions. Migration, repair, history-import, Codd-source, and test-support
+cleanup paths retain durable success and correctly propagate asynchronous interruption.
+Import adapters reject lock-key overflow, produce complete audit evidence, avoid partial
+lookups, enforce verified `SamePayload` evidence, and preserve committed reports through
+source cleanup.
+
+Embed authoring now handles numbering exhaustion, exact primitive byte embedding,
+byte-order marks, post-rename clobber detection, and GHC 9.12 directory membership changes.
+Core SQL validation rejects leading BOMs and misplaced directives with file-absolute
+diagnostics, and non-positive statement timeouts fail before connection acquisition.
+Execution, repair, and history import now interpret unknown-migration policy consistently.
+Transactional completion uses a keyed row lookup instead of repeatedly loading the whole
+ledger, history classification maps are built once, and the conservative import-first
+prefix contract is covered by real PostgreSQL scenarios and an operator runbook.
+
+The final `nix fmt` run changed no files. `just acceptance` built every package, passed all
+11 Cabal test suites, passed the production dependency-closure check, and passed all 15
+PostgreSQL 17 acceptance groups. No ledger schema change was required. Version bumps and
+Hackage publication remain deliberately outside this MasterPlan and can proceed through
+the repository's release process using the accumulated changelog entries.
 
 
 Revision note (2026-07-13): Marked EP-2 complete, recorded its report-based cleanup
@@ -325,3 +349,7 @@ probe for ordinary tracked-file dependencies.
 Revision note (2026-07-13): Completed EP-5 after clean formatting and all 11 workspace test
 suites passed; recorded its public `SqlError`, scanner diagnostic, and timeout-validation
 contracts for the remaining core plan.
+
+Revision note (2026-07-13): Completed EP-6 and the full audit-remediation initiative after
+the full acceptance recipe passed; recorded consistent policy handling, linearized ledger
+checks, conservative mixed-history semantics, and the final retrospective.
