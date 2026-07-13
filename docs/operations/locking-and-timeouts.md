@@ -16,6 +16,13 @@ operation atomic. Choose it from observed operation time plus deployment margin.
 or lost connection during a nontransactional action may leave database effects present
 while the ledger remains `Running`.
 
+`withStatementTimeout Nothing` leaves the session's existing `statement_timeout`
+untouched. `withStatementTimeout (Just duration)` temporarily applies a strictly positive
+duration and restores the previous setting afterward. Positive sub-millisecond durations
+round up to one millisecond. Zero and negative durations fail with
+`InvalidStatementTimeout` before a connection is acquired; PostgreSQL interprets zero as
+"disabled", so callers must use `Nothing` when they do not want a temporary override.
+
 The Codd adapter first acquires its configurable cooperating legacy lock on a dedicated
 source connection, then lets the generic importer acquire the target lock on a second
 connection. Codd itself may not honor that wrapper lock, so predecessor quiescence and a

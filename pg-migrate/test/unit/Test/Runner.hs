@@ -17,6 +17,7 @@ tests =
       testCase "functional option updates compose" testOptionUpdates,
       testCase "report values remain immutable structured data" testReportValues,
       testCase "server version classification accepts only 17 and 18" testServerVersions,
+      testCase "statement timeout of zero is rejected before connection acquisition" testZeroStatementTimeout,
       testCase "repair requests require confirmation" testRepairConfirmation,
       testCase "repair requests require a non-empty reason" testRepairReason
     ]
@@ -56,6 +57,20 @@ testServerVersions = do
   requireRight (classifyServerVersion (180000 :: Int32)) @?= 18
   assertUnsupported 16 (classifyServerVersion 160010)
   assertUnsupported 19 (classifyServerVersion 190000)
+
+testZeroStatementTimeout :: IO ()
+testZeroStatementTimeout = do
+  let options = defaultRunOptions & withStatementTimeout (Just 0)
+      provider = connectionProvider (\_ -> error "zero timeout acquired a connection")
+  runMigrationPlanWith options provider (error "zero timeout evaluated the migration plan")
+    >>= assertInvalidStatementTimeout
+  applyStatementTimeout (error "zero timeout used a connection") (Just 0)
+    >>= assertInvalidStatementTimeout
+
+assertInvalidStatementTimeout :: (Show value) => Either MigrationError value -> IO ()
+assertInvalidStatementTimeout = \case
+  Left (InvalidStatementTimeout timeout) -> timeout @?= 0
+  other -> error ("expected InvalidStatementTimeout 0, received " <> show other)
 
 assertUnsupported :: Int -> Either MigrationError Int -> IO ()
 assertUnsupported expected = \case

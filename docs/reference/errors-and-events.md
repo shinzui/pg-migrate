@@ -4,6 +4,9 @@ Definition and plan errors are pure and occur before acquisition. Migration erro
 connection, session, server-version, lock, ledger initialization/verification, action,
 nontransactional transition, callback, and cleanup distinctions. A cleanup failure after a
 primary runner failure is `CleanupFailed primary issues`; the primary error is mandatory.
+A SQL definition error distinguishes a leading byte-order mark from invalid UTF-8, reports
+unknown, duplicate, or misplaced `pg-migrate:` directives separately, and gives
+file-absolute line numbers for psql meta-commands.
 A cleanup failure after durable success does not replace that success: `MigrationReport`,
 `RepairReport`, and `HistoryImportReport` carry the observed `cleanupIssues`. Repair and
 history import add their own validation,

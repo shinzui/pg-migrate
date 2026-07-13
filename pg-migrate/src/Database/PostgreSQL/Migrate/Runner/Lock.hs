@@ -80,7 +80,7 @@ applyStatementTimeout ::
   IO (Either MigrationError (Maybe Text))
 applyStatementTimeout _ Nothing = pure (Right Nothing)
 applyStatementTimeout connection (Just timeout)
-  | timeout < 0 = pure (Left (InvalidStatementTimeout timeout))
+  | timeout <= 0 = pure (Left (InvalidStatementTimeout timeout))
   | otherwise = do
       result <-
         Connection.use connection $ do

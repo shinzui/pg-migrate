@@ -106,8 +106,10 @@ If either statement fails, neither the schema change nor the applied ledger stat
 
 The validator understands line comments, nested block comments, quoted strings and
 identifiers, and dollar-quoted function bodies when identifying statements. It rejects
-empty SQL, invalid UTF-8, unterminated constructs, explicit transaction-control commands,
-psql meta-commands, and `COPY FROM STDIN`.
+empty SQL, invalid UTF-8, a leading UTF-8 byte-order mark (BOM), unterminated constructs,
+explicit transaction-control commands, psql meta-commands, and `COPY FROM STDIN`. A
+leading BOM is rejected rather than stripped because migration checksums cover the exact
+payload bytes.
 
 Do not put `BEGIN`, `COMMIT`, `ROLLBACK`, `SAVEPOINT`, or similar transaction control in a
 migration. The runner owns the transaction boundary.
@@ -124,7 +126,9 @@ CREATE INDEX CONCURRENTLY accounts_email_idx ON accounts (email);
 
 A nontransactional file must contain exactly one SQL statement. Leading whitespace and
 ordinary leading comments are allowed, but the directive must appear before SQL begins.
-Unknown `pg-migrate:` directives and duplicate `no-transaction` directives are rejected.
+Unknown `pg-migrate:` directives, duplicate `no-transaction` directives, and any
+`pg-migrate:` line comment placed after SQL begins are rejected. Block comments do not
+participate in the directive grammar.
 
 Nontransactional migrations have an intentionally conservative failure model. A process
 crash can leave the database effect ambiguous, so the ledger may remain `Running` or

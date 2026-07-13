@@ -50,8 +50,9 @@ This section must always reflect the actual current state of the work.
 
 - [x] (2026-07-13T20:05:39Z) Milestone 1: leading BOM rejected by `validateSql` with a dedicated `SqlError`; all 107 core unit tests pass, including ordinary SQL, hidden-directive, and mid-file U+FEFF coverage.
 - [x] (2026-07-13T20:07:17Z) Milestone 2: misplaced `pg-migrate:` line comments are rejected with their file-absolute line; leading-region line accounting also makes psql meta-command diagnostics file-absolute, and all 109 core unit tests pass.
-- [ ] Milestone 3: non-positive statement timeouts rejected; timeout semantics documented.
-- [ ] Docs (`manifest-authoring.md`, `locking-and-timeouts.md`, `errors-and-events.md` if error tables are listed) and core changelog updated; `cabal test all` green.
+- [x] (2026-07-13T20:11:04Z) Milestone 3: non-positive statement timeouts are rejected before connection acquisition and by the defensive lock helper; all 110 core unit tests pass.
+- [x] (2026-07-13T20:11:04Z) SQL authoring, timeout, error-reference, troubleshooting, and component-authoring docs plus the core changelog describe the new contracts; all 46 CLI unit, golden, and integration tests pass.
+- [ ] Final validation: `nix fmt` and `cabal test all` pass on the complete EP-5 change.
 
 
 ## Surprises & Discoveries
@@ -260,3 +261,7 @@ sequence at offset zero and preserves exact payload bytes.
 Revision note (2026-07-13): Recorded completion of misplaced-directive rejection and
 file-absolute scanner diagnostics after all 109 core unit tests passed; block comments and
 ordinary trailing line comments remain unaffected.
+
+Revision note (2026-07-13): Recorded non-positive timeout rejection at both validation
+layers, documented the complete EP-5 contract, and captured passing 110-test core and
+46-test CLI validation; full workspace validation remains.

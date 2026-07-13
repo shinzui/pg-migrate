@@ -142,7 +142,7 @@ withLedger ledger options = options {ledger}
 withLockWait :: LockWait -> RunOptions -> RunOptions
 withLockWait lockWait options = options {lockWait}
 
--- | Set or disable the temporary PostgreSQL statement timeout.
+-- | Set a positive temporary PostgreSQL statement timeout, or use 'Nothing' for no override.
 withStatementTimeout :: Maybe NominalDiffTime -> RunOptions -> RunOptions
 withStatementTimeout statementTimeout options = options {statementTimeout}
 

@@ -626,7 +626,7 @@ validateOptions options = do
     WaitFor timeout | timeout < 0 -> Left (InvalidLockWait timeout)
     _ -> Right ()
   case runStatementTimeout options of
-    Just timeout | timeout < 0 -> Left (InvalidStatementTimeout timeout)
+    Just timeout | timeout <= 0 -> Left (InvalidStatementTimeout timeout)
     _ -> Right ()
 
 elapsedSince :: Word64 -> IO NominalDiffTime

@@ -37,6 +37,8 @@ not cover a newly added filename.
 Check the `SqlError` constructor:
 
 - `EmptySql` means comments and whitespace were found but no SQL statement.
+- `ByteOrderMarkFound` means the file starts with a UTF-8 byte-order mark; configure the
+  editor to save plain UTF-8 and remove the mark without changing the remaining bytes.
 - `ProhibitedTransactionCommand` means the file contains a transaction boundary such as
   `BEGIN` or `COMMIT`; remove it because the runner owns the transaction.
 - `PsqlMetaCommand` or `CopyFromStdin` means the payload relies on psql client behavior not
@@ -44,7 +46,8 @@ Check the `SqlError` constructor:
 - `NonTransactionalStatementCount` means a file with the `no-transaction` directive does
   not contain exactly one statement.
 - `UnknownDirective` or `DuplicateNoTransactionDirective` means the leading
-  `pg-migrate:` comment is misspelled or repeated.
+  `pg-migrate:` comment is misspelled or repeated. `MisplacedDirective` means such a line
+  comment appears after SQL has already begun; move it into the leading comment region.
 - `UnterminatedSqlConstruct` means a quoted string, identifier, dollar-quoted body, or
   block comment is incomplete.
 

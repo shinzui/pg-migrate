@@ -166,7 +166,7 @@ causes are:
 | --- | --- |
 | invalid component or migration name | empty value, surrounding whitespace, `/`, non-printable or non-ASCII characters, or excessive length |
 | invalid embedded migration file | the manifest filename must end in `.sql` and have a non-empty basename |
-| invalid SQL | UTF-8, directives, transaction commands, statement count, psql commands, or an unterminated SQL construct |
+| invalid SQL | UTF-8 or a leading BOM, directives, transaction commands, statement count, psql commands, or an unterminated SQL construct |
 | invalid ledger schema | empty or reserved `pg_` name, NUL, or PostgreSQL's 63-byte limit |
 
 Keep the error structured in application logs. Rendered `Show` text is diagnostic output,

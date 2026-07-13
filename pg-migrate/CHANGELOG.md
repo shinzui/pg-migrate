@@ -14,6 +14,8 @@ constructors and the `CleanupFailed` constructor.
   `CleanupFailed MigrationError (NonEmpty CleanupIssue)`.
 - Added `HistoryPayloadEvidenceTooWeak` to `HistoryValidationError`; exhaustive consumers
   must handle the new constructor.
+- Added `ByteOrderMarkFound` and `MisplacedDirective` to `SqlError`; exhaustive consumers
+  must handle the new constructors.
 
 ### Fixes and behavior changes
 
@@ -26,6 +28,11 @@ constructors and the `CleanupFailed` constructor.
 - Require `SamePayload` mappings to use evidence of at least
   `SourceManifestVerified` strength, preventing matching but unverified ledger-only
   checksums from authorizing imports.
+- Reject SQL payloads with a leading UTF-8 byte-order mark and reject `pg-migrate:` line
+  comments placed after SQL begins; psql meta-command diagnostics now use file-absolute
+  line numbers.
+- Reject zero and negative temporary statement timeouts before acquiring a connection;
+  `Nothing` remains the way to leave the PostgreSQL session default untouched.
 
 ## 1.0.0.0 — 2026-07-10
 
