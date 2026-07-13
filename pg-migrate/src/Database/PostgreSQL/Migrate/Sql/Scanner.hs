@@ -22,6 +22,12 @@ data SqlError
   | UnknownDirective
       { directive :: !Text
       }
+  | -- | A @pg-migrate:@ line-comment directive appeared after SQL began.
+    -- Block comments never participate in the directive grammar.
+    MisplacedDirective
+      { directive :: !Text,
+        lineNumber :: !Int
+      }
   | DuplicateNoTransactionDirective
   | UnterminatedSqlConstruct
       { construct :: !Text
@@ -67,8 +73,8 @@ sqlScanStatementCount SqlScan {statementCount} = statementCount
 
 scanSql :: Text -> Either SqlError SqlScan
 scanSql sql = do
-  (noTransaction, body) <- scanLeadingRegion False (Text.unpack sql)
-  statements <- scanStatements body
+  (noTransaction, bodyLine, body) <- scanLeadingRegion False 1 (Text.unpack sql)
+  statements <- scanStatements bodyLine body
   traverse_ validateStatement statements
   let statementCount = length statements
   case (noTransaction, statementCount) of
@@ -77,17 +83,19 @@ scanSql sql = do
     (True, count) -> Left (NonTransactionalStatementCount count)
     (False, count) -> Right (SqlScan Transactional count)
 
-scanLeadingRegion :: Bool -> String -> Either SqlError (Bool, String)
-scanLeadingRegion noTransaction input =
-  case dropWhile Char.isSpace input of
-    '-' : '-' : rest -> do
-      let (comment, remaining) = break (== '\n') rest
-      noTransaction' <- inspectLeadingComment noTransaction comment
-      scanLeadingRegion noTransaction' remaining
-    '/' : '*' : rest -> do
-      remaining <- consumeLeadingBlockComment 1 rest
-      scanLeadingRegion noTransaction remaining
-    remaining -> Right (noTransaction, remaining)
+scanLeadingRegion :: Bool -> Int -> String -> Either SqlError (Bool, Int, String)
+scanLeadingRegion noTransaction line input =
+  let (leadingWhitespace, afterWhitespace) = span Char.isSpace input
+      nextLine = line + length (filter (== '\n') leadingWhitespace)
+   in case afterWhitespace of
+        '-' : '-' : rest -> do
+          let (comment, remaining) = break (== '\n') rest
+          noTransaction' <- inspectLeadingComment noTransaction comment
+          scanLeadingRegion noTransaction' nextLine remaining
+        '/' : '*' : rest -> do
+          (lineAfterComment, remaining) <- consumeLeadingBlockComment 1 nextLine rest
+          scanLeadingRegion noTransaction lineAfterComment remaining
+        remaining -> Right (noTransaction, nextLine, remaining)
 
 inspectLeadingComment :: Bool -> String -> Either SqlError Bool
 inspectLeadingComment alreadySeen comment =
@@ -102,18 +110,19 @@ inspectLeadingComment alreadySeen comment =
             then Left (UnknownDirective commentText)
             else Right alreadySeen
 
-consumeLeadingBlockComment :: Int -> String -> Either SqlError String
-consumeLeadingBlockComment depth input =
+consumeLeadingBlockComment :: Int -> Int -> String -> Either SqlError (Int, String)
+consumeLeadingBlockComment depth line input =
   case input of
     [] -> Left (UnterminatedSqlConstruct "block comment")
-    '/' : '*' : rest -> consumeLeadingBlockComment (depth + 1) rest
+    '/' : '*' : rest -> consumeLeadingBlockComment (depth + 1) line rest
     '*' : '/' : rest
-      | depth == 1 -> Right rest
-      | otherwise -> consumeLeadingBlockComment (depth - 1) rest
-    _ : rest -> consumeLeadingBlockComment depth rest
+      | depth == 1 -> Right (line, rest)
+      | otherwise -> consumeLeadingBlockComment (depth - 1) line rest
+    '\n' : rest -> consumeLeadingBlockComment depth (line + 1) rest
+    _ : rest -> consumeLeadingBlockComment depth line rest
 
-scanStatements :: String -> Either SqlError [Statement]
-scanStatements = go 1 True emptyAccumulator []
+scanStatements :: Int -> String -> Either SqlError [Statement]
+scanStatements initialLine = go initialLine True emptyAccumulator []
   where
     go line lineOnlyWhitespace accumulator statements input =
       case input of
@@ -123,8 +132,12 @@ scanStatements = go 1 True emptyAccumulator []
         character : rest
           | Char.isSpace character ->
               go line lineOnlyWhitespace (flushWord accumulator) statements rest
-        '-' : '-' : rest ->
-          go line lineOnlyWhitespace (flushWord accumulator) statements (dropLineComment rest)
+        '-' : '-' : rest -> do
+          let (comment, remaining) = break (== '\n') rest
+              commentText = Text.strip (Text.pack comment)
+          if "pg-migrate:" `Text.isPrefixOf` commentText
+            then Left (MisplacedDirective commentText line)
+            else go line lineOnlyWhitespace (flushWord accumulator) statements remaining
         '/' : '*' : rest -> do
           (nextLine, nextLineOnlyWhitespace, remaining) <-
             consumeBlockComment 1 line lineOnlyWhitespace rest
@@ -165,9 +178,6 @@ scanStatements = go 1 True emptyAccumulator []
                 rest
         _ : rest ->
           go line False (markContent (flushWord accumulator)) statements rest
-
-dropLineComment :: String -> String
-dropLineComment = dropWhile (/= '\n')
 
 consumeBlockComment :: Int -> Int -> Bool -> String -> Either SqlError (Int, Bool, String)
 consumeBlockComment depth line lineOnlyWhitespace input =

@@ -26,8 +26,15 @@ tests =
       testCase "a directive inside a string is ordinary payload" $
         modeOf "SELECT '-- pg-migrate: no-transaction'"
           @?= Right Transactional,
-      testCase "a directive after the first SQL token is ignored" $
-        modeOf "SELECT 1;\n-- pg-migrate: no-transaction\nSELECT 2"
+      testCase "a directive after the first SQL token is rejected" $
+        assertDefinitionLeft
+          (InvalidSql (MisplacedDirective "pg-migrate: no-transaction" 2))
+          ( sqlMigration
+              "0001-test"
+              "SELECT 1;\n-- pg-migrate: no-transaction\nSELECT 2"
+          ),
+      testCase "an ordinary comment after the first SQL token remains valid" $
+        modeOf "SELECT 1;\n-- done"
           @?= Right Transactional,
       testCase "an unknown leading directive fails" $
         assertDefinitionLeft
@@ -99,6 +106,10 @@ tests =
         assertDefinitionLeft
           (InvalidSql (PsqlMetaCommand 2))
           (sqlMigration "0001-test" "SELECT 1;\n  \\echo unsupported"),
+      testCase "psql meta-command lines include the leading comment region" $
+        assertDefinitionLeft
+          (InvalidSql (PsqlMetaCommand 4))
+          (sqlMigration "0001-test" "-- a\n-- b\n\n\\copy example from stdin"),
       testCase "COPY FROM STDIN is unsupported" $
         assertDefinitionLeft
           (InvalidSql CopyFromStdin)

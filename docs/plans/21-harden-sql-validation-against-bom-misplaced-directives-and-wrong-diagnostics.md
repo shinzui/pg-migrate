@@ -49,7 +49,7 @@ even if it requires splitting a partially completed task into two ("done" vs. "r
 This section must always reflect the actual current state of the work.
 
 - [x] (2026-07-13T20:05:39Z) Milestone 1: leading BOM rejected by `validateSql` with a dedicated `SqlError`; all 107 core unit tests pass, including ordinary SQL, hidden-directive, and mid-file U+FEFF coverage.
-- [ ] Milestone 2: misplaced `pg-migrate:` comments rejected; line numbering corrected end-to-end.
+- [x] (2026-07-13T20:07:17Z) Milestone 2: misplaced `pg-migrate:` line comments are rejected with their file-absolute line; leading-region line accounting also makes psql meta-command diagnostics file-absolute, and all 109 core unit tests pass.
 - [ ] Milestone 3: non-positive statement timeouts rejected; timeout semantics documented.
 - [ ] Docs (`manifest-authoring.md`, `locking-and-timeouts.md`, `errors-and-events.md` if error tables are listed) and core changelog updated; `cabal test all` green.
 
@@ -256,3 +256,7 @@ but touches disjoint modules.
 Revision note (2026-07-13): Recorded completion of the leading-BOM milestone after the
 core unit suite passed all 107 tests; the validator rejects only the editor-artifact byte
 sequence at offset zero and preserves exact payload bytes.
+
+Revision note (2026-07-13): Recorded completion of misplaced-directive rejection and
+file-absolute scanner diagnostics after all 109 core unit tests passed; block comments and
+ordinary trailing line comments remain unaffected.
