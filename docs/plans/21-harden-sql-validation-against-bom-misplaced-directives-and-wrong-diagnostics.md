@@ -52,7 +52,7 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-13T20:07:17Z) Milestone 2: misplaced `pg-migrate:` line comments are rejected with their file-absolute line; leading-region line accounting also makes psql meta-command diagnostics file-absolute, and all 109 core unit tests pass.
 - [x] (2026-07-13T20:11:04Z) Milestone 3: non-positive statement timeouts are rejected before connection acquisition and by the defensive lock helper; all 110 core unit tests pass.
 - [x] (2026-07-13T20:11:04Z) SQL authoring, timeout, error-reference, troubleshooting, and component-authoring docs plus the core changelog describe the new contracts; all 46 CLI unit, golden, and integration tests pass.
-- [ ] Final validation: `nix fmt` and `cabal test all` pass on the complete EP-5 change.
+- [x] (2026-07-13T20:13:41Z) Final validation: `nix fmt` reports zero changes and `cabal test all` exits 0 across all 11 workspace test suites.
 
 
 ## Surprises & Discoveries
@@ -60,7 +60,9 @@ This section must always reflect the actual current state of the work.
 Document unexpected behaviors, bugs, optimizations, or insights discovered during
 implementation. Provide concise evidence.
 
-(None yet.)
+No unexpected implementation behavior changed the planned design. The full workspace run
+confirmed that the CLI renders these definition errors through `Show`, so adding public
+`SqlError` constructors required no JSON v1 or golden changes.
 
 
 ## Decision Log
@@ -93,7 +95,21 @@ implementation. Provide concise evidence.
 Summarize outcomes, gaps, and lessons learned at major milestones or at completion.
 Compare the result against the original purpose.
 
-(To be filled during and after implementation.)
+EP-5 is complete. Leading UTF-8 BOM bytes now fail as `ByteOrderMarkFound` before decoding,
+so they cannot hide the nontransactional directive or reach PostgreSQL as a confusing
+syntax error. A `pg-migrate:` line comment after SQL begins now fails as
+`MisplacedDirective` with its file-absolute line, while psql meta-command errors also keep
+their original file line through any leading whitespace or comments. Ordinary trailing
+comments, directive-like text in block comments, and U+FEFF away from byte offset zero
+retain their prior behavior.
+
+The runner now rejects zero and negative temporary statement timeouts before acquiring a
+connection, and its lower-level timeout helper enforces the same invariant defensively.
+`Nothing` remains the explicit no-override value and positive sub-millisecond durations
+still round up to one millisecond. The authoring, timeout, error-reference,
+troubleshooting, component-authoring, and changelog documentation reflect these contracts.
+Validation passed all 110 core unit tests, all 46 CLI tests, formatting with zero changes,
+and all 11 workspace Cabal test suites.
 
 
 ## Context and Orientation
@@ -265,3 +281,6 @@ ordinary trailing line comments remain unaffected.
 Revision note (2026-07-13): Recorded non-positive timeout rejection at both validation
 layers, documented the complete EP-5 contract, and captured passing 110-test core and
 46-test CLI validation; full workspace validation remains.
+
+Revision note (2026-07-13): Recorded clean formatting and a successful 11-suite workspace
+run, finalized the outcomes and retrospective, and completed EP-5.

@@ -86,7 +86,7 @@ behavior against a live database, so they verify differently and stay separate.
 | 2 | Preserve durable success through cleanup failures and async exceptions | docs/plans/18-preserve-durable-success-through-cleanup-failures-and-async-exceptions.md | None | EP-1 | Complete |
 | 3 | Harden import adapter parsing, audit evidence, and internal totality | docs/plans/19-harden-import-adapter-parsing-audit-evidence-and-internal-totality.md | None | EP-2 | Complete |
 | 4 | Fix embed authoring numbering, recompilation tracking, and byte embedding | docs/plans/20-fix-embed-authoring-numbering-recompilation-tracking-and-byte-embedding.md | None | None | Complete |
-| 5 | Harden SQL validation against BOM, misplaced directives, and wrong diagnostics | docs/plans/21-harden-sql-validation-against-bom-misplaced-directives-and-wrong-diagnostics.md | None | None | In Progress |
+| 5 | Harden SQL validation against BOM, misplaced directives, and wrong diagnostics | docs/plans/21-harden-sql-validation-against-bom-misplaced-directives-and-wrong-diagnostics.md | None | None | Complete |
 | 6 | Align verification policy handling and remove quadratic ledger scans | docs/plans/22-align-verification-policy-handling-and-remove-quadratic-ledger-scans.md | None | None | Not Started |
 
 Status values: Not Started, In Progress, Complete, Cancelled.
@@ -176,9 +176,9 @@ and the milestone. This section provides an at-a-glance view of the entire initi
 - [x] EP-4: Numbering rollover fixed with regression tests
 - [x] EP-4: GHC 9.12 directory-membership revalidation via a module-local compiler plugin
 - [x] EP-4: Efficient byte embedding and authoring/diagnostic polish
-- [ ] EP-5: BOM rejected at definition time in scanner and embed manifest
-- [ ] EP-5: Misplaced directives rejected; line numbers corrected
-- [ ] EP-5: `statement_timeout` zero semantics resolved and documented
+- [x] EP-5: BOM rejected at definition time in scanner and embed manifest
+- [x] EP-5: Misplaced directives rejected; line numbers corrected
+- [x] EP-5: `statement_timeout` zero semantics resolved and documented
 - [ ] EP-6: Repair/import unknown-migrations policy decision implemented and documented
 - [ ] EP-6: Quadratic ledger reload and map rebuilds removed
 - [ ] EP-6: Mixed native/imported prefix semantics tested and documented
@@ -227,6 +227,12 @@ interactions between child plans. Provide concise evidence.
   1,048,577-byte forced unit build did not finish with the old representation after 106.59
   seconds; the `BytesPrimL` implementation completed the full forced unit build in 10.21
   seconds and preserved all 256 byte values.
+
+- EP-5 added the public `ByteOrderMarkFound` and `MisplacedDirective` `SqlError`
+  constructors, made scanner line diagnostics file-absolute, and rejected non-positive
+  temporary statement timeouts before connection acquisition. EP-6 shares the core
+  changelog and must preserve these major-release notes when adding its entries. Evidence:
+  `nix fmt` changed no files and all 11 Cabal test suites passed.
 
 
 ## Decision Log
@@ -286,17 +292,18 @@ Summarize outcomes, gaps, and lessons learned at major milestones or at completi
 Compare the result against the original vision.
 
 EP-1 completed the highest-severity CLI remediation, EP-2 completed the cross-package
-durable-success invariant, EP-3 hardened both history-import adapters, and EP-4 completed
-the embed remediation. Four of six
-child plans are complete. Migration, repair, and history-import reports preserve cleanup
+durable-success invariant, EP-3 hardened both history-import adapters, EP-4 completed the
+embed remediation, and EP-5 hardened core SQL and timeout validation. Five of six child
+plans are complete. Migration, repair, and history-import reports preserve cleanup
 observations; Codd source cleanup now follows the same rule; CLI schema v1 exposes report
 cleanup additively; and test-support propagates cancellation after cleanup. Import audit
 evidence identifies its source table, strict Codd manifests are symmetric, lock-key
 overflow is rejected, adapter payload lookups are total, and `SamePayload` requires
-verified evidence strength. EP-4 has additionally fixed authoring rollover, primitive byte
-embedding, BOM diagnostics, post-rename clobber detection, platform documentation, and a
-GHC 9.12 module-local recompilation fallback that catches directory membership changes;
-all 11 Cabal test suites pass. EP-5 and EP-6 remain Not Started.
+verified evidence strength. Embed authoring now handles numbering rollover, primitive byte
+embedding, BOM diagnostics, post-rename clobber detection, and GHC 9.12 directory
+membership changes. Core SQL validation rejects leading BOMs and misplaced directives
+with file-absolute diagnostics, while non-positive statement timeouts fail before
+connection acquisition. All 11 Cabal test suites pass. EP-6 remains Not Started.
 
 
 Revision note (2026-07-13): Marked EP-2 complete, recorded its report-based cleanup
@@ -314,3 +321,7 @@ milestones plus its GHC 9.12 directory-dependency blocker; kept EP-4 In Progress
 Revision note (2026-07-13): Completed EP-4 after verifying the GHC 9.12 module-local
 recompilation plugin against a real add/remove downstream build while retaining a separate
 probe for ordinary tracked-file dependencies.
+
+Revision note (2026-07-13): Completed EP-5 after clean formatting and all 11 workspace test
+suites passed; recorded its public `SqlError`, scanner diagnostic, and timeout-validation
+contracts for the remaining core plan.
