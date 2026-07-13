@@ -144,12 +144,18 @@ The signatures above assume `Hasql.Connection` is imported as `Connection` and t
 | `MigratedDatabaseMigrationFailed` | plan verification or migration execution failed |
 | `MigratedDatabaseCallbackAcquisitionFailed` | the fresh assertion connection could not be acquired |
 | `MigratedDatabaseCallbackFailed` | the callback threw an exception |
-| `MigratedDatabaseCallbackCleanupFailed` | releasing the callback connection failed |
 | `MigratedDatabaseCallbackAndCleanupFailed` | both the callback and its cleanup failed |
 
 A Hasql `Left` returned normally by the callback is the callback's result, not a thrown
 exception, so inspect it explicitly. Preserve structured migration and Hasql errors in test
 output instead of reducing them to a generic boolean.
+
+Cancellation is not converted into `MigratedDatabaseCallbackFailed`: asynchronous
+exceptions propagate after the callback connection is released. If the callback returns a
+value successfully but releasing that connection fails, the value wins; the ephemeral
+server teardown immediately discards the connection and database. A synchronous callback
+failure remains primary, and a simultaneous release failure is retained in
+`MigratedDatabaseCallbackAndCleanupFailed`.
 
 ## What to test
 

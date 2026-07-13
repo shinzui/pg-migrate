@@ -863,12 +863,18 @@ data MigrationReport = MigrationReport
   { startedAt :: !UTCTime
   , finishedAt :: !UTCTime
   , results :: !(NonEmpty MigrationResult)
+  , cleanupIssues :: ![CleanupIssue]
   }
   deriving stock (Generic, Eq, Show)
 ```
 
 Status and verification have separate report types and do not overload
 `MigrationReport` with modes that did not execute.
+
+Cleanup issues after a durable success are report data rather than errors. Repair and
+history-import reports expose the same `cleanupIssues` field. `CleanupFailed` is used only
+when cleanup follows a primary `MigrationError`, which it retains alongside a non-empty
+issue list.
 
 Event, outcome, and report constructors are public because they are immutable
 output values intended for integration and testing. Constructors for validated

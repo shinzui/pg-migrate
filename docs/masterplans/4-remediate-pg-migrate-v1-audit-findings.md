@@ -34,11 +34,11 @@ governed by `docs/reference/release-policy.md` and `agents/skills/release/SKILL.
 any change to the v1 ledger database schema (`ledgerSchemaVersion == 1` stays untouched —
 every fix here is in Haskell code, documentation, or the JSON rendering layer).
 
-Several fixes change public API shapes (`ExecutionOptions` fields become `Maybe`, the
-`CleanupFailed` error carries the preserved success value, dead error constructors are
-removed). These are acceptable because the packages are pre-Hackage internal releases; each
-child plan records the exact API delta in its own Decision Log and changelog entry so the
-eventual release notes can be assembled mechanically.
+Several fixes change public API shapes (`ExecutionOptions` fields become `Maybe`, successful
+reports gain `cleanupIssues`, `CleanupFailed` requires a primary error, and dead error
+constructors are removed). These are acceptable because the packages are pre-Hackage
+internal releases; each child plan records the exact API delta in its own Decision Log and
+changelog entry so the eventual release notes can be assembled mechanically.
 
 
 ## Decomposition Strategy
@@ -83,7 +83,7 @@ behavior against a live database, so they verify differently and stay separate.
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
 | 1 | Fix CLI runner-option overrides and authoring input safety | docs/plans/17-fix-cli-runner-option-overrides-and-authoring-input-safety.md | None | None | Complete |
-| 2 | Preserve durable success through cleanup failures and async exceptions | docs/plans/18-preserve-durable-success-through-cleanup-failures-and-async-exceptions.md | None | EP-1 | In Progress |
+| 2 | Preserve durable success through cleanup failures and async exceptions | docs/plans/18-preserve-durable-success-through-cleanup-failures-and-async-exceptions.md | None | EP-1 | Complete |
 | 3 | Harden import adapter parsing, audit evidence, and internal totality | docs/plans/19-harden-import-adapter-parsing-audit-evidence-and-internal-totality.md | None | EP-2 | Not Started |
 | 4 | Fix embed authoring numbering, recompilation tracking, and byte embedding | docs/plans/20-fix-embed-authoring-numbering-recompilation-tracking-and-byte-embedding.md | None | None | Not Started |
 | 5 | Harden SQL validation against BOM, misplaced directives, and wrong diagnostics | docs/plans/21-harden-sql-validation-against-bom-misplaced-directives-and-wrong-diagnostics.md | None | None | Not Started |
@@ -99,7 +99,7 @@ There are no hard dependencies: every plan compiles and verifies against the cur
 without any other plan's artifacts, so all six can proceed in parallel across sessions.
 
 Two soft dependencies order the work when done serially. EP-2 changes the payload of the
-core `CleanupFailed` constructor (and adds a success-carrying shape), which
+core `CleanupFailed` constructor and adds cleanup observations to successful reports, which
 `pg-migrate-cli`'s JSON error rendering in
 `pg-migrate-cli/src/Database/PostgreSQL/Migrate/CLI/Json.hs` must render; implementing EP-1
 first means the CLI test suite (unit, golden, integration) is already trustworthy when EP-2
@@ -123,7 +123,8 @@ Recommended serial order by severity and risk: EP-1, EP-2, EP-3, EP-4, EP-5, EP-
 `pg-migrate/src/Database/PostgreSQL/Migrate/Runner/Types.hs`, rendered in
 `pg-migrate-cli/src/Database/PostgreSQL/Migrate/CLI/Json.hs` and
 `pg-migrate-cli/src/Database/PostgreSQL/Migrate/CLI/Text.hs`): EP-2 owns the redefinition
-(carrying the preserved success value); EP-1 must not change the JSON error rendering
+(`CleanupFailed` retains a mandatory primary error while successful reports carry
+`cleanupIssues`); EP-1 must not change the JSON error rendering
 beyond its own findings so that EP-2's cascade is a clean, single-purpose diff. The JSON v1
 contract in `docs/reference/json-v1.md` and the goldens in `pg-migrate-cli/test/golden/json`
 are updated only by EP-2 for this constructor. Whichever plan lands second resolves the
@@ -164,9 +165,9 @@ and the milestone. This section provides an at-a-glance view of the entire initi
 
 - [x] EP-1: Optional execution flags no longer clobber application `RunOptions`
 - [x] EP-1: `new --description` is line-safe; CLI exit-class and parser polish landed
-- [ ] EP-2: Core runner returns preserved success alongside cleanup issues
-- [ ] EP-2: CLI JSON/text render the new `CleanupFailed` shape; goldens updated
-- [ ] EP-2: Test-support rethrows async exceptions and preserves callback results
+- [x] EP-2: Core runner returns preserved success alongside cleanup issues
+- [x] EP-2: CLI JSON/text render the new `CleanupFailed` shape; goldens updated
+- [x] EP-2: Test-support rethrows async exceptions and preserves callback results
 - [ ] EP-3: Codd lock-key reader rejects out-of-range keys
 - [ ] EP-3: Audit evidence completeness (source table recorded, strict-source symmetry, dead constructors removed)
 - [ ] EP-3: Internal totality and core `SamePayload` strength gate
@@ -192,6 +193,14 @@ interactions between child plans. Provide concise evidence.
   and parser changes and append their release notes to that section. Evidence: EP-1's
   workspace-wide `cabal test all` rebuilt both import adapters successfully against the
   changed CLI facade.
+
+- EP-2 established the cleanup contract EP-3 must copy for the Codd source lock: durable
+  successes retain ordered cleanup observations as report data, while cleanup after a
+  failure retains a mandatory primary error. The core reports expose
+  `cleanupIssues :: [CleanupIssue]`, JSON v1 exposes additive `cleanup_issues`, and
+  `CleanupIssue` now derives `Eq`. Evidence: the real PostgreSQL regression releases the
+  lock from a committed migration and receives `Right MigrationReport` with
+  `AdvisoryUnlockReturnedFalse`; all 15 acceptance groups pass.
 
 
 ## Decision Log
@@ -221,13 +230,30 @@ interactions between child plans. Provide concise evidence.
   audit remediation should not block on it.
   Date: 2026-07-13
 
+- Decision: EP-2 represents cleanup after durable success in the three public success
+  reports and reserves `CleanupFailed` for cleanup accompanying a primary
+  `MigrationError`; EP-3 should apply the same success-versus-primary distinction to
+  `CoddUnlockFailed`.
+  Rationale: A polymorphic lifecycle error cannot contain every possible success value,
+  whereas report fields preserve the existing `Either error report` operation signatures
+  and prevent successful audit evidence from being discarded.
+  Date: 2026-07-13
+
 
 ## Outcomes & Retrospective
 
 Summarize outcomes, gaps, and lessons learned at major milestones or at completion.
 Compare the result against the original vision.
 
-EP-1 completed the highest-severity audit remediation and the associated CLI safety/polish
-batch. One of six child plans is complete. The workspace remains green across all 15 test
-components, including PostgreSQL integration and Template Haskell recompilation coverage;
-the remaining five subsystem plans are still Not Started.
+EP-1 completed the highest-severity CLI remediation, and EP-2 completed the cross-package
+durable-success invariant. Two of six child plans are complete. Migration, repair, and
+history-import reports now preserve cleanup observations; CLI schema v1 exposes them
+additively; test-support propagates cancellation after cleanup. The workspace remains green
+across all 15 test components, production dependency closure, PostgreSQL integration, and
+Template Haskell recompilation coverage. EP-3 is the recommended next plan, and the
+remaining four subsystem plans are Not Started.
+
+
+Revision note (2026-07-13): Marked EP-2 complete, recorded its report-based cleanup
+contract for EP-3, and updated aggregate progress and outcomes after the full acceptance
+matrix passed.

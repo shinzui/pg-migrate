@@ -28,3 +28,10 @@ Runner operations hold one dedicated connection through their session lock and c
 Transactional SQL plus ledger state is atomic. Nontransactional state is durable but may
 remain ambiguous after interruption. History import writes target ledger and audit rows
 atomically without executing target actions.
+
+The successful `MigrationReport`, `RepairReport`, and `HistoryImportReport` records expose
+`cleanupIssues :: [CleanupIssue]`. An empty list means lock release and timeout restoration
+completed normally. A non-empty list means the primary operation completed durably and the
+caller must retain the report while investigating cleanup. `CleanupFailed` is reserved for
+the failure-plus-cleanup case and always contains both a primary `MigrationError` and a
+non-empty issue list.

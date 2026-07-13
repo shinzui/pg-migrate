@@ -18,9 +18,9 @@ Decision Log, and Outcomes & Retrospective must be kept up to date as work proce
 
 pg-migrate's runner brackets every operation (run, repair, history import) in a lifecycle:
 set a temporary PostgreSQL statement timeout, acquire a session advisory lock, do the work,
-release the lock, restore the timeout. Today, if the work succeeds — every migration
-committed durably — but a cleanup step then fails (the unlock statement errors because the
-connection dropped, or the timeout restore fails), the entire operation returns
+release the lock, restore the timeout. Before this plan, if the work succeeded — every
+migration committed durably — but a cleanup step then fails (the unlock statement errors
+because the connection dropped, or the timeout restore fails), the entire operation returns
 `Left (CleanupFailed Nothing …)` and the successful `MigrationReport` is discarded. An
 operator cannot tell from the result that their migrations actually applied. The
 2026-07-13 audit flagged this in the core runner
@@ -31,13 +31,13 @@ fails). The test-support package has a second, related defect: it catches `SomeE
 around the user callback, so asynchronous exceptions (Ctrl-C, tasty timeouts) are swallowed
 into an ordinary `Left` instead of propagating, defeating cancellation.
 
-After this plan, a caller of `runMigrationPlan`, `repairMigration`, or
+Now a caller of `runMigrationPlan`, `repairMigration`, or
 `importMigrationHistory` always receives the durable outcome: success reports carry any
 cleanup issues as data instead of being replaced by an error, `CleanupFailed` always
 carries the primary error (its `Maybe` becomes mandatory), the CLI renders the new shape,
 and test-support rethrows async exceptions and preserves callback results. The
-documentation contract in `docs/reference/errors-and-events.md` — "cleanup failure retains
-the primary failure" — becomes true for successes as well.
+documentation contract in `docs/reference/errors-and-events.md` now distinguishes cleanup
+after durable success from cleanup after a primary failure.
 
 
 ## Progress
@@ -49,7 +49,7 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-13T18:26:56Z) Milestone 1: core lifecycle returns cleanup issues as data; reports gain `cleanupIssues`; `CleanupFailed` reshaped; 103 unit and 26 integration tests pass.
 - [x] (2026-07-13T18:29:04Z) Milestone 2: CLI JSON/text rendering, goldens, and `docs/reference/json-v1.md` updated; 43 unit/golden and 3 integration tests pass.
 - [x] (2026-07-13T18:30:29Z) Milestone 3: test-support rethrows async exceptions, preserves callback values, closes the unmasked acquire window; all 5 tests pass.
-- [ ] Docs (`errors-and-events.md`, `public-api.md`, operations runbooks) and changelogs updated; `cabal test all` green.
+- [x] (2026-07-13T18:36:22Z) Docs, public Haddocks, and three package changelogs updated; `nix fmt`, `cabal test all`, production-closure validation, and `just acceptance` pass across all 15 test groups on PostgreSQL 17.
 
 
 ## Surprises & Discoveries
@@ -63,6 +63,13 @@ implementation. Provide concise evidence.
   instances. Evidence: the first `cabal build pg-migrate` failed at `MigrationReport`'s
   derived `Eq`; `Hasql.Engine.Errors.SessionError` in the mori-resolved Hasql source derives
   `Show, Eq`.
+
+- A fake `ConnectionProvider` cannot exercise `withRunLifecycle` without a real Hasql
+  connection because the lifecycle first queries the server version and applies session
+  resources. The planned fake-provider unit test was therefore replaced by a PostgreSQL
+  integration test that releases the actual advisory lock from a committed migration.
+  Evidence: `unlock failure preserves the migration report` passes and observes
+  `[AdvisoryUnlockReturnedFalse]` while the ledger row remains `Applied`.
 
 
 ## Decision Log
@@ -104,7 +111,19 @@ implementation. Provide concise evidence.
 Summarize outcomes, gaps, and lessons learned at major milestones or at completion.
 Compare the result against the original purpose.
 
-(To be filled during and after implementation.)
+EP-2 is complete. Migration, repair, and history-import success reports now retain ordered
+cleanup observations; a real integration scenario proves an advisory-unlock failure no
+longer erases a durably committed `MigrationReport`. `CleanupFailed` has a mandatory
+primary error, and the CLI exposes cleanup observations in both text and additive JSON v1
+fields. Test-support closes the callback-connection acquisition window, lets a successful
+callback value win over release failure, and propagates `UserInterrupt` after cleanup.
+
+The final verification passed all 15 workspace test groups, including 103 core unit tests,
+26 core PostgreSQL integration tests, 43 CLI unit/golden tests, 3 CLI integration tests,
+and 5 test-support tests. `just acceptance` also passed the production dependency-closure
+check on PostgreSQL 17. The implementation kept the JSON schema and ledger schema at v1;
+the Haskell constructor changes are documented as PVP-major changes for the eventual
+`1.1.0.0` package releases.
 
 
 ## Context and Orientation
@@ -114,20 +133,18 @@ lifecycle is: `runMigrationPlanWith` → `withRunLifecycle` → `runOnConnection
 `withStatementTimeoutResource` (applies/restores the PostgreSQL `statement_timeout`
 setting) around `withAdvisoryLockResource` (acquires/releases a session advisory lock via
 `pg_try_advisory_lock`/`pg_advisory_unlock`, statements in
-`pg-migrate/src/Database/PostgreSQL/Migrate/Runner/Lock.hs`). Both resource brackets follow
-the same pattern: run the inner action under `Control.Exception.try @SomeException`,
-perform the cleanup step (which returns `Either CleanupIssue ()`), then call
-`finishResource`, which calls `attachCleanup` (Runner.hs around lines 150-174).
-`attachCleanup` is the defect: given any non-empty cleanup issues it returns
-`Left (CleanupFailed (either Just (const Nothing) result) issues)` — discarding a `Right`
-result. Asynchronous exceptions are already handled correctly here (`isAsyncException`
-rethrows).
+`pg-migrate/src/Database/PostgreSQL/Migrate/Runner/Lock.hs`). Both resource brackets run
+the inner action under `Control.Exception.try @SomeException`, perform cleanup (which
+returns `Either CleanupIssue ()`), and return the primary result paired with ordered cleanup
+issues. `attachCleanup` now wraps only a `Left` primary error; a `Right` report receives the
+issues in its `cleanupIssues` field. Asynchronous exceptions are rethrown only after both
+resource cleanups have run.
 
 The relevant types are in `pg-migrate/src/Database/PostgreSQL/Migrate/Runner/Types.hs`:
 `CleanupIssue` (constructors `AdvisoryUnlockReturnedFalse`, `AdvisoryUnlockFailed`,
-`StatementTimeoutRestoreFailed`), `MigrationError` (including `CleanupFailed !(Maybe
-MigrationError) !(NonEmpty CleanupIssue)`), and `MigrationReport { startedAt, finishedAt,
-results }`. `RepairReport` is in
+`StatementTimeoutRestoreFailed`), `MigrationError` (including `CleanupFailed
+!MigrationError !(NonEmpty CleanupIssue)`), and `MigrationReport { startedAt, finishedAt,
+results, cleanupIssues }`. `RepairReport` is in
 `pg-migrate/src/Database/PostgreSQL/Migrate/Repair/Types.hs`; `HistoryImportReport` is in
 `pg-migrate/src/Database/PostgreSQL/Migrate/History/Types.hs`. Repair and history import
 reuse the same lifecycle via `withRunLifecycle` (see `repairMigration` in
@@ -147,10 +164,10 @@ rules in `docs/reference/release-policy.md`).
 
 Test-support is one module, `pg-migrate-test-support/src/Database/PostgreSQL/Migrate/Test.hs`.
 `withMigratedDatabase` starts an ephemeral PostgreSQL (`ephemeral-pg`), runs the plan,
-acquires a Hasql connection (line ~62, currently outside any mask), and calls `runCallback`
-(lines 70-83), which wraps the user callback in `Exception.try` at `SomeException` — this
-is where Ctrl-C is swallowed — and reports release failures even when the callback
-succeeded.
+acquires a Hasql callback connection inside `Exception.mask`, runs the callback under
+`restore`, releases the connection while masked, and then classifies the result. A caught
+`SomeAsyncException` is rethrown; a synchronous callback exception remains structured, and
+a successful callback value wins when only release fails.
 
 Integration tests for the core runner live in `pg-migrate/test/integration/Main.hs` (needs
 PostgreSQL; `process-compose up` or `cabal test all` in a prepared environment; see
@@ -174,10 +191,11 @@ on success, or wraps `CleanupFailed primary issues` on failure; `repairMigration
 error types (both already wrap `MigrationError` via `RepairRunnerError` /
 `HistoryImportRunnerError`, so the failure path needs no new constructors). Update
 `CleanupFailed` to carry a mandatory primary error. Add `cleanupIssues :: ![CleanupIssue]`
-to the three report records and update every construction site. Give `CleanupIssue` an
-`Eq`-free stock `Show` as today; no other type changes. Extend
-`pg-migrate/test/unit/Test/Runner.hs` with a fake-provider test exercising the pair-return,
-and extend the integration suite with a scenario that makes unlock fail deliberately (for
+to the three report records and update every construction site. Derive `Eq` for
+`CleanupIssue` because the pinned Hasql `SessionError` supports equality, preserving the
+reports' existing `Eq` instances. Exercise the pair-return with an integration scenario
+that makes unlock fail deliberately (a fake provider cannot pass the lifecycle's server
+version and resource checks without a real connection). For
 example, release the advisory lock inside a session migration via
 `SELECT pg_advisory_unlock_all()` so the runner's own unlock returns false) and asserts the
 run result is `Right report` with `cleanupIssues == [AdvisoryUnlockReturnedFalse]` and all
@@ -269,8 +287,11 @@ broken cleanup still returns `Left (CleanupFailed primary issues)` where `primar
 migration failure. CLI: the `up` JSON payload for a clean run contains
 `"cleanup_issues": []`, and the golden diff shows only additions. Test-support: the async
 test propagates `UserInterrupt` (test asserts via `Exception.try` around
-`withMigratedDatabase`), and a passing callback with a pre-released connection still
-returns the callback's value. `cabal test all` passes.
+`withMigratedDatabase`), and the result mapping keeps a `Right value` regardless of a
+release exception. Hasql's opaque connection API does not provide a safe way to synthesize
+a release exception (double release is invalid), so the latter branch is compile-reviewed
+while ordinary successful callbacks and async propagation are exercised end to end.
+`cabal test all` passes.
 
 
 ## Idempotence and Recovery
@@ -318,3 +339,7 @@ the master plan's Integration Points).
 Revision note (2026-07-13): Updated the CLI cascade instructions after EP-1 completed so
 this plan preserves the renamed success constructor and existing unreleased changelog
 instead of reasoning from the pre-EP-1 tree.
+
+Revision note (2026-07-13): Recorded the completed implementation, verification evidence,
+the `CleanupIssue` equality decision, and the real-connection integration-test substitution
+so the living plan matches the final tree.
