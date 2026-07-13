@@ -101,6 +101,7 @@ Use Template Haskell to embed the manifest, then create one component and one pl
 
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fplugin=Database.PostgreSQL.Migrate.Embed.RecompilePlugin #-}
 
 module Migrations (applicationPlan) where
 

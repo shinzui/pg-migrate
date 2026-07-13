@@ -51,6 +51,7 @@ library
   exposed-modules:
     Database.PostgreSQL.Migrate.Embed
     Database.PostgreSQL.Migrate.Embed.Internal
+    Database.PostgreSQL.Migrate.Embed.RecompilePlugin
 
   other-modules:
     Database.PostgreSQL.Migrate.Embed.Authoring
@@ -61,6 +62,7 @@ library
     , bytestring        >=0.12 && <0.13
     , directory         >=1.3  && <1.4
     , filepath          >=1.5  && <1.6
+    , ghc               >=9.10 && <9.13
     , pg-migrate        >=1.0  && <1.1
     , template-haskell  >=2.22 && <2.24
     , text              >=2.1  && <2.2

@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fplugin=Database.PostgreSQL.Migrate.Embed.RecompilePlugin #-}
+
 module Main (main) where
 
 import Data.Aeson qualified as Aeson

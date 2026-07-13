@@ -2,7 +2,7 @@ module Main (main) where
 
 import Control.Exception qualified as Exception
 import Control.Monad (filterM, unless, when)
-import Data.List (isPrefixOf)
+import Data.List (isInfixOf, isPrefixOf)
 import Data.Time.Clock qualified as Time
 import Paths_pg_migrate_embed qualified as Paths
 import System.Directory qualified as Directory
@@ -28,11 +28,25 @@ main = do
     copyDirectory fixtureSource workspace
     writeProjectFile corePackageRoot packageRoot workspace
     prepareProbe workspace
-    moduleTimestamp <- Directory.getModificationTime (workspace FilePath.</> "app/Main.hs")
+    directoryModuleTimestamp <-
+      Directory.getModificationTime (workspace FilePath.</> "app/Main.hs")
+    trackedModuleTimestamp <-
+      Directory.getModificationTime (workspace FilePath.</> "app/TrackedMain.hs")
 
-    initialOutput <- runProbe workspace
+    directoryOutput <- runDirectoryProbe workspace
+    let unlistedPath = workspace FilePath.</> "migrations/0002-unlisted.sql"
+    writeFile unlistedPath "SELECT 2;\n"
+    runDirectoryProbeExpectingFailure
+      workspace
+      "UnlistedSqlFiles [\"0002-unlisted.sql\"]"
+    Directory.removeFile unlistedPath
+    directoryOutputAfterRemoval <- runDirectoryProbe workspace
+    unless (directoryOutputAfterRemoval == directoryOutput) $
+      fail "removing the unlisted SQL file changed the embedded checksums"
+
+    initialOutput <- runTrackedProbe workspace
     writeTrackedFile (workspace FilePath.</> "migrations/0001-first.sql") "SELECT 2;\n"
-    sqlChangedOutput <- runProbe workspace
+    sqlChangedOutput <- runTrackedProbe workspace
     when (sqlChangedOutput == initialOutput) $
       fail "changing a tracked SQL file did not change the embedded checksums"
 
@@ -40,47 +54,102 @@ main = do
     writeTrackedFile
       (workspace FilePath.</> "migrations/manifest")
       "0001-first.sql\n0002-second.sql\n"
-    manifestChangedOutput <- runProbe workspace
+    manifestChangedOutput <- runTrackedProbe workspace
     when (manifestChangedOutput == sqlChangedOutput) $
       fail "changing the manifest did not change the embedded checksums"
     unless (length (lines manifestChangedOutput) == 2) $
       fail "the rebuilt probe did not embed both manifest entries"
 
-    finalModuleTimestamp <- Directory.getModificationTime (workspace FilePath.</> "app/Main.hs")
-    unless (finalModuleTimestamp == moduleTimestamp) $
-      fail "the recompilation test unexpectedly touched the Haskell module"
+    finalDirectoryModuleTimestamp <-
+      Directory.getModificationTime (workspace FilePath.</> "app/Main.hs")
+    finalTrackedModuleTimestamp <-
+      Directory.getModificationTime (workspace FilePath.</> "app/TrackedMain.hs")
+    unless
+      ( finalDirectoryModuleTimestamp == directoryModuleTimestamp
+          && finalTrackedModuleTimestamp == trackedModuleTimestamp
+      )
+      $ fail "the recompilation test unexpectedly touched a Haskell module"
 
-runProbe :: FilePath -> IO String
-runProbe workspace = do
+runDirectoryProbe :: FilePath -> IO String
+runDirectoryProbe workspace = do
   _ <-
     runChecked
       workspace
       "cabal"
-      [ "exec",
-        "--builddir=dist-recompilation",
-        "--",
-        "ghc",
-        "--make",
-        "app/Main.hs",
-        "-o",
-        "ghc-recompilation/probe",
-        "-odir",
-        "ghc-recompilation",
-        "-hidir",
-        "ghc-recompilation",
-        "-package",
-        "pg-migrate",
-        "-package",
-        "pg-migrate-embed",
-        "-XGHC2024",
-        "-XOverloadedStrings",
-        "-XTemplateHaskell"
-      ]
-  runChecked workspace (workspace FilePath.</> "ghc-recompilation/probe") []
+      directoryProbeArguments
+  runChecked workspace (workspace FilePath.</> "ghc-directory-recompilation/probe") []
+
+runDirectoryProbeExpectingFailure :: FilePath -> String -> IO ()
+runDirectoryProbeExpectingFailure workspace expectedError = do
+  let command =
+        (Process.proc "cabal" directoryProbeArguments)
+          { Process.cwd = Just workspace
+          }
+  (exitCode, standardOutput, standardError) <-
+    Process.readCreateProcessWithExitCode command ""
+  case exitCode of
+    ExitFailure _ ->
+      unless (expectedError `isInfixOf` (standardOutput <> standardError)) $
+        fail
+          ( "probe compilation failed without the expected diagnostic "
+              <> show expectedError
+              <> ":\n"
+              <> standardError
+          )
+    ExitSuccess ->
+      fail "adding an unlisted SQL file did not force manifest revalidation"
+
+runTrackedProbe :: FilePath -> IO String
+runTrackedProbe workspace = do
+  _ <-
+    runChecked
+      workspace
+      "cabal"
+      trackedProbeArguments
+  runChecked workspace (workspace FilePath.</> "ghc-tracked-recompilation/probe") []
+
+directoryProbeArguments :: [String]
+directoryProbeArguments =
+  ghcArguments
+    "app/Main.hs"
+    Nothing
+    "ghc-directory-recompilation"
+
+trackedProbeArguments :: [String]
+trackedProbeArguments =
+  ghcArguments
+    "app/TrackedMain.hs"
+    (Just "TrackedMain")
+    "ghc-tracked-recompilation"
+
+ghcArguments :: FilePath -> Maybe String -> FilePath -> [String]
+ghcArguments source mainModule outputDirectory =
+  [ "exec",
+    "--builddir=dist-recompilation",
+    "--",
+    "ghc",
+    "--make",
+    source,
+    "-o",
+    outputDirectory FilePath.</> "probe",
+    "-odir",
+    outputDirectory,
+    "-hidir",
+    outputDirectory,
+    "-package",
+    "pg-migrate",
+    "-package",
+    "pg-migrate-embed",
+    "-XGHC2024",
+    "-XOverloadedStrings",
+    "-XTemplateHaskell"
+  ]
+    <> maybe [] (\moduleName -> ["-main-is", moduleName]) mainModule
 
 prepareProbe :: FilePath -> IO ()
 prepareProbe workspace = do
-  Directory.createDirectory (workspace FilePath.</> "ghc-recompilation")
+  Directory.createDirectory (workspace FilePath.</> "ghc-directory-recompilation")
+  Directory.createDirectory (workspace FilePath.</> "ghc-tracked-recompilation")
   _ <-
     runChecked
       workspace

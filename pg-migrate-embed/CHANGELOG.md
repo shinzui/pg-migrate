@@ -18,6 +18,9 @@ the public `ManifestError` and `AuthoringError` sums.
 - Emit embedded SQL as one static primitive byte literal instead of one Template Haskell
   expression per byte, making multi-megabyte payloads practical while preserving exact
   bytes.
+- Add `Database.PostgreSQL.Migrate.Embed.RecompilePlugin` for GHC 9.12. A module-local
+  `OPTIONS_GHC -fplugin=...` pragma makes the embedding module recompile on every build so
+  newly added or removed sibling SQL files rerun strict manifest membership validation.
 - Document that migration authoring requires POSIX while manifest validation and embedding
   remain portable, and describe the authoring helper's actual concurrency guarantees.
 

@@ -65,6 +65,12 @@ checkMigrationManifest manifestPath = do
         Right entries -> checkManifestFiles manifestPath entries
 
 -- | Validate and embed an ordered migration manifest at compile time.
+--
+-- On GHC 9.12, modules using this splice should load
+-- @Database.PostgreSQL.Migrate.Embed.RecompilePlugin@ with a module-local
+-- @OPTIONS_GHC -fplugin=...@ pragma. The plugin makes additions and removals in the
+-- manifest directory observable even though that compiler can register only existing
+-- files as Template Haskell dependencies.
 embedMigrationManifest :: FilePath -> Q Exp
 embedMigrationManifest inputPath = do
   manifestPath <- TH.Syntax.makeRelativeToProject inputPath

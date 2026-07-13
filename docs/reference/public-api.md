@@ -13,6 +13,8 @@ applicable. `ledgerSchemaVersion == 1` is the supported database contract.
 Optional stable facades are:
 
 - `Database.PostgreSQL.Migrate.Embed` (`manifestFormatVersion == 1`);
+- `Database.PostgreSQL.Migrate.Embed.RecompilePlugin` (a GHC 9.12 build-time plugin loaded
+  by embedding modules; application code does not call its `plugin` value);
 - `Database.PostgreSQL.Migrate.CLI` (`jsonSchemaVersion == 1`);
 - `Database.PostgreSQL.Migrate.History.Codd`;
 - `Database.PostgreSQL.Migrate.History.HasqlMigration`;

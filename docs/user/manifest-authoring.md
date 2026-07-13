@@ -55,6 +55,7 @@ Enable `TemplateHaskell`, then splice the manifest into a component:
 
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fplugin=Database.PostgreSQL.Migrate.Embed.RecompilePlugin #-}
 
 import Data.Set qualified as Set
 import Database.PostgreSQL.Migrate
@@ -77,6 +78,13 @@ The path is resolved relative to the Cabal project during compilation. The splic
 Changing a listed file or the manifest therefore triggers recompilation. Cabal source
 distributions still need the files, so include them with `extra-source-files` or
 `data-files` in the package definition.
+
+GHC 9.12 cannot register a directory as a Template Haskell dependency. The module-local
+`RecompilePlugin` pragma above is the supported fallback: it is a no-op Core plugin whose
+recompilation policy makes only the embedding module compile on each build check. That
+reruns the sibling-file audit when a SQL file is added or removed without changing the
+manifest. Enumerating current files with `addDependentFile` is not equivalent because a
+future filename is not yet available to register.
 
 The `.sql` suffix is removed to derive the local migration name. For example,
 `0002-add-account-status.sql` in component `accounts` becomes the durable identity

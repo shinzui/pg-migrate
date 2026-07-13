@@ -47,11 +47,11 @@ even if it requires splitting a partially completed task into two ("done" vs. "r
 This section must always reflect the actual current state of the work.
 
 - [x] Milestone 1: numbering rollover fixed (`MigrationSequenceExhausted` at width boundary); regression tests. (2026-07-13T19:13:42Z)
-- [ ] Milestone 2 blocked by the supported compiler: `template-haskell-2.23.0.0` has no directory-dependency API, and `addDependentFile` rejects directories.
+- [x] Milestone 2: GHC 9.12 module-local recompilation plugin; add/remove regression plus independent listed-file tracking probe. (2026-07-13T19:56:50Z)
 - [x] Milestone 3: byte embedding via `bytesPrimL`; equality test on embedded bytes; compile-time sanity check on a large fixture. (2026-07-13T19:21:55Z)
 - [x] Milestone 4: BOM diagnostic, haddock honesty, clobber detection, platform note in docs. (2026-07-13T19:26:02Z)
-- [x] Changelog updated with PVP impact. (2026-07-13T19:26:02Z)
-- [x] `cabal test all` green (11 suites). (2026-07-13T19:28:58Z)
+- [x] Changelog updated with PVP impact and the GHC 9.12 plugin requirement. (2026-07-13T19:56:50Z)
+- [x] `cabal test all` green (11 suites) after the completed recompilation fallback. (2026-07-13T19:59:22Z)
 
 
 ## Surprises & Discoveries
@@ -61,11 +61,14 @@ implementation. Provide concise evidence.
 
 - GHC 9.12.4 ships `template-haskell-2.23.0.0`, where `bytesPrimL` and `mkBytes`
   live in `Language.Haskell.TH.Lib`, but `addDependentDirectory` does not exist.
-  Registering the manifest directory with `addDependentFile` is not a compatible
-  fallback: the recompilation harness fails while hashing the dependency with
-  `withBinaryFile: inappropriate type (is a directory)`. The dedicated directory API
-  was added to GHC after this repository's supported compiler, so Milestone 2 needs a
-  compiler-policy decision rather than a library-local substitution.
+  Registering the manifest directory with `addDependentFile` fails while hashing it with
+  `withBinaryFile: inappropriate type (is a directory)`. Recursively registering the
+  directory's current files cannot observe a future filename, and a Cabal
+  `extra-source-files` glob did not invalidate the compiled consumer module. A Core plugin
+  added from inside the splice was also too late for the next recompilation check; loading
+  the same plugin from a module-local `OPTIONS_GHC -fplugin=...` pragma made GHC report
+  `[Impure plugin forced recompilation]` and the real downstream harness rejected a newly
+  added unlisted SQL file without any source or manifest edit.
 
 - The old one-expression-per-byte representation could not compile the new 1,048,577-byte
   sanity fixture within 106.59 seconds and was interrupted. The `BytesPrimL` implementation
@@ -104,6 +107,15 @@ implementation. Provide concise evidence.
   a runtime `ForeignPtr` and therefore does not accept the generated literal.
   Date: 2026-07-13
 
+- Decision: Support directory membership changes on GHC 9.12 with the exposed
+  `Database.PostgreSQL.Migrate.Embed.RecompilePlugin` and require a module-local
+  `OPTIONS_GHC -fplugin=...` pragma in embedding modules.
+  Rationale: GHC 9.12 cannot fingerprint directories through Template Haskell, while the
+  pragma loads the plugin early enough for `pluginRecompile = ForceRecompile` to rerun the
+  strict membership audit. The cost is confined to the usually small module containing the
+  splice. This protects real downstream builds, unlike forcing only the test command.
+  Date: 2026-07-13
+
 
 ## Outcomes & Retrospective
 
@@ -112,12 +124,12 @@ Compare the result against the original purpose.
 
 Automatic authoring now stops at the fixed-width leading-zero boundary, primitive literals
 make large exact-byte embedding practical, BOM-prefixed manifests have a named diagnostic,
-and a simulated post-rename clobber is detected and cleaned up. The unit suite passes 33
-tests, including all-byte and >1 MiB payload coverage. Directory-level recompilation
-tracking remains open because the repository's supported GHC 9.12.4 Template Haskell API
-cannot register directories; completing that finding requires a compiler-policy decision.
-All 11 workspace test suites, including PostgreSQL integration and the real recompilation
-harness, pass with the implemented changes.
+and a simulated post-rename clobber is detected and cleaned up. GHC 9.12 embedding modules
+can load the new module-local recompilation plugin so additions and removals rerun the
+manifest audit; the real harness tests that path separately from ordinary listed-file
+dependencies. The unit suite passes 33 tests, including all-byte and >1 MiB payload
+coverage. All 11 workspace test suites, including PostgreSQL integration and the real
+recompilation harness, pass with the implemented changes.
 
 
 ## Context and Orientation
@@ -136,6 +148,8 @@ Everything lives in `pg-migrate-embed/`:
   read/rename update (lines ~146-164, ~224).
 - `src/Database/PostgreSQL/Migrate/Embed.hs` — the public facade;
   `src/Database/PostgreSQL/Migrate/Embed/Internal.hs` — internal re-exports.
+- `src/Database/PostgreSQL/Migrate/Embed/RecompilePlugin.hs` — the GHC 9.12 no-op Core
+  plugin whose recompilation policy reruns an embedding module's membership audit.
 - Tests: `test/unit/` (`Test/Manifest.hs`, `Test/Authoring.hs`, `Test/Component.hs`) and a
   recompilation harness `test/recompilation/Main.hs` that builds the fixture app in
   `test/recompilation/fixture/` twice and asserts when rebuilds happen.
@@ -165,15 +179,14 @@ successor `1000` has four digits, loses its leading zero, and must be rejected w
 the largest n-digit number that keeps a leading zero, e.g. `0999.sql` for width 4.) Also add the round-trip property: any
 name produced by automatic numbering must itself be accepted by `numericPrefix`.
 
-Milestone 2 — recompilation tracking. The intended implementation is to register the
-manifest directory with `Language.Haskell.TH.Syntax.addDependentDirectory` after the
-existing `addDependentFile` calls, then extend `test/recompilation/Main.hs` with the
-missing case: build the fixture, create a new unlisted `.sql` file without touching a
-tracked file, rebuild, and require `UnlistedSqlFiles`. The supported GHC 9.12.4 toolchain
-cannot implement this because its Template Haskell API lacks directory dependencies and
-rejects directories passed to `addDependentFile`. Keep this milestone open until compiler
-support is raised or the initiative explicitly defers the finding; do not weaken the test
-with forced recompilation.
+Milestone 2 — recompilation tracking. The supported GHC 9.12.4 toolchain lacks
+`Language.Haskell.TH.Syntax.addDependentDirectory` and rejects directories passed to
+`addDependentFile`. Provide an exposed no-op Core plugin whose `pluginRecompile` returns
+`ForceRecompile`, and document a module-local `OPTIONS_GHC -fplugin=...` pragma beside each
+embedding splice. Extend `test/recompilation/Main.hs` with two independent probes: the
+plugin-enabled module must rebuild and reject a new unlisted `.sql` file without touching
+another tracked file, while the plugin-free module must continue proving that edits to
+listed files and the manifest are tracked by `addDependentFile`.
 
 Milestone 3 — byte embedding. Replace `entryExpression`'s per-byte list with a
 `bytesPrimL` literal: obtain the `ForeignPtr`, offset, and length from
@@ -270,8 +283,9 @@ byte-equality test as the arbiter.
 
 ## Interfaces and Dependencies
 
-Uses only existing dependencies (`template-haskell`, `bytestring`). End-state interface
-deltas in `pg-migrate-embed`:
+Adds the compiler's `ghc` library for the recompilation plugin alongside the existing
+`template-haskell` and `bytestring` dependencies. End-state interface deltas in
+`pg-migrate-embed`:
 
 ```haskell
 -- Database.PostgreSQL.Migrate.Embed.Manifest
@@ -282,13 +296,15 @@ data AuthoringError = ... | AuthoringConcurrentModification !FilePath  -- new
 
 renderNextMigrationName :: Int -> Int -> Either AuthoringError Text
 -- boundary: rendered length >= width  ==>  MigrationSequenceExhausted
+
+-- Database.PostgreSQL.Migrate.Embed.RecompilePlugin
+plugin :: GHC.Plugins.Plugin
 ```
 
-`embedMigrationManifest` keeps its public signature. Its intended directory dependency
-requires a future compiler API or an explicit compiler-policy change; the GHC 9.12.4
-implementation continues to register only the manifest and listed files. No other plan
-touches this package (see the master plan's Dependency Graph), so the remaining decision
-can be made without a code-level dependency on another child plan.
+`embedMigrationManifest` keeps its public signature and continues to register the manifest
+and listed files. GHC 9.12 users add the documented module-local plugin pragma to make
+untracked additions and removals rerun the splice. No other plan touches this package (see
+the master plan's Dependency Graph).
 
 
 Revision note (2026-07-13): Corrected the Template Haskell API assumptions after testing
@@ -303,3 +319,7 @@ captured the partial outcome while directory tracking remains open.
 Revision note (2026-07-13): Recorded the passing 11-suite workspace validation. EP-4
 remains In Progress solely because directory dependencies are unavailable on the supported
 compiler.
+
+Revision note (2026-07-13): Adopted and verified the GHC 9.12 module-local recompilation
+plugin fallback, documented why recursive current-file registration is insufficient, and
+completed the directory-membership milestone without raising the supported compiler.

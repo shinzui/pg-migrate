@@ -11,6 +11,10 @@ manifest, ensures all sibling SQL files are listed, and embeds the exact bytes. 
 evaluate the application plan in a pure test so `migrationComponentFromEmbeddedSql`
 validates SQL and the application constructs every component.
 
+On GHC 9.12, keep the documented module-local `RecompilePlugin` pragma on each embedding
+module. Without it, edits to the manifest and listed files remain tracked, but adding a
+new unlisted filename cannot invalidate a module that GHC has already compiled.
+
 Also run the CLI manifest check explicitly in CI:
 
 ```console

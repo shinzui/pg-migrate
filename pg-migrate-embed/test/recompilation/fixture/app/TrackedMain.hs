@@ -1,6 +1,7 @@
-{-# OPTIONS_GHC -fplugin=Database.PostgreSQL.Migrate.Embed.RecompilePlugin #-}
+{-# LANGUAGE ImportQualifiedPost #-}
+{-# LANGUAGE TemplateHaskell #-}
 
-module Main (main) where
+module TrackedMain (main) where
 
 import Data.ByteString (ByteString)
 import Data.Foldable (traverse_)

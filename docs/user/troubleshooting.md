@@ -22,7 +22,15 @@ comments into project documentation or the SQL files.
 If Cabal does not rebuild after a migration edit, confirm that the component uses
 `embedMigrationManifest` rather than a custom runtime reader and that the manifest and SQL
 files are included in the package source distribution. The splice registers all listed
-files as compiler dependencies.
+files as compiler dependencies. On GHC 9.12, also confirm that the embedding module has:
+
+```haskell
+{-# OPTIONS_GHC -fplugin=Database.PostgreSQL.Migrate.Embed.RecompilePlugin #-}
+```
+
+That compiler cannot register a directory dependency, so the plugin forces the embedding
+module to rerun its strict membership check. Recursively registering existing files does
+not cover a newly added filename.
 
 ## SQL validation rejects a file
 

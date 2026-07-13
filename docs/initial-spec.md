@@ -745,6 +745,12 @@ module. The checker rejects missing files, duplicate entries, absolute paths,
 parent-directory traversal, nested paths, non-`.sql` entries, and unlisted
 `.sql` files.
 
+GHC 9.12 users load
+`Database.PostgreSQL.Migrate.Embed.RecompilePlugin` with a module-local
+`OPTIONS_GHC -fplugin=...` pragma on every embedding module. GHC 9.12 has no Template
+Haskell directory-dependency API; the plugin forces that module to recompile so adding or
+removing a sibling SQL file reruns the unlisted-file check.
+
 ```haskell
 embedMigrationManifest
   :: FilePath

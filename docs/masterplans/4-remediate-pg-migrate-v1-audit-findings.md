@@ -85,7 +85,7 @@ behavior against a live database, so they verify differently and stay separate.
 | 1 | Fix CLI runner-option overrides and authoring input safety | docs/plans/17-fix-cli-runner-option-overrides-and-authoring-input-safety.md | None | None | Complete |
 | 2 | Preserve durable success through cleanup failures and async exceptions | docs/plans/18-preserve-durable-success-through-cleanup-failures-and-async-exceptions.md | None | EP-1 | Complete |
 | 3 | Harden import adapter parsing, audit evidence, and internal totality | docs/plans/19-harden-import-adapter-parsing-audit-evidence-and-internal-totality.md | None | EP-2 | Complete |
-| 4 | Fix embed authoring numbering, recompilation tracking, and byte embedding | docs/plans/20-fix-embed-authoring-numbering-recompilation-tracking-and-byte-embedding.md | None | None | In Progress |
+| 4 | Fix embed authoring numbering, recompilation tracking, and byte embedding | docs/plans/20-fix-embed-authoring-numbering-recompilation-tracking-and-byte-embedding.md | None | None | Complete |
 | 5 | Harden SQL validation against BOM, misplaced directives, and wrong diagnostics | docs/plans/21-harden-sql-validation-against-bom-misplaced-directives-and-wrong-diagnostics.md | None | None | Not Started |
 | 6 | Align verification policy handling and remove quadratic ledger scans | docs/plans/22-align-verification-policy-handling-and-remove-quadratic-ledger-scans.md | None | None | Not Started |
 
@@ -174,7 +174,7 @@ and the milestone. This section provides an at-a-glance view of the entire initi
 - [x] EP-3: Internal totality and core `SamePayload` strength gate
 - [x] EP-3: Committed Codd import reports survive source-lock cleanup failures
 - [x] EP-4: Numbering rollover fixed with regression tests
-- [ ] EP-4: Directory-level recompilation tracking via `addDependentDirectory`
+- [x] EP-4: GHC 9.12 directory-membership revalidation via a module-local compiler plugin
 - [x] EP-4: Efficient byte embedding and authoring/diagnostic polish
 - [ ] EP-5: BOM rejected at definition time in scanner and embed manifest
 - [ ] EP-5: Misplaced directives rejected; line numbers corrected
@@ -217,10 +217,11 @@ interactions between child plans. Provide concise evidence.
 
 - EP-4 found that the declared GHC 9.12.4 toolchain ships
   `template-haskell-2.23.0.0`, which has no `addDependentDirectory` API. Using
-  `addDependentFile` on the manifest directory is not a fallback: the real recompilation
-  harness fails with `withBinaryFile: inappropriate type (is a directory)`. The other EP-4
-  changes are implemented and all 11 workspace test suites pass, but the plan remains In
-  Progress pending a compiler-policy decision.
+  `addDependentFile` on the manifest directory fails with `withBinaryFile: inappropriate
+  type (is a directory)`, and recursively registering current files cannot observe a future
+  filename. A module-local GHC plugin pragma loads early enough to force just the embedding
+  module through the membership audit; the downstream harness now proves add/remove
+  behavior separately from ordinary listed-file tracking.
 
 - EP-4's primitive literal removed the per-byte Template Haskell AST blow-up. A
   1,048,577-byte forced unit build did not finish with the old representation after 106.59
@@ -270,12 +271,12 @@ interactions between child plans. Provide concise evidence.
   type and keeps the adapter's public operation signature unchanged.
   Date: 2026-07-13
 
-- Decision: Keep EP-4 In Progress rather than treating `addDependentFile` as directory
-  tracking on GHC 9.12.4.
-  Rationale: The supported compiler rejects directories as file dependencies, and forced
-  recompilation would make the regression test pass without protecting real downstream
-  builds. Completing or deferring the finding requires an explicit compiler-compatibility
-  decision.
+- Decision: Complete EP-4 on GHC 9.12.4 with an exposed no-op Core plugin loaded by a
+  module-local `OPTIONS_GHC -fplugin=...` pragma in each embedding module.
+  Rationale: The pragma affects real downstream compilation and confines
+  `ForceRecompile` to the small module containing the splice. It reruns strict membership
+  validation for additions and removals without pretending that enumerating current files
+  can track names that do not yet exist.
   Date: 2026-07-13
 
 
@@ -285,16 +286,17 @@ Summarize outcomes, gaps, and lessons learned at major milestones or at completi
 Compare the result against the original vision.
 
 EP-1 completed the highest-severity CLI remediation, EP-2 completed the cross-package
-durable-success invariant, and EP-3 hardened both history-import adapters. Three of six
+durable-success invariant, EP-3 hardened both history-import adapters, and EP-4 completed
+the embed remediation. Four of six
 child plans are complete. Migration, repair, and history-import reports preserve cleanup
 observations; Codd source cleanup now follows the same rule; CLI schema v1 exposes report
 cleanup additively; and test-support propagates cancellation after cleanup. Import audit
 evidence identifies its source table, strict Codd manifests are symmetric, lock-key
 overflow is rejected, adapter payload lookups are total, and `SamePayload` requires
 verified evidence strength. EP-4 has additionally fixed authoring rollover, primitive byte
-embedding, BOM diagnostics, post-rename clobber detection, and platform documentation; all
-11 Cabal test suites pass. EP-4 remains In Progress because directory dependency tracking
-requires a newer Template Haskell compiler API. EP-5 and EP-6 remain Not Started.
+embedding, BOM diagnostics, post-rename clobber detection, platform documentation, and a
+GHC 9.12 module-local recompilation fallback that catches directory membership changes;
+all 11 Cabal test suites pass. EP-5 and EP-6 remain Not Started.
 
 
 Revision note (2026-07-13): Marked EP-2 complete, recorded its report-based cleanup
@@ -308,3 +310,7 @@ acceptance groups passed.
 Revision note (2026-07-13): Recorded EP-4's completed numbering, byte-embedding, and polish
 milestones plus its GHC 9.12 directory-dependency blocker; kept EP-4 In Progress after all
 11 workspace test suites passed.
+
+Revision note (2026-07-13): Completed EP-4 after verifying the GHC 9.12 module-local
+recompilation plugin against a real add/remove downstream build while retaining a separate
+probe for ordinary tracked-file dependencies.

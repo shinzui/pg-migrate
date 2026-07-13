@@ -30,6 +30,7 @@ Most components should use an ordered manifest:
 
 ```haskell
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fplugin=Database.PostgreSQL.Migrate.Embed.RecompilePlugin #-}
 
 module Accounts.Migrations (accountsMigrations) where
 
@@ -49,6 +50,11 @@ Export the value from a stable library module and include the manifest and SQL i
 package's source files. `migrationComponentFromEmbeddedSql` removes `.sql` from each
 filename, validates the SQL, derives transaction mode, and computes a SHA-256 checksum
 over the exact bytes.
+
+The module-local plugin pragma is the GHC 9.12 compatibility path for directory changes.
+It forces only this embedding module to recompile on each build check, so adding an
+unlisted SQL file cannot be hidden by an unchanged manifest. Keep the pragma beside
+`TemplateHaskell` in every module that embeds a manifest.
 
 See [manifest authoring](manifest-authoring.md) for format, validation, and safe append
 rules.
