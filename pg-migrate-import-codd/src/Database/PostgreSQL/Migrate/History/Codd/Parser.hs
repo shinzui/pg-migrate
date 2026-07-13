@@ -47,10 +47,17 @@ lockKeyReader :: ReadM Int64
 lockKeyReader = eitherReader $ \input ->
   case input of
     '0' : 'x' : hexadecimal ->
-      case Numeric.readHex hexadecimal of
-        [(parsed, "")] | parsed <= fromIntegral (maxBound :: Int64) -> Right parsed
+      case (Numeric.readHex hexadecimal :: [(Integer, String)]) of
+        [(parsed, "")] -> checkedInt64 parsed
         _ -> Left "expected an Int64 decimal or 0x hexadecimal advisory-lock key"
     _ ->
-      case Read.readMaybe input of
-        Just parsed -> Right parsed
+      case (Read.readMaybe input :: Maybe Integer) of
+        Just parsed -> checkedInt64 parsed
         Nothing -> Left "expected an Int64 decimal or 0x hexadecimal advisory-lock key"
+  where
+    checkedInt64 parsed
+      | parsed < toInteger (minBound :: Int64) = Left rangeError
+      | parsed > toInteger (maxBound :: Int64) = Left rangeError
+      | otherwise = Right (fromInteger parsed)
+
+    rangeError = "expected an Int64 decimal or 0x hexadecimal advisory-lock key"

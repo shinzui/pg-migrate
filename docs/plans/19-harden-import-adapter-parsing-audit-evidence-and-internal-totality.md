@@ -48,7 +48,8 @@ Use a checklist to summarize granular steps. Every stopping point must be docume
 even if it requires splitting a partially completed task into two ("done" vs. "remaining").
 This section must always reflect the actual current state of the work.
 
-- [ ] Milestone 1: lock-key reader rejects out-of-range input; unit tests for boundary values.
+- [x] (2026-07-13 11:43 PDT) Milestone 1 implementation: lock-key reader parses through `Integer`, bounds-checks before conversion, and has boundary-value regression tests.
+- [x] (2026-07-13 11:44 PDT) Milestone 1 validation: `cabal test pg-migrate-import-codd:pg-migrate-import-codd-test` passed all 23 tests, including all new bounds cases.
 - [ ] Milestone 2: audit completeness and strict-source symmetry (source table in details, `CoddManifestEntryMissing` repurposed, dead constructors removed, haddocks fixed, `--allow-equivalent` parity).
 - [ ] Milestone 3: totality and evidence strength (no `Map.!` on public paths, no unverified checksum in `LedgerOnly` evidence, core `SamePayload` strength gate).
 - [ ] Milestone 4: `CoddUnlockFailed` preserves committed reports (pattern from plan 18).
@@ -60,7 +61,11 @@ This section must always reflect the actual current state of the work.
 Document unexpected behaviors, bugs, optimizations, or insights discovered during
 implementation. Provide concise evidence.
 
-(None yet.)
+- Observation: The Concrete Steps named non-existent `pg-migrate-import-codd-unit` and
+  `pg-migrate-import-hasql-migration-unit` Cabal components; the package files expose
+  `pg-migrate-import-codd-test` and `pg-migrate-import-hasql-migration-test`.
+  Evidence: Cabal reported `[Cabal-7131] Unknown target` and suggested the real component;
+  `rg '^test-suite'` in both package files confirmed the names.
 
 
 ## Decision Log

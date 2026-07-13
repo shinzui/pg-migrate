@@ -1,6 +1,7 @@
 module Test.Parser (tests) where
 
 import Data.ByteString.Char8 qualified as ByteString
+import Data.Int (Int64)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Set qualified as Set
 import Database.PostgreSQL.Migrate
@@ -15,7 +16,12 @@ tests =
   testGroup
     "parser"
     [ testCase "parser records explicit artifacts without reading them" testCommand,
-      testCase "invalid lock keys fail in the parser" testInvalidLock
+      testCase "invalid lock keys fail in the parser" (assertLockFailure "nope"),
+      testCase "accepts 0x7FFFFFFFFFFFFFFF" (lockKeyFor "0x7FFFFFFFFFFFFFFF" @?= maxBound),
+      testCase "accepts negative decimal advisory-lock keys" (lockKeyFor "-1" @?= -1),
+      testCase "rejects 0x8000000000000000" (assertLockFailure "0x8000000000000000"),
+      testCase "rejects 0xFFFFFFFFFFFFFFFF (wrap guard)" (assertLockFailure "0xFFFFFFFFFFFFFFFF"),
+      testCase "rejects out-of-range decimal" (assertLockFailure "18446744073709551615")
     ]
 
 testCommand :: Assertion
@@ -50,9 +56,12 @@ testCommand =
         confirmation @?= Confirmed
         outputFormat @?= JsonOutput
 
-testInvalidLock :: Assertion
-testInvalidLock =
-  case execParserPure defaultPrefs commandInfo ["--source-lock-key", "nope", "--mapping", "map.json"] of
+lockKeyFor :: String -> Int64
+lockKeyFor input = lockKey (parseSuccess ["--source-lock-key", input, "--mapping", "map.json"])
+
+assertLockFailure :: String -> Assertion
+assertLockFailure input =
+  case execParserPure defaultPrefs commandInfo ["--source-lock-key", input, "--mapping", "map.json"] of
     Failure _ -> pure ()
     result -> assertFailure ("expected parser failure, received: " <> show result)
 
