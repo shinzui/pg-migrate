@@ -173,9 +173,9 @@ and the milestone. This section provides an at-a-glance view of the entire initi
 - [x] EP-3: Audit evidence completeness (source table recorded, strict-source symmetry, dead constructors removed)
 - [x] EP-3: Internal totality and core `SamePayload` strength gate
 - [x] EP-3: Committed Codd import reports survive source-lock cleanup failures
-- [ ] EP-4: Numbering rollover fixed with regression tests
+- [x] EP-4: Numbering rollover fixed with regression tests
 - [ ] EP-4: Directory-level recompilation tracking via `addDependentDirectory`
-- [ ] EP-4: Efficient byte embedding and authoring/diagnostic polish
+- [x] EP-4: Efficient byte embedding and authoring/diagnostic polish
 - [ ] EP-5: BOM rejected at definition time in scanner and embed manifest
 - [ ] EP-5: Misplaced directives rejected; line numbers corrected
 - [ ] EP-5: `statement_timeout` zero semantics resolved and documented
@@ -214,6 +214,18 @@ interactions between child plans. Provide concise evidence.
   `SamePayload` require `SourceManifestVerified` strength or better. EP-6 touches nearby
   history-import code and must preserve this gate when optimizing map construction, though
   its planned `History.hs` edits do not overlap `Validation.hs`.
+
+- EP-4 found that the declared GHC 9.12.4 toolchain ships
+  `template-haskell-2.23.0.0`, which has no `addDependentDirectory` API. Using
+  `addDependentFile` on the manifest directory is not a fallback: the real recompilation
+  harness fails with `withBinaryFile: inappropriate type (is a directory)`. The other EP-4
+  changes are implemented and all 11 workspace test suites pass, but the plan remains In
+  Progress pending a compiler-policy decision.
+
+- EP-4's primitive literal removed the per-byte Template Haskell AST blow-up. A
+  1,048,577-byte forced unit build did not finish with the old representation after 106.59
+  seconds; the `BytesPrimL` implementation completed the full forced unit build in 10.21
+  seconds and preserved all 256 byte values.
 
 
 ## Decision Log
@@ -258,6 +270,14 @@ interactions between child plans. Provide concise evidence.
   type and keeps the adapter's public operation signature unchanged.
   Date: 2026-07-13
 
+- Decision: Keep EP-4 In Progress rather than treating `addDependentFile` as directory
+  tracking on GHC 9.12.4.
+  Rationale: The supported compiler rejects directories as file dependencies, and forced
+  recompilation would make the regression test pass without protecting real downstream
+  builds. Completing or deferring the finding requires an explicit compiler-compatibility
+  decision.
+  Date: 2026-07-13
+
 
 ## Outcomes & Retrospective
 
@@ -271,9 +291,10 @@ observations; Codd source cleanup now follows the same rule; CLI schema v1 expos
 cleanup additively; and test-support propagates cancellation after cleanup. Import audit
 evidence identifies its source table, strict Codd manifests are symmetric, lock-key
 overflow is rejected, adapter payload lookups are total, and `SamePayload` requires
-verified evidence strength. The workspace remains green across all 15 test components,
-production dependency closure, PostgreSQL integration, and Template Haskell recompilation
-coverage. EP-4 is the recommended next plan; EP-4 through EP-6 remain Not Started.
+verified evidence strength. EP-4 has additionally fixed authoring rollover, primitive byte
+embedding, BOM diagnostics, post-rename clobber detection, and platform documentation; all
+11 Cabal test suites pass. EP-4 remains In Progress because directory dependency tracking
+requires a newer Template Haskell compiler API. EP-5 and EP-6 remain Not Started.
 
 
 Revision note (2026-07-13): Marked EP-2 complete, recorded its report-based cleanup
@@ -283,3 +304,7 @@ matrix passed.
 Revision note (2026-07-13): Marked EP-3 complete, recorded its core evidence-strength gate
 and reuse of report cleanup observations, and updated aggregate outcomes after all 15
 acceptance groups passed.
+
+Revision note (2026-07-13): Recorded EP-4's completed numbering, byte-embedding, and polish
+milestones plus its GHC 9.12 directory-dependency blocker; kept EP-4 In Progress after all
+11 workspace test suites passed.

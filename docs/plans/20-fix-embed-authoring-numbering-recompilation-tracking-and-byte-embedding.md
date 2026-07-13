@@ -51,7 +51,7 @@ This section must always reflect the actual current state of the work.
 - [x] Milestone 3: byte embedding via `bytesPrimL`; equality test on embedded bytes; compile-time sanity check on a large fixture. (2026-07-13T19:21:55Z)
 - [x] Milestone 4: BOM diagnostic, haddock honesty, clobber detection, platform note in docs. (2026-07-13T19:26:02Z)
 - [x] Changelog updated with PVP impact. (2026-07-13T19:26:02Z)
-- [ ] `cabal test all` green.
+- [x] `cabal test all` green (11 suites). (2026-07-13T19:28:58Z)
 
 
 ## Surprises & Discoveries
@@ -116,6 +116,8 @@ and a simulated post-rename clobber is detected and cleaned up. The unit suite p
 tests, including all-byte and >1 MiB payload coverage. Directory-level recompilation
 tracking remains open because the repository's supported GHC 9.12.4 Template Haskell API
 cannot register directories; completing that finding requires a compiler-policy decision.
+All 11 workspace test suites, including PostgreSQL integration and the real recompilation
+harness, pass with the implemented changes.
 
 
 ## Context and Orientation
@@ -297,3 +299,7 @@ the repository's actual Cabal component name.
 Revision note (2026-07-13): Recorded completion of the BOM, authoring-clobber, platform
 documentation, and changelog work; updated the concrete public constructor shape and
 captured the partial outcome while directory tracking remains open.
+
+Revision note (2026-07-13): Recorded the passing 11-suite workspace validation. EP-4
+remains In Progress solely because directory dependencies are unavailable on the supported
+compiler.
