@@ -47,8 +47,8 @@ even if it requires splitting a partially completed task into two ("done" vs. "r
 This section must always reflect the actual current state of the work.
 
 - [x] Milestone 1: numbering rollover fixed (`MigrationSequenceExhausted` at width boundary); regression tests. (2026-07-13T19:13:42Z)
-- [ ] Milestone 2: `addDependentDirectory` registered; recompilation test extended to the unlisted-file case.
-- [ ] Milestone 3: byte embedding via `bytesPrimL`; equality test on embedded bytes; compile-time sanity check on a large fixture.
+- [ ] Milestone 2 blocked by the supported compiler: `template-haskell-2.23.0.0` has no directory-dependency API, and `addDependentFile` rejects directories.
+- [x] Milestone 3: byte embedding via `bytesPrimL`; equality test on embedded bytes; compile-time sanity check on a large fixture. (2026-07-13T19:21:55Z)
 - [ ] Milestone 4: BOM diagnostic, haddock honesty, clobber detection, platform note in docs.
 - [ ] Changelog updated; `cabal test all` green.
 
@@ -58,7 +58,18 @@ This section must always reflect the actual current state of the work.
 Document unexpected behaviors, bugs, optimizations, or insights discovered during
 implementation. Provide concise evidence.
 
-(None yet.)
+- GHC 9.12.4 ships `template-haskell-2.23.0.0`, where `bytesPrimL` and `mkBytes`
+  live in `Language.Haskell.TH.Lib`, but `addDependentDirectory` does not exist.
+  Registering the manifest directory with `addDependentFile` is not a compatible
+  fallback: the recompilation harness fails while hashing the dependency with
+  `withBinaryFile: inappropriate type (is a directory)`. The dedicated directory API
+  was added to GHC after this repository's supported compiler, so Milestone 2 needs a
+  compiler-policy decision rather than a library-local substitution.
+
+- The old one-expression-per-byte representation could not compile the new 1,048,577-byte
+  sanity fixture within 106.59 seconds and was interrupted. The `BytesPrimL` implementation
+  compiled the entire forced unit build, including the same fixture, in 10.21 seconds; all
+  31 tests then passed.
 
 
 ## Decision Log
@@ -82,6 +93,14 @@ implementation. Provide concise evidence.
   Rationale: True multi-writer safety needs file locking, which is not worth the
   portability cost for a dev-time authoring tool; detecting the lost update converts silent
   corruption into a loud error.
+  Date: 2026-07-13
+
+- Decision: Reconstruct primitive byte literals with
+  `Data.ByteString.Internal.unsafePackLenLiteral` rather than `fromForeignPtr`.
+  Rationale: `BytesPrimL` compiles to a static `Addr#` literal, and
+  `unsafePackLenLiteral :: Int -> Addr# -> ByteString` is the bytestring-0.12.2.0 API that
+  preserves that storage without a per-byte AST or runtime copy. `fromForeignPtr` consumes
+  a runtime `ForeignPtr` and therefore does not accept the generated literal.
   Date: 2026-07-13
 
 
@@ -115,12 +134,14 @@ Everything lives in `pg-migrate-embed/`:
 
 "Width" means the digit count of the numeric filename prefix: in a manifest whose entries
 are `01-init.sql`, `02-users.sql`, the width is 2 and the sequence is exhausted at 99.
-The toolchain is GHC 9.12.4 (see `docs/reference/compatibility.md`), whose
-`template-haskell` provides both `addDependentDirectory :: FilePath -> Q ()` and
-`bytesPrimL :: Bytes -> Lit` with `mkBytes :: ForeignPtr Word8 -> Word64 -> Word64 ->
-Bytes`; a strict `ByteString`'s payload is reachable via
-`Data.ByteString.Internal.toForeignPtr`. The documented manifest contract is
-`docs/reference/manifest-v1.md`; the authoring guide is `docs/user/manifest-authoring.md`.
+The toolchain is GHC 9.12.4 (see `docs/reference/compatibility.md`) with
+`template-haskell-2.23.0.0`. `Language.Haskell.TH.Lib` provides
+`bytesPrimL :: Bytes -> Lit` and `mkBytes :: ForeignPtr Word8 -> Word -> Word -> Bytes`; a
+strict `ByteString`'s payload is reachable via `Data.ByteString.Internal.toForeignPtr`.
+This compiler does not provide `addDependentDirectory`; its `addDependentFile` hashes file
+contents and rejects a directory path. The documented manifest contract is
+`docs/reference/manifest-v1.md`; the authoring guide is
+`docs/user/manifest-authoring.md`.
 
 
 ## Plan of Work
@@ -136,13 +157,15 @@ successor `1000` has four digits, loses its leading zero, and must be rejected w
 the largest n-digit number that keeps a leading zero, e.g. `0999.sql` for width 4.) Also add the round-trip property: any
 name produced by automatic numbering must itself be accepted by `numericPrefix`.
 
-Milestone 2 — recompilation tracking. In `Manifest.hs`'s `embedMigrationManifest`, after
-the existing `addDependentFile` calls, register the manifest's directory with
-`Language.Haskell.TH.Syntax.addDependentDirectory (takeDirectory manifestPath)`. Extend
-`test/recompilation/Main.hs` with the missing case: build the fixture, then create a new
-unlisted `.sql` file next to the fixture manifest without touching any tracked file,
-rebuild, and assert the build now fails with `UnlistedSqlFiles` naming the new file
-(before this change the rebuild reuses the cached splice and succeeds — that is the bug).
+Milestone 2 — recompilation tracking. The intended implementation is to register the
+manifest directory with `Language.Haskell.TH.Syntax.addDependentDirectory` after the
+existing `addDependentFile` calls, then extend `test/recompilation/Main.hs` with the
+missing case: build the fixture, create a new unlisted `.sql` file without touching a
+tracked file, rebuild, and require `UnlistedSqlFiles`. The supported GHC 9.12.4 toolchain
+cannot implement this because its Template Haskell API lacks directory dependencies and
+rejects directories passed to `addDependentFile`. Keep this milestone open until compiler
+support is raised or the initiative explicitly defers the finding; do not weaken the test
+with forced recompilation.
 
 Milestone 3 — byte embedding. Replace `entryExpression`'s per-byte list with a
 `bytesPrimL` literal: obtain the `ForeignPtr`, offset, and length from
@@ -176,7 +199,7 @@ All commands run from the repository root `/Users/shinzui/Keikaku/bokuno/pg-migr
 
 ```bash
 cabal build pg-migrate-embed
-cabal test pg-migrate-embed:pg-migrate-embed-unit
+cabal test pg-migrate-embed:pg-migrate-embed-test
 
 # the recompilation harness drives real cabal builds of the fixture app
 cabal test pg-migrate-embed:pg-migrate-embed-recompilation
@@ -253,6 +276,14 @@ renderNextMigrationName :: Int -> Int -> Either AuthoringError Text
 -- boundary: rendered length >= width  ==>  MigrationSequenceExhausted
 ```
 
-`embedMigrationManifest` keeps its public signature; it additionally calls
-`addDependentDirectory`. No other plan touches this package (see the master plan's
-Dependency Graph), so it can be implemented at any time, in parallel with everything else.
+`embedMigrationManifest` keeps its public signature. Its intended directory dependency
+requires a future compiler API or an explicit compiler-policy change; the GHC 9.12.4
+implementation continues to register only the manifest and listed files. No other plan
+touches this package (see the master plan's Dependency Graph), so the remaining decision
+can be made without a code-level dependency on another child plan.
+
+
+Revision note (2026-07-13): Corrected the Template Haskell API assumptions after testing
+against GHC 9.12.4, recorded the unsupported directory-dependency milestone, selected
+`unsafePackLenLiteral` for static primitive bytes, and replaced the unit-suite target with
+the repository's actual Cabal component name.

@@ -4,6 +4,7 @@ module Database.PostgreSQL.Migrate.Embed.Internal
   ( newMigrationWithRename,
     renderNextMigrationName,
     numericPrefix,
+    byteStringExpression,
   )
 where
 
@@ -12,3 +13,4 @@ import Database.PostgreSQL.Migrate.Embed.Authoring
     numericPrefix,
     renderNextMigrationName,
   )
+import Database.PostgreSQL.Migrate.Embed.Manifest (byteStringExpression)

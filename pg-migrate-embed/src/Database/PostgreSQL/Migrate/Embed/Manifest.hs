@@ -4,6 +4,7 @@ module Database.PostgreSQL.Migrate.Embed.Manifest
     checkMigrationManifest,
     embedMigrationManifest,
     validateManifestEntry,
+    byteStringExpression,
   )
 where
 
@@ -11,6 +12,7 @@ import Control.Exception (IOException)
 import Control.Exception qualified as Exception
 import Data.Bifunctor (first)
 import Data.ByteString qualified as ByteString
+import Data.ByteString.Internal qualified as ByteString.Internal
 import Data.Foldable (toList, traverse_)
 import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty (..))
@@ -21,6 +23,7 @@ import Language.Haskell.TH
     Lit (..),
     Q,
   )
+import Language.Haskell.TH.Lib qualified as TH.Lib
 import Language.Haskell.TH.Syntax qualified as TH.Syntax
 import System.Directory qualified as Directory
 import System.FilePath qualified as FilePath
@@ -172,12 +175,26 @@ entryExpression :: (FilePath, ByteString.ByteString) -> Exp
 entryExpression (entry, bytes) =
   TupE
     [ Just (LitE (StringL entry)),
-      Just
-        ( AppE
-            (VarE 'ByteString.pack)
-            (ListE (LitE . IntegerL . fromIntegral <$> ByteString.unpack bytes))
-        )
+      Just (byteStringExpression bytes)
     ]
+
+byteStringExpression :: ByteString.ByteString -> Exp
+byteStringExpression bytes =
+  let (foreignPointer, offset, length_) = ByteString.Internal.toForeignPtr bytes
+   in AppE
+        ( AppE
+            (VarE 'ByteString.Internal.unsafePackLenLiteral)
+            (LitE (IntegerL (fromIntegral length_)))
+        )
+        ( LitE
+            ( TH.Lib.bytesPrimL
+                ( TH.Lib.mkBytes
+                    foreignPointer
+                    (fromIntegral offset)
+                    (fromIntegral length_)
+                )
+            )
+        )
 
 tryIOException :: IO value -> IO (Either IOException value)
 tryIOException = Exception.try

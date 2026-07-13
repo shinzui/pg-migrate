@@ -6,6 +6,7 @@ import Control.Exception qualified as Exception
 import Data.ByteString qualified as ByteString
 import Data.List.NonEmpty (NonEmpty (..))
 import Database.PostgreSQL.Migrate.Embed
+import Database.PostgreSQL.Migrate.Embed.Internal (byteStringExpression)
 import Paths_pg_migrate_embed qualified as Paths
 import System.Directory qualified as Directory
 import System.FilePath ((</>))
@@ -21,6 +22,11 @@ tests =
       testCase "valid entries and exact bytes follow manifest order" $ do
         result <- checkMigrationManifest =<< fixture "valid/migrations/manifest"
         result @?= Right validEmbedded,
+      testCase "embedded primitive bytes preserve every byte value" $
+        embeddedAllBytes @?= ByteString.pack [0 .. 255],
+      testCase "a large embedded payload compiles without per-byte AST expansion" $ do
+        ByteString.length largeEmbeddedBytes @?= largeFixtureSize
+        ByteString.all (== 0xA5) largeEmbeddedBytes @?= True,
       testCase "blank lines are rejected" $
         checkError "blank/manifest" (BlankManifestLine 2),
       testCase "comment lines are rejected" $
@@ -73,6 +79,17 @@ tests =
 validEmbedded :: NonEmpty (FilePath, ByteString.ByteString)
 validEmbedded =
   $(embedMigrationManifest "test/fixtures/valid/migrations/manifest")
+
+embeddedAllBytes :: ByteString.ByteString
+embeddedAllBytes =
+  $(pure (byteStringExpression (ByteString.pack [0 .. 255])))
+
+largeFixtureSize :: Int
+largeFixtureSize = 1024 * 1024 + 1
+
+largeEmbeddedBytes :: ByteString.ByteString
+largeEmbeddedBytes =
+  $(pure (byteStringExpression (ByteString.replicate (1024 * 1024 + 1) 0xA5)))
 
 checkError :: FilePath -> ManifestError -> IO ()
 checkError relativePath expected = do
