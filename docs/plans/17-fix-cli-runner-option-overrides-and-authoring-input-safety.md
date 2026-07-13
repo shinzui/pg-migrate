@@ -49,7 +49,7 @@ This section must always reflect the actual current state of the work.
 - [x] Milestone 1: `ExecutionOptions` fields made optional; parser and `applyExecution` updated; regression tests added. (2026-07-13 10:57 PDT)
 - [x] Milestone 2: `--description` input validation; authoring exit-class fixes. (2026-07-13 11:00 PDT)
 - [x] Milestone 3: Remaining CLI polish (exit-class rename, filter validation, payload/issue consistency, manifest flag unification, haddocks, checksum renderer dedup, prelude exposure). (2026-07-13 11:10 PDT)
-- [ ] All test suites pass (`cabal test all`); changelog updated.
+- [x] All test suites pass (`cabal test all`); changelog updated. (2026-07-13 11:12 PDT)
 
 
 ## Surprises & Discoveries
@@ -128,7 +128,19 @@ implementation. Provide concise evidence.
 Summarize outcomes, gaps, and lessons learned at major milestones or at completion.
 Compare the result against the original purpose.
 
-(To be filled during and after implementation.)
+EP-1 is complete. Absent execution flags now preserve the application's `RunOptions`, and
+explicit `--wait`/`--no-statement-timeout` flags retain full command-line control. Unsafe
+descriptions fail before filesystem writes; manifest IO failures use execution exits;
+inspection filters are validated and filter issues without hiding the full-report exit;
+`check` and `new` share `--manifest`; `ExitSucceeded` no longer collides with
+`System.Exit.ExitSuccess`; checksum rendering has one implementation; and the private CLI
+prelude is no longer exposed.
+
+Validation passed with 42 unit/golden tests and 3 CLI PostgreSQL integration tests, then
+`cabal test all` passed all 15 workspace test components. The final `nix fmt` pass changed
+zero files. `pg-migrate-cli/CHANGELOG.md` records that the public record, constructor,
+module-exposure, and command-syntax changes require the next PVP-major version
+`1.1.0.0`. No EP-1 work remains.
 
 
 ## Context and Orientation

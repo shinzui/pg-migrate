@@ -176,9 +176,10 @@ none). Update the goldens under `pg-migrate-cli/test/golden/json` and the field 
 `docs/reference/json-v1.md`, noting the addition is backward-compatible for JSON consumers
 (new field, unchanged existing fields). Coordinate with
 `docs/plans/17-fix-cli-runner-option-overrides-and-authoring-input-safety.md` per the
-master plan's Integration Points: this plan owns every rendering change for
-`CleanupFailed`/reports; if plan 17 has not landed, expect no conflicts beyond the
-changelog.
+master plan's Integration Points: plan 17 is complete, so preserve its `ExitSucceeded`
+constructor, `CliInputError`, and parser behavior. This plan owns every rendering change
+for `CleanupFailed`/reports and must append its release notes to the existing `Unreleased`
+section in `pg-migrate-cli/CHANGELOG.md`.
 
 Milestone 3 — test-support. In `runCallback`, catch only synchronous exceptions: after
 `Exception.try`, inspect the exception with
@@ -299,3 +300,8 @@ data MigrationReport = MigrationReport
 adapter's `CoddUnlockFailed` is deliberately not touched here; it adopts this pattern in
 `docs/plans/19-harden-import-adapter-parsing-audit-evidence-and-internal-totality.md` (see
 the master plan's Integration Points).
+
+
+Revision note (2026-07-13): Updated the CLI cascade instructions after EP-1 completed so
+this plan preserves the renamed success constructor and existing unreleased changelog
+instead of reasoning from the pre-EP-1 tree.

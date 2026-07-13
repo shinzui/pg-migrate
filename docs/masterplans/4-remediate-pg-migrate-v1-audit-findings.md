@@ -82,7 +82,7 @@ behavior against a live database, so they verify differently and stay separate.
 
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
-| 1 | Fix CLI runner-option overrides and authoring input safety | docs/plans/17-fix-cli-runner-option-overrides-and-authoring-input-safety.md | None | None | In Progress |
+| 1 | Fix CLI runner-option overrides and authoring input safety | docs/plans/17-fix-cli-runner-option-overrides-and-authoring-input-safety.md | None | None | Complete |
 | 2 | Preserve durable success through cleanup failures and async exceptions | docs/plans/18-preserve-durable-success-through-cleanup-failures-and-async-exceptions.md | None | EP-1 | Not Started |
 | 3 | Harden import adapter parsing, audit evidence, and internal totality | docs/plans/19-harden-import-adapter-parsing-audit-evidence-and-internal-totality.md | None | EP-2 | Not Started |
 | 4 | Fix embed authoring numbering, recompilation tracking, and byte embedding | docs/plans/20-fix-embed-authoring-numbering-recompilation-tracking-and-byte-embedding.md | None | None | Not Started |
@@ -162,8 +162,8 @@ full matrix.
 Track milestone-level progress across all child plans. Each entry names the child plan
 and the milestone. This section provides an at-a-glance view of the entire initiative.
 
-- [ ] EP-1: Optional execution flags no longer clobber application `RunOptions`
-- [ ] EP-1: `new --description` is line-safe; CLI exit-class and parser polish landed
+- [x] EP-1: Optional execution flags no longer clobber application `RunOptions`
+- [x] EP-1: `new --description` is line-safe; CLI exit-class and parser polish landed
 - [ ] EP-2: Core runner returns preserved success alongside cleanup issues
 - [ ] EP-2: CLI JSON/text render the new `CleanupFailed` shape; goldens updated
 - [ ] EP-2: Test-support rethrows async exceptions and preserves callback results
@@ -186,7 +186,12 @@ and the milestone. This section provides an at-a-glance view of the entire initi
 Document cross-plan insights, dependency changes, scope adjustments, or unexpected
 interactions between child plans. Provide concise evidence.
 
-(None yet.)
+- EP-1 established `ExitSucceeded` as the CLI success constructor, added
+  `CliInputError`, changed `check` to `--manifest`, and created an existing `Unreleased`
+  changelog section. Later plans touching `pg-migrate-cli` must preserve those public API
+  and parser changes and append their release notes to that section. Evidence: EP-1's
+  workspace-wide `cabal test all` rebuilt both import adapters successfully against the
+  changed CLI facade.
 
 
 ## Decision Log
@@ -222,4 +227,7 @@ interactions between child plans. Provide concise evidence.
 Summarize outcomes, gaps, and lessons learned at major milestones or at completion.
 Compare the result against the original vision.
 
-(To be filled during and after implementation.)
+EP-1 completed the highest-severity audit remediation and the associated CLI safety/polish
+batch. One of six child plans is complete. The workspace remains green across all 15 test
+components, including PostgreSQL integration and Template Haskell recompilation coverage;
+the remaining five subsystem plans are still Not Started.
