@@ -46,7 +46,7 @@ Use a checklist to summarize granular steps. Every stopping point must be docume
 even if it requires splitting a partially completed task into two ("done" vs. "remaining").
 This section must always reflect the actual current state of the work.
 
-- [ ] Milestone 1: numbering rollover fixed (`MigrationSequenceExhausted` at width boundary); regression tests.
+- [x] Milestone 1: numbering rollover fixed (`MigrationSequenceExhausted` at width boundary); regression tests. (2026-07-13T19:13:42Z)
 - [ ] Milestone 2: `addDependentDirectory` registered; recompilation test extended to the unlisted-file case.
 - [ ] Milestone 3: byte embedding via `bytesPrimL`; equality test on embedded bytes; compile-time sanity check on a large fixture.
 - [ ] Milestone 4: BOM diagnostic, haddock honesty, clobber detection, platform note in docs.

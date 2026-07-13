@@ -1,12 +1,17 @@
 module Test.Authoring (tests) where
 
 import Control.Exception qualified as Exception
+import Control.Monad (forM_)
 import Data.ByteString qualified as ByteString
 import Data.ByteString.Char8 qualified as ByteString.Char8
 import Data.Foldable (traverse_)
 import Data.List qualified as List
 import Database.PostgreSQL.Migrate.Embed
-import Database.PostgreSQL.Migrate.Embed.Internal (newMigrationWithRename)
+import Database.PostgreSQL.Migrate.Embed.Internal
+  ( newMigrationWithRename,
+    numericPrefix,
+    renderNextMigrationName,
+  )
 import System.Directory qualified as Directory
 import System.FilePath qualified as FilePath
 import Test.Tasty (TestTree, testGroup)
@@ -40,6 +45,26 @@ tests =
           options <- assertRight (newMigrationOptions manifestPath Nothing "SELECT 2;\n")
           result <- newMigration options
           result @?= Left ExplicitMigrationNameRequired,
+      testCase "next automatic name after 08 is 09" $
+        withWorkspace "next-nine" (numberedFiles 2 [1 .. 8]) $ \manifestPath -> do
+          options <- assertRight (newMigrationOptions manifestPath Nothing "SELECT 9;\n")
+          result <- newMigration options
+          result
+            @?= Right (FilePath.takeDirectory manifestPath FilePath.</> "09.sql"),
+      testCase "successor of 09 at width 2 is exhausted" $
+        withWorkspace "width-two-exhausted" (numberedFiles 2 [1 .. 9]) $ \manifestPath -> do
+          options <- assertRight (newMigrationOptions manifestPath Nothing "SELECT 10;\n")
+          result <- newMigration options
+          result @?= Left (MigrationSequenceExhausted 2),
+      testCase "successor of 0999 at width 4 is exhausted" $
+        withWorkspace "width-four-exhausted" [("0999.sql", "SELECT 999;\n")] $ \manifestPath -> do
+          options <- assertRight (newMigrationOptions manifestPath Nothing "SELECT 1000;\n")
+          result <- newMigration options
+          result @?= Left (MigrationSequenceExhausted 4),
+      testCase "automatic names round-trip through numeric-prefix inference" $
+        forM_ roundTripCases $ \(width, next) -> do
+          entry <- assertRight (renderNextMigrationName width next)
+          numericPrefix entry @?= Just (width, next),
       testCase "exclusive creation refuses an existing migration" $
         withWorkspace "collision" [("0001-first.sql", "SELECT 1;\n")] $ \manifestPath -> do
           originalManifest <- ByteString.readFile manifestPath
@@ -88,6 +113,21 @@ numericFiles :: [(FilePath, ByteString.ByteString)]
 numericFiles =
   [ ("0001-first.sql", "SELECT 1;\n"),
     ("0002-second.sql", "SELECT 2;\n")
+  ]
+
+numberedFiles :: Int -> [Integer] -> [(FilePath, ByteString.ByteString)]
+numberedFiles width =
+  fmap $ \number ->
+    ( replicate (width - length (show number)) '0' <> show number <> ".sql",
+      "SELECT " <> ByteString.Char8.pack (show number) <> ";\n"
+    )
+
+roundTripCases :: [(Int, Integer)]
+roundTripCases =
+  [ (width, next)
+  | width <- [2 .. 6],
+    next <- [1, 8, 9, 10, 99, 100, 999],
+    length (show next) < width
   ]
 
 withWorkspace ::

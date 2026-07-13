@@ -4,6 +4,8 @@ module Database.PostgreSQL.Migrate.Embed.Authoring
     newMigrationOptions,
     newMigration,
     newMigrationWithRename,
+    renderNextMigrationName,
+    numericPrefix,
   )
 where
 
@@ -109,7 +111,7 @@ automaticMigrationName entries =
 renderNextMigrationName :: Int -> Integer -> Either AuthoringError FilePath
 renderNextMigrationName width next =
   let rendered = show next
-   in if length rendered > width
+   in if length rendered >= width
         then Left (MigrationSequenceExhausted width)
         else
           firstLeft
