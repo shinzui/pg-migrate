@@ -87,7 +87,7 @@ testDirectImport settings =
     first <- runDirectImport settings >>= requireAdapterRight
     outcomes first @?= [Imported]
     facts <- query settings directTargetFactsStatement
-    facts @?= (1, 1, False, True, True)
+    facts @?= (1, 1, False, True, True, True)
     second <- runDirectImport settings >>= requireAdapterRight
     outcomes second @?= [AlreadyImported]
     repeatedFacts <- query settings directTargetFactsStatement
@@ -268,7 +268,7 @@ snapshotStatement source =
   where
     required = Decoders.column . Decoders.nonNullable
 
-directTargetFactsStatement :: Statement () (Int64, Int64, Bool, Bool, Bool)
+directTargetFactsStatement :: Statement () (Int64, Int64, Bool, Bool, Bool, Bool)
 directTargetFactsStatement =
   Statement.unpreparable
     ( Text.unwords
@@ -276,12 +276,13 @@ directTargetFactsStatement =
           "to_regclass('" <> targetSchema <> ".should_not_exist') IS NOT NULL,",
           "bool_and(source_evidence #>> '{satisfying_evidence,0,strength}' = 'source-ledger-checksum-verified'),",
           "bool_and(source_evidence #>> '{satisfying_evidence,0,applied_at,kind}' = 'local-without-zone'",
-          "AND source_evidence #>> '{satisfying_evidence,0,applied_at,value}' = '2024-01-02 03:04:05')",
+          "AND source_evidence #>> '{satisfying_evidence,0,applied_at,value}' = '2024-01-02 03:04:05'),",
+          "bool_and(source_evidence #>> '{satisfying_evidence,0,details,source_table}' = '\"hasql_migration_source\".\"schema_migrations\"')",
           "FROM " <> targetSchema <> ".history_imports"
         ]
     )
     Encoders.noParams
-    (Decoders.singleRow ((,,,,) <$> required Decoders.int8 <*> required Decoders.int8 <*> required Decoders.bool <*> required Decoders.bool <*> required Decoders.bool))
+    (Decoders.singleRow ((,,,,,) <$> required Decoders.int8 <*> required Decoders.int8 <*> required Decoders.bool <*> required Decoders.bool <*> required Decoders.bool <*> required Decoders.bool))
   where
     required = Decoders.column . Decoders.nonNullable
 

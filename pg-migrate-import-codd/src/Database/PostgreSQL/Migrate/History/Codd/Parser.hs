@@ -16,7 +16,7 @@ import Options.Applicative
 import PgMigrate.History.Codd.Prelude
 import Text.Read qualified as Read
 
--- | Build the reusable, target-aware Codd import parser.
+-- | Build the reusable Codd import parser; the plan parameter is reserved.
 coddImportCommandParser :: MigrationPlan -> Parser CoddImportCommand
 coddImportCommandParser _ =
   CoddImportCommand
@@ -41,6 +41,7 @@ coddImportCommandParser _ =
     <*> optional (strOption (long "source-directory" <> metavar "PATH" <> help "Directory containing exact selected Codd SQL payloads"))
     <*> switch (long "strict-source" <> help "Reject every unselected source row and unexpected manifest entry")
     <*> flag NotConfirmed Confirmed (long "confirm" <> help "Confirm Codd source evidence when SamePayload is mapped")
+    <*> switch (long "allow-equivalent" <> help "Opt in to mappings proven by read-only state validators")
     <*> flag TextOutput JsonOutput (long "json" <> help "Emit JSON schema version 1 conventions")
 
 lockKeyReader :: ReadM Int64

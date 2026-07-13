@@ -119,8 +119,11 @@ buildCoddEvidence config@CoddSourceConfig {strictSource, sourceManifest} CoddHis
     Just (CoddManifest manifest)
       | strictSource ->
           let selected = Set.fromList (filename <$> toList selectedRows)
+              missing = Set.toAscList (selected `Set.difference` Map.keysSet manifest)
               extras = Set.toAscList (Map.keysSet manifest `Set.difference` selected)
-           in if null extras then Right () else Left (CoddManifestHasUnexpected extras)
+           in case missing of
+                missingFilename : _ -> Left (CoddManifestEntryMissing missingFilename)
+                [] -> if null extras then Right () else Left (CoddManifestHasUnexpected extras)
     _ -> Right ()
   Map.fromList . toList <$> traverse (rowEvidence config schemaVersion) selectedRows
 

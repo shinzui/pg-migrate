@@ -22,6 +22,8 @@ tests =
     "evidence"
     [ testCase "manifest-verified payload evidence is constructed" testVerifiedEvidence,
       testCase "manifest checksum mismatches are distinct" testManifestMismatch,
+      testCase "strict source rejects selected rows missing from the manifest" testStrictManifestMissing,
+      testCase "lenient source permits selected rows missing from the manifest" testLenientManifestMissing,
       testCase "SamePayload confirmation fails before connection acquisition" testConfirmationPreflight,
       testCase "unknown targets fail before connection acquisition" testTargetPreflight
     ]
@@ -39,6 +41,18 @@ testManifestMismatch = do
   case buildCoddEvidence (sourceConfig Confirmed (Just wrongManifest)) history of
     Left (CoddManifestChecksumMismatch "migration.sql" _ actual) -> actual @?= payloadChecksum
     result -> assertFailure ("expected manifest mismatch, received: " <> show result)
+
+testStrictManifestMissing :: Assertion
+testStrictManifestMissing =
+  case buildCoddEvidence (sourceConfigWithStrict True Confirmed (Just emptyManifest)) history of
+    Left (CoddManifestEntryMissing "migration.sql") -> pure ()
+    result -> assertFailure ("expected missing manifest entry, received: " <> show result)
+
+testLenientManifestMissing :: Assertion
+testLenientManifestMissing =
+  case buildCoddEvidence (sourceConfigWithStrict False Confirmed (Just emptyManifest)) history of
+    Left err -> assertFailure (show err)
+    Right evidence -> Map.size evidence @?= 1
 
 testConfirmationPreflight :: Assertion
 testConfirmationPreflight = do
@@ -75,12 +89,15 @@ testTargetPreflight = do
     other -> assertFailure ("expected target preflight failure, received: " <> show other)
 
 sourceConfig :: Confirmation -> Maybe CoddManifest -> CoddSourceConfig
-sourceConfig confirmation manifest =
+sourceConfig = sourceConfigWithStrict False
+
+sourceConfigWithStrict :: Bool -> Confirmation -> Maybe CoddManifest -> CoddSourceConfig
+sourceConfigWithStrict strict confirmation manifest =
   expectRight
     ( coddSourceConfig
         unusedProvider
         ("migration.sql" :| [])
-        False
+        strict
         (Map.singleton "migration.sql" payload)
         manifest
         "fixture import"
@@ -89,6 +106,9 @@ sourceConfig confirmation manifest =
 
 matchingManifest :: CoddManifest
 matchingManifest = expectRight (parseCoddManifest (payloadChecksum <> " migration.sql\n"))
+
+emptyManifest :: CoddManifest
+emptyManifest = expectRight (parseCoddManifest "")
 
 history :: CoddHistory
 history =

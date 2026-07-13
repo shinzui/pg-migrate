@@ -8,7 +8,7 @@ import Data.Text qualified as Text
 import Database.PostgreSQL.Migrate.History.Codd.Types
 import PgMigrate.History.Codd.Prelude
 
--- | Parse the exact ordered Codd manifest selection.
+-- | Parse expected SHA-256 checksums keyed by Codd source filename.
 parseCoddManifest :: Text -> Either CoddDefinitionError CoddManifest
 parseCoddManifest contents =
   CoddManifest <$> foldl parseLine (Right Map.empty) (zip [1 ..] (Text.lines contents))

@@ -63,7 +63,6 @@ data HasqlMigrationHistory = HasqlMigrationHistory
 data HasqlMigrationDefinitionError
   = InvalidQualifiedTable !Text
   | InvalidQualifiedTableIdentifier !Text !PostgresIdentifierError
-  | EmptyHasqlMigrationSelection
   | EmptyHasqlMigrationFilename
   | DuplicateHasqlMigrationFilename !FilePath
   | MissingHasqlMigrationPayload !FilePath

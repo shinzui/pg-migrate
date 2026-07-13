@@ -46,6 +46,7 @@ tests settings =
       testCase "partial and duplicate rows are rejected" (testInvalidRows settings),
       testCase "lenient selection reports extras and strict selection rejects them" (testSelection settings),
       testCase "legacy lock contention prevents target acquisition" (testLockContention settings),
+      testCase "strict source rejects a selected row omitted from the manifest" (testStrictManifestSymmetry settings),
       testCase "import is audited, action-free, source-preserving, and idempotent" (testImportLifecycle settings),
       testCase "a partial manifest supports mixed payload and state evidence" (testMixedEvidenceImport settings)
     ]
@@ -95,6 +96,19 @@ testLockContention settings =
       targetExists @?= False
       unlocked <- useSession holder (Session.statement defaultCoddLockKey unlockStatement)
       unlocked @?= True
+
+testStrictManifestSymmetry :: Settings.Settings -> Assertion
+testStrictManifestSymmetry settings =
+  withCleanSchemas settings $ do
+    runScript settings (fixtureSql CoddV5 <> appliedInsertSql CoddV5 selectedFilename)
+    result <-
+      importCoddHistory
+        importOptions
+        (strictMissingManifestConfig settings)
+        (connectionProviderFromSettings settings)
+        targetPlan
+        (targetMapping :| [])
+    assertCoddError (\case CoddManifestEntryMissing filename -> filename == selectedFilename; _ -> False) result
 
 testImportLifecycle :: Settings.Settings -> Assertion
 testImportLifecycle settings =
@@ -232,6 +246,19 @@ sourceConfigWithEvidence settings =
         (Map.singleton selectedFilename targetPayload)
         (Just targetManifest)
         "verified Codd cutover"
+        Confirmed
+    )
+
+strictMissingManifestConfig :: Settings.Settings -> CoddSourceConfig
+strictMissingManifestConfig settings =
+  expectRight
+    ( coddSourceConfig
+        (connectionProviderFromSettings settings)
+        (selectedFilename :| [])
+        True
+        Map.empty
+        (Just (expectRight (parseCoddManifest "")))
+        "strict Codd cutover"
         Confirmed
     )
 

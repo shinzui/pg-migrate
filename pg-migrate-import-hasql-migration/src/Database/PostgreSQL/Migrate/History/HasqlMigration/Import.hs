@@ -1,6 +1,7 @@
 module Database.PostgreSQL.Migrate.History.HasqlMigration.Import
   ( importHasqlMigrationHistory,
     buildHasqlMigrationEvidence,
+    rowDetails,
   )
 where
 
@@ -9,7 +10,10 @@ import Data.Bifunctor (first)
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
 import Database.PostgreSQL.Migrate
-import Database.PostgreSQL.Migrate.History.HasqlMigration.Ledger (readHasqlMigrationHistory)
+import Database.PostgreSQL.Migrate.History.HasqlMigration.Ledger
+  ( readHasqlMigrationHistory,
+    renderQualifiedTable,
+  )
 import Database.PostgreSQL.Migrate.History.HasqlMigration.Types
 import PgMigrate.History.HasqlMigration.Prelude
 
@@ -101,9 +105,10 @@ buildHasqlMigrationEvidence HasqlMigrationSourceConfig {sourcePayloads, sourceTa
       Right (key, evidence)
 
 rowDetails :: QualifiedTable -> HasqlMigrationRow -> Aeson.Value
-rowDetails _ HasqlMigrationRow {filename, storedMd5, executedAt} =
+rowDetails sourceTable HasqlMigrationRow {filename, storedMd5, executedAt} =
   Aeson.object
     [ "adapter" Aeson..= ("hasql-migration" :: Text),
+      "source_table" Aeson..= renderQualifiedTable sourceTable,
       "filename" Aeson..= filename,
       "storedMd5" Aeson..= storedMd5,
       "executedAt" Aeson..= executedAt

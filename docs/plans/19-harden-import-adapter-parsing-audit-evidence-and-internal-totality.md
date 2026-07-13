@@ -50,7 +50,7 @@ This section must always reflect the actual current state of the work.
 
 - [x] (2026-07-13 11:43 PDT) Milestone 1 implementation: lock-key reader parses through `Integer`, bounds-checks before conversion, and has boundary-value regression tests.
 - [x] (2026-07-13 11:44 PDT) Milestone 1 validation: `cabal test pg-migrate-import-codd:pg-migrate-import-codd-test` passed all 23 tests, including all new bounds cases.
-- [ ] Milestone 2: audit completeness and strict-source symmetry (source table in details, `CoddManifestEntryMissing` repurposed, dead constructors removed, haddocks fixed, `--allow-equivalent` parity).
+- [x] (2026-07-13 11:51 PDT) Milestone 2: audit details record the rendered source table; strict Codd manifests reject missing selected rows; dead constructors are removed; manifest/parser Haddocks are accurate; and Codd exposes `--allow-equivalent` parity. Both adapter unit and PostgreSQL integration suites pass (25 + 11 Codd tests; 14 + 6 hasql-migration tests).
 - [ ] Milestone 3: totality and evidence strength (no `Map.!` on public paths, no unverified checksum in `LedgerOnly` evidence, core `SamePayload` strength gate).
 - [ ] Milestone 4: `CoddUnlockFailed` preserves committed reports (pattern from plan 18).
 - [ ] Docs and changelogs updated; `cabal test all` green.
@@ -89,6 +89,12 @@ implementation. Provide concise evidence.
   Rationale: Defense in depth — today only the adapter's `--confirm`/manifest gate stands
   between an unverified local file checksum and a `SamePayload` import; anyone composing
   `Database.PostgreSQL.Migrate.Internal.buildCoddEvidence`-style pieces bypasses it.
+  Date: 2026-07-13
+
+- Decision: Store hasql-migration's `source_table` audit detail using the same quoted
+  schema-qualified rendering used to query the predecessor ledger.
+  Rationale: The quoted form is unambiguous for identifiers containing spaces, dots, or
+  quotes and proves exactly which validated relation supplied the evidence.
   Date: 2026-07-13
 
 

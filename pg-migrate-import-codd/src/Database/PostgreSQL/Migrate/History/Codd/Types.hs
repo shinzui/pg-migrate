@@ -41,7 +41,7 @@ data CoddSourceConfig = CoddSourceConfig
     confirmation :: !Confirmation
   }
 
--- | Ordered exact source filenames selected for import.
+-- | Unordered expected SHA-256 checksums keyed by source filename.
 newtype CoddManifest = CoddManifest
   { manifestChecksums :: Map FilePath Text
   }
@@ -76,8 +76,7 @@ data CoddHistory = CoddHistory
 
 -- | Invalid source identifiers, manifest, mappings, or adapter options.
 data CoddDefinitionError
-  = EmptyCoddSelection
-  | EmptyCoddFilename
+  = EmptyCoddFilename
   | DuplicateCoddFilename !FilePath
   | EmptyCoddImportReason
   | InvalidCoddManifestLine !Int
@@ -119,6 +118,7 @@ data CoddImportCommand = CoddImportCommand
     sourceDirectory :: !(Maybe FilePath),
     strict :: !Bool,
     confirmation :: !Confirmation,
+    allowEquivalent :: !Bool,
     outputFormat :: !OutputFormat
   }
   deriving stock (Generic, Eq, Show)

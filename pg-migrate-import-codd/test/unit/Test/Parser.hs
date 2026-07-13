@@ -37,6 +37,7 @@ testCommand =
       "migrations",
       "--strict-source",
       "--confirm",
+      "--allow-equivalent",
       "--json"
     ] of
     CoddImportCommand
@@ -46,6 +47,7 @@ testCommand =
         sourceDirectory,
         strict,
         confirmation,
+        allowEquivalent,
         outputFormat
       } -> do
         lockKey @?= defaultCoddLockKey
@@ -54,6 +56,7 @@ testCommand =
         sourceDirectory @?= Just "migrations"
         strict @?= True
         confirmation @?= Confirmed
+        allowEquivalent @?= True
         outputFormat @?= JsonOutput
 
 lockKeyFor :: String -> Int64

@@ -10,7 +10,7 @@ import Database.PostgreSQL.Migrate.History.HasqlMigration.Types
 import Hasql.Connection.Settings qualified as Settings
 import Options.Applicative
 
--- | Build the reusable, target-aware hasql-migration import parser.
+-- | Build the reusable hasql-migration import parser; the plan parameter is reserved.
 hasqlMigrationImportCommandParser :: MigrationPlan -> Parser HasqlMigrationImportCommand
 hasqlMigrationImportCommandParser _ =
   HasqlMigrationImportCommand

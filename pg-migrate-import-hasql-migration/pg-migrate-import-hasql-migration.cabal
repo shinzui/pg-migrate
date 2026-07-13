@@ -63,6 +63,7 @@ test-suite pg-migrate-import-hasql-migration-test
     Test.Parser
 
   build-depends:
+    , aeson                              >=2.2  && <2.3
     , base                               >=4.20 && <4.22
     , bytestring                         >=0.12 && <0.13
     , containers                         >=0.7  && <0.8
