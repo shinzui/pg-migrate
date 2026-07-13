@@ -15,3 +15,9 @@ runner version, and time. Retry returns the row to `Running` and executes the ac
 second failure remains durable. Repair never changes transactional history and never
 bypasses checksum, kind, mode, identity, position, or plan-prefix mismatches. Finish with
 strict `verify` and preserve the audit output with deployment records.
+
+Repair verifies the target plan with the `UnknownMigrationsPolicy` in its `RunOptions`, the
+same policy used by normal execution. The default `RejectUnknownMigrations` blocks repair
+when the ledger contains another application's component. In an intentionally shared
+ledger, opt into `AllowUnknownMigrations` explicitly; repair still enforces the target's
+identity, position, checksum, kind, transaction mode, status, and plan prefix.

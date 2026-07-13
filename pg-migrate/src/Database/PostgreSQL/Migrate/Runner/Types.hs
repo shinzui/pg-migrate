@@ -146,7 +146,7 @@ withLockWait lockWait options = options {lockWait}
 withStatementTimeout :: Maybe NominalDiffTime -> RunOptions -> RunOptions
 withStatementTimeout statementTimeout options = options {statementTimeout}
 
--- | Select how inspection treats unknown stored migrations.
+-- | Select how execution, repair, and history import treat unknown stored migrations.
 withUnknownMigrationsPolicy :: UnknownMigrationsPolicy -> RunOptions -> RunOptions
 withUnknownMigrationsPolicy unknownMigrations RunOptions {ledger, lockWait, statementTimeout, emit} =
   RunOptions {ledger, lockWait, statementTimeout, unknownMigrations, emit}

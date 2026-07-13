@@ -87,7 +87,7 @@ behavior against a live database, so they verify differently and stay separate.
 | 3 | Harden import adapter parsing, audit evidence, and internal totality | docs/plans/19-harden-import-adapter-parsing-audit-evidence-and-internal-totality.md | None | EP-2 | Complete |
 | 4 | Fix embed authoring numbering, recompilation tracking, and byte embedding | docs/plans/20-fix-embed-authoring-numbering-recompilation-tracking-and-byte-embedding.md | None | None | Complete |
 | 5 | Harden SQL validation against BOM, misplaced directives, and wrong diagnostics | docs/plans/21-harden-sql-validation-against-bom-misplaced-directives-and-wrong-diagnostics.md | None | None | Complete |
-| 6 | Align verification policy handling and remove quadratic ledger scans | docs/plans/22-align-verification-policy-handling-and-remove-quadratic-ledger-scans.md | None | None | Not Started |
+| 6 | Align verification policy handling and remove quadratic ledger scans | docs/plans/22-align-verification-policy-handling-and-remove-quadratic-ledger-scans.md | None | None | In Progress |
 
 Status values: Not Started, In Progress, Complete, Cancelled.
 Hard Deps and Soft Deps reference other rows by their # prefix (e.g., EP-1, EP-3).

@@ -31,6 +31,11 @@ Transactional SQL plus ledger state is atomic. Nontransactional state is durable
 remain ambiguous after interruption. History import writes target ledger and audit rows
 atomically without executing target actions.
 
+`withUnknownMigrationsPolicy` applies consistently to execution, repair, and history import.
+The default rejects ledger rows outside the active plan; applications that intentionally
+share a ledger may explicitly allow those rows without relaxing verification of rows owned
+by the active plan.
+
 The successful `MigrationReport`, `RepairReport`, and `HistoryImportReport` records expose
 `cleanupIssues :: [CleanupIssue]`. An empty list means lock release and timeout restoration
 completed normally. A non-empty list means the primary operation completed durably and the

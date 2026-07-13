@@ -124,7 +124,7 @@ importAgainstSnapshot ::
   [StoredHistoryImport] ->
   IO (Either HistoryImportError HistoryImportReport)
 importAgainstSnapshot options connection plan history snapshot storedAudits =
-  case comparePlanWithLedger RejectUnknownMigrations (planDescription plan) (storedMigrations snapshot) of
+  case comparePlanWithLedger policy (planDescription plan) (storedMigrations snapshot) of
     verification@VerificationReport {issues = _ : _} ->
       pure (Left (HistoryImportRunnerError (PlanVerificationFailed verification)))
     VerificationReport {} -> do
@@ -142,6 +142,8 @@ importAgainstSnapshot options connection plan history snapshot storedAudits =
               case classified of
                 Left importError -> pure (Left importError)
                 Right imports -> persistImports options connection history imports
+  where
+    policy = runUnknownMigrationsPolicy (importRunOptions options)
 
 runValidators ::
   Connection.Connection ->

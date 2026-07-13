@@ -76,10 +76,12 @@ tests settings =
       testCase "repair retry audits and executes the current action once" (testRepairRetry settings),
       testCase "repair retry failure remains audited and Failed" (testRepairRetryFailure settings),
       testCase "repair rejects invalid targets" (testRepairValidation settings),
+      testCase "repair honors the unknown-migrations policy" (testRepairUnknownPolicy settings),
       testCase "terminated nontransactional helper leaves Running" (testCrashAmbiguity settings),
       testCase "nontransactional callback failure leaves Applied" (testNonTransactionalCallback settings),
       testCase "history import is atomic, audited, and idempotent" (testHistoryImport settings),
       testCase "history import conflicts with ordinary applied rows" (testHistoryExistingConflict settings),
+      testCase "history import honors the unknown-migrations policy" (testHistoryUnknownPolicy settings),
       testCase "history audit failure rolls back target rows" (testHistoryAtomicity settings),
       testCase "equivalent history uses read-only state validation" (testHistoryEquivalentState settings),
       testCase "events follow durable migration boundaries" (testEventOrder settings),
@@ -463,6 +465,25 @@ testRepairValidation settings = do
     repairMigration options (connectionProviderFromSettings settings) plan request
       >>= assertRepairAlreadyApplied
 
+testRepairUnknownPolicy :: Settings.Settings -> IO ()
+testRepairUnknownPolicy settings =
+  withTestLedger settings "repair_unknown_policy" $ \_ config -> do
+    let foreignPlan = sqlPlan "repair-foreign" [("0001", "SELECT 1")]
+        targetPlan = missingIndexPlan config "repair-policy" "idx_repair_policy" "missing_policy_table"
+        strictOptions = withLedger config defaultRunOptions
+        allowedOptions = strictOptions & withUnknownMigrationsPolicy AllowUnknownMigrations
+        targetId = requireRight (Migrate.migrationId "repair-policy" "0001-index")
+        foreignId = requireRight (Migrate.migrationId "repair-foreign" "0001")
+        request = requireRight (repairRequest targetId MarkApplied "shared ledger policy verified" Confirmed)
+        provider = connectionProviderFromSettings settings
+    _ <- runMigrationPlan strictOptions settings foreignPlan >>= requireRunRight
+    runMigrationPlan allowedOptions settings targetPlan >>= assertNonTransactionalFailure
+    repairMigration strictOptions provider targetPlan request
+      >>= assertRepairUnknownBlocked foreignId
+    report <- repairMigration allowedOptions provider targetPlan request >>= requireRepairRight
+    repairedMigration report @?= targetId
+    newStatus report @?= Applied
+
 testCrashAmbiguity :: Settings.Settings -> IO ()
 testCrashAmbiguity settings =
   withTestLedger settings "crash" $ \connection config ->
@@ -549,6 +570,24 @@ testHistoryExistingConflict settings =
     length (storedMigrations snapshot) @?= 1
     auditCount <- useSession connection (Session.statement () (historyAuditCountStatement config))
     auditCount @?= 0
+
+testHistoryUnknownPolicy :: Settings.Settings -> IO ()
+testHistoryUnknownPolicy settings =
+  withTestLedger settings "history_unknown_policy" $ \_ config -> do
+    let foreignPlan = sqlPlan "history-foreign" [("0001", "SELECT 1")]
+        strictRunOptions = withLedger config defaultRunOptions
+        allowedRunOptions = strictRunOptions & withUnknownMigrationsPolicy AllowUnknownMigrations
+        strictImportOptions = withImportRunOptions strictRunOptions defaultImportOptions
+        allowedImportOptions = withImportRunOptions allowedRunOptions defaultImportOptions
+        provider = connectionProviderFromSettings settings
+        plan = historySqlPlan config
+        imported = historySqlImport config False
+        foreignId = requireRight (Migrate.migrationId "history-foreign" "0001")
+    _ <- runMigrationPlan strictRunOptions settings foreignPlan >>= requireRunRight
+    importMigrationHistory strictImportOptions provider plan imported
+      >>= assertHistoryUnknownBlocked foreignId
+    report <- importMigrationHistory allowedImportOptions provider plan imported >>= requireHistoryRight
+    historyOutcomes report @?= zip (historyTarget <$> [1, 2]) (repeat Imported)
 
 testHistoryAtomicity :: Settings.Settings -> IO ()
 testHistoryAtomicity settings =
@@ -1063,11 +1102,25 @@ assertRepairRunFailure = \case
   Left repairError -> assertFailure ("expected repaired action failure, received " <> show repairError)
   Right report -> assertFailure ("expected repaired action failure, received " <> show report)
 
+assertRepairUnknownBlocked :: MigrationId -> Either RepairError RepairReport -> IO ()
+assertRepairUnknownBlocked expected = \case
+  Left (RepairBlockedByVerification VerificationReport {issues}) ->
+    issues @?= [UnknownStoredMigration expected]
+  Left repairError -> assertFailure ("expected RepairBlockedByVerification, received " <> show repairError)
+  Right report -> assertFailure ("expected RepairBlockedByVerification, received " <> show report)
+
 assertHistoryConflict :: MigrationId -> Either HistoryImportError HistoryImportReport -> IO ()
 assertHistoryConflict expected = \case
   Left (HistoryImportConflict actual) -> actual @?= expected
   Left importError -> assertFailure ("expected HistoryImportConflict, received " <> show importError)
   Right report -> assertFailure ("expected HistoryImportConflict, received " <> show report)
+
+assertHistoryUnknownBlocked :: MigrationId -> Either HistoryImportError HistoryImportReport -> IO ()
+assertHistoryUnknownBlocked expected = \case
+  Left (HistoryImportRunnerError (PlanVerificationFailed VerificationReport {issues})) ->
+    issues @?= [UnknownStoredMigration expected]
+  Left importError -> assertFailure ("expected history PlanVerificationFailed, received " <> show importError)
+  Right report -> assertFailure ("expected history PlanVerificationFailed, received " <> show report)
 
 assertHistoryDatabaseFailure :: Either HistoryImportError HistoryImportReport -> IO ()
 assertHistoryDatabaseFailure = \case

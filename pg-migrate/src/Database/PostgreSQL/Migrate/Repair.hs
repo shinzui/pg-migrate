@@ -101,7 +101,7 @@ repairVerified options connection plan request snapshot =
     targetId = repairMigrationId request
     verification =
       comparePlanWithLedger
-        RejectUnknownMigrations
+        (runUnknownMigrationsPolicy options)
         (planDescription plan)
         (storedMigrations snapshot)
 

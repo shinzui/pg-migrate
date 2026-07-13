@@ -49,7 +49,7 @@ Use a checklist to summarize granular steps. Every stopping point must be docume
 even if it requires splitting a partially completed task into two ("done" vs. "remaining").
 This section must always reflect the actual current state of the work.
 
-- [ ] Milestone 1: repair and import honor `runUnknownMigrationsPolicy`; tests for the allow-policy paths; docs updated.
+- [x] (2026-07-13T20:20:42Z) Milestone 1: repair and import honor `runUnknownMigrationsPolicy`; strict and allow-policy entry-point tests pass, policy docs are updated, all 110 unit tests pass, and all 28 PostgreSQL integration tests pass.
 - [ ] Milestone 2: single-row ledger lookup replaces the full reload; importer maps hoisted; behavior-preserving tests pass.
 - [ ] Milestone 3: mixed native/import prefix semantics pinned by integration tests and documented.
 - [ ] Core changelog updated; `cabal test all` green.
@@ -60,7 +60,11 @@ This section must always reflect the actual current state of the work.
 Document unexpected behaviors, bugs, optimizations, or insights discovered during
 implementation. Provide concise evidence.
 
-(None yet.)
+- The pure `comparePlanWithLedger` allow/reject behavior already had direct unit coverage in
+  `Test.Ledger.testUnknownPolicy`; duplicating that assertion would not prove the audited
+  call sites use the configured value. Evidence: the new integration tests fail against
+  the former hardcoded policy and pass through `repairMigration` and
+  `importMigrationHistory` after the two call-site changes.
 
 
 ## Decision Log
@@ -80,6 +84,13 @@ implementation. Provide concise evidence.
   Rationale: Relaxing it would let an import silently "adopt" rows it has no evidence for;
   the correct workflow (import history first, run natively after) is achievable today and
   just needs to be stated. Revisit only if a real migration scenario cannot be expressed.
+  Date: 2026-07-13
+
+- Decision: Keep the existing pure unknown-policy unit test and add the new regressions at
+  the repair and import entry points instead of adding duplicate snapshot-only tests.
+  Rationale: The defect was not in `comparePlanWithLedger`; it was that two callers ignored
+  `RunOptions`. PostgreSQL entry-point tests are the smallest tests that distinguish the
+  fixed code from the former hardcoded behavior while still asserting the strict default.
   Date: 2026-07-13
 
 
@@ -263,3 +274,8 @@ but touches disjoint modules (`Repair.hs`, `History.hs`, `Runner.hs`'s execute p
 `Ledger/Sql.hs` versus the scanner and option validation); only the
 `pg-migrate/CHANGELOG.md` may conflict. It is otherwise independent of all other plans in
 `docs/masterplans/4-remediate-pg-migrate-v1-audit-findings.md`.
+
+
+Revision note (2026-07-13): Recorded completion of policy alignment after the existing
+pure comparator coverage, 110 unit tests, and 28 real entry-point integration tests passed;
+documented why the new regressions live at the audited callers.

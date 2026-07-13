@@ -17,3 +17,10 @@ Mappings must form a prefix per affected component and cannot target unknown IDs
 missing, ambiguous, or conflicting evidence fails before writes. Target ledger and audit
 rows commit atomically with current target metadata; action code is not run. An identical
 second import is idempotent. Changed evidence is a conflict, never an update.
+
+History import verifies the target plan with the `UnknownMigrationsPolicy` inside its
+configured `RunOptions`, matching normal execution and repair. The default
+`RejectUnknownMigrations` blocks an import when the ledger contains another application's
+component. For an intentionally shared ledger, pass run options with
+`AllowUnknownMigrations` through `withImportRunOptions`; unknown rows are retained and
+reported without weakening mapping, evidence, prefix, or conflict validation.
