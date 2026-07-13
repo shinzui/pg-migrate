@@ -1,9 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.1.0.0 — 2026-07-13
 
-PVP impact: this set requires a major release (`1.1.0.0`) because it removes a public
-error constructor.
+Major release: this set removes a public error constructor.
 
 ### Breaking changes
 

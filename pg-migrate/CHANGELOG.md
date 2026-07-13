@@ -1,9 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.1.0.0 — 2026-07-13
 
-PVP impact: this set requires a major release (`1.1.0.0`) because it changes public report
-constructors and the `CleanupFailed` constructor.
+Major release: this set changes public report constructors and the `CleanupFailed`
+constructor.
 
 ### Breaking changes
 

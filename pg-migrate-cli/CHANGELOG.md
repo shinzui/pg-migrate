@@ -1,10 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.1.0.0 — 2026-07-13
 
-PVP impact: this set requires a major release (`1.1.0.0`) because it changes public record
-field types, renames a public constructor, removes an accidentally exposed module, and
-changes the `check` command syntax.
+Major release: this set changes public record field types, renames a public constructor,
+removes an accidentally exposed module, and changes the `check` command syntax.
 
 ### Breaking changes
 

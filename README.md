@@ -7,17 +7,17 @@ forward-only, uses ledger schema v1, and supports PostgreSQL 17 and 18.
 
 The package set is:
 
-- [`pg-migrate`](https://hackage.haskell.org/package/pg-migrate-1.0.0.0): validated
+- [`pg-migrate`](https://hackage.haskell.org/package/pg-migrate-1.1.0.0): validated
   plans, runner, ledger, repair, inspection, and generic import.
-- [`pg-migrate-embed`](https://hackage.haskell.org/package/pg-migrate-embed-1.0.0.0):
+- [`pg-migrate-embed`](https://hackage.haskell.org/package/pg-migrate-embed-1.1.0.0):
   manifest v1 validation, exact-byte embedding, and authoring.
-- [`pg-migrate-cli`](https://hackage.haskell.org/package/pg-migrate-cli-1.0.0.0):
+- [`pg-migrate-cli`](https://hackage.haskell.org/package/pg-migrate-cli-1.1.0.0):
   reusable command parser, dispatcher, text output, and JSON schema v1.
-- [`pg-migrate-import-codd`](https://hackage.haskell.org/package/pg-migrate-import-codd-1.0.0.0):
+- [`pg-migrate-import-codd`](https://hackage.haskell.org/package/pg-migrate-import-codd-1.1.0.0):
   Codd V1–V5 source adapter.
-- [`pg-migrate-import-hasql-migration`](https://hackage.haskell.org/package/pg-migrate-import-hasql-migration-1.0.0.0):
+- [`pg-migrate-import-hasql-migration`](https://hackage.haskell.org/package/pg-migrate-import-hasql-migration-1.1.0.0):
   base64-MD5 predecessor adapter.
-- [`pg-migrate-test-support`](https://hackage.haskell.org/package/pg-migrate-test-support-1.0.0.0):
+- [`pg-migrate-test-support`](https://hackage.haskell.org/package/pg-migrate-test-support-1.1.0.0):
   opt-in `ephemeral-pg` test helper.
 
 Start with the [user guide](docs/user/README.md), its
@@ -47,14 +47,18 @@ crash as operationally ambiguous until an operator inspects the database.
 
 ## Release status
 
-Version [`1.0.0.0`](https://github.com/shinzui/pg-migrate/releases/tag/v1.0.0.0) is the
-first stable release. All six packages and their Haddocks are published on Hackage. Add
-only the packages an application needs; for example, a migration-owning library can use:
+Version [`1.1.0.0`](https://github.com/shinzui/pg-migrate/releases/tag/v1.1.0.0) is the
+current release. All six packages and their Haddocks are published on Hackage. It is a
+breaking release: see each package's `CHANGELOG.md` before upgrading from `1.0.0.0`.
+Applications embedding manifests on GHC 9.12 must also load
+`Database.PostgreSQL.Migrate.Embed.RecompilePlugin`, as described in
+[manifest authoring](docs/user/manifest-authoring.md). Add only the packages an
+application needs; for example, a migration-owning library can use:
 
 ```cabal
 build-depends:
-    pg-migrate        >=1.0 && <1.1
-  , pg-migrate-embed  >=1.0 && <1.1
+    pg-migrate        >=1.1 && <1.2
+  , pg-migrate-embed  >=1.1 && <1.2
 ```
 
 Package versions are independent of the ledger, manifest, and JSON contract versions,

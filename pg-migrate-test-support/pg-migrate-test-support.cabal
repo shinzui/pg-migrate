@@ -1,6 +1,6 @@
 cabal-version:   3.8
 name:            pg-migrate-test-support
-version:         1.0.0.0
+version:         1.1.0.0
 synopsis:        Ephemeral PostgreSQL helpers for pg-migrate tests
 category:        Database
 maintainer:      nadeem@gmail.com
@@ -31,7 +31,7 @@ library
     , base          >=4.20 && <4.22
     , ephemeral-pg  >=0.2  && <0.3
     , hasql         >=1.10 && <1.11
-    , pg-migrate    >=1.0  && <1.1
+    , pg-migrate    >=1.1  && <1.2
 
 test-suite pg-migrate-test-support-test
   import:         common

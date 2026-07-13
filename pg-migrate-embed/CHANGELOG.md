@@ -1,9 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.1.0.0 — 2026-07-13
 
-PVP impact: this set requires a major release (`1.1.0.0`) because it adds constructors to
-the public `ManifestError` and `AuthoringError` sums.
+Major release: this set adds constructors to the public `ManifestError` and
+`AuthoringError` sums.
 
 ### Breaking changes
 
