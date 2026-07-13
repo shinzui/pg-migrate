@@ -77,6 +77,24 @@ tests =
         assertDefinitionLeft
           (InvalidSql (InvalidUtf8 2))
           (sqlMigration "0001-test" (ByteString.pack [0x61, 0xE2, 0x28, 0xA1])),
+      testCase "a leading UTF-8 byte-order mark is rejected" $
+        assertDefinitionLeft
+          (InvalidSql ByteOrderMarkFound)
+          (sqlMigration "0001-test" (ByteString.pack [0xEF, 0xBB, 0xBF] <> "SELECT 1")),
+      testCase "a byte-order mark cannot hide a leading directive" $
+        assertDefinitionLeft
+          (InvalidSql ByteOrderMarkFound)
+          ( sqlMigration
+              "0001-test"
+              ( ByteString.pack [0xEF, 0xBB, 0xBF]
+                  <> "-- pg-migrate: no-transaction\nCREATE INDEX CONCURRENTLY example_idx ON example (id)"
+              )
+          ),
+      -- U+FEFF away from byte offset zero is not an editor-added leading BOM, so
+      -- definition-time validation leaves its PostgreSQL meaning unchanged.
+      testCase "U+FEFF inside SQL remains ordinary payload" $
+        modeOf ("SELECT 1" <> ByteString.pack [0xEF, 0xBB, 0xBF])
+          @?= Right Transactional,
       testCase "psql meta-commands fail with their line" $
         assertDefinitionLeft
           (InvalidSql (PsqlMetaCommand 2))

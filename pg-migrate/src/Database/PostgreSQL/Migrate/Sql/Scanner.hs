@@ -18,6 +18,7 @@ data SqlError
   = InvalidUtf8
       { byteOffset :: !Int
       }
+  | ByteOrderMarkFound
   | UnknownDirective
       { directive :: !Text
       }

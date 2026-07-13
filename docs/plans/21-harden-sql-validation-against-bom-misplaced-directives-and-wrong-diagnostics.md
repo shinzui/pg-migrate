@@ -48,7 +48,7 @@ Use a checklist to summarize granular steps. Every stopping point must be docume
 even if it requires splitting a partially completed task into two ("done" vs. "remaining").
 This section must always reflect the actual current state of the work.
 
-- [ ] Milestone 1: leading BOM rejected by `validateSql` with a dedicated `SqlError`.
+- [x] (2026-07-13T20:05:39Z) Milestone 1: leading BOM rejected by `validateSql` with a dedicated `SqlError`; all 107 core unit tests pass, including ordinary SQL, hidden-directive, and mid-file U+FEFF coverage.
 - [ ] Milestone 2: misplaced `pg-migrate:` comments rejected; line numbering corrected end-to-end.
 - [ ] Milestone 3: non-positive statement timeouts rejected; timeout semantics documented.
 - [ ] Docs (`manifest-authoring.md`, `locking-and-timeouts.md`, `errors-and-events.md` if error tables are listed) and core changelog updated; `cabal test all` green.
@@ -251,3 +251,8 @@ validation rejects `Just t` for `t <= 0` in both
 of all other plans in the master plan; it shares the core package with
 `docs/plans/22-align-verification-policy-handling-and-remove-quadratic-ledger-scans.md`
 but touches disjoint modules.
+
+
+Revision note (2026-07-13): Recorded completion of the leading-BOM milestone after the
+core unit suite passed all 107 tests; the validator rejects only the editor-artifact byte
+sequence at offset zero and preserves exact payload bytes.

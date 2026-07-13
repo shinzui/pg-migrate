@@ -20,9 +20,14 @@ import Database.PostgreSQL.Migrate.Sql.Scanner
 import PgMigrate.Prelude
 
 validateSql :: ByteString -> Either SqlError SqlScan
-validateSql bytes = do
-  validateUtf8 bytes
-  scanSql (Text.Encoding.decodeUtf8 bytes)
+validateSql bytes
+  | utf8ByteOrderMark `ByteString.isPrefixOf` bytes = Left ByteOrderMarkFound
+  | otherwise = do
+      validateUtf8 bytes
+      scanSql (Text.Encoding.decodeUtf8 bytes)
+
+utf8ByteOrderMark :: ByteString
+utf8ByteOrderMark = ByteString.pack [0xEF, 0xBB, 0xBF]
 
 validateUtf8 :: ByteString -> Either SqlError ()
 validateUtf8 = go 0 . ByteString.unpack
