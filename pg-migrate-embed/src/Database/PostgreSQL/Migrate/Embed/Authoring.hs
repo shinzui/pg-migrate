@@ -46,6 +46,7 @@ data AuthoringError
   | ExplicitMigrationNameRequired
   | MigrationSequenceExhausted !Int
   | MigrationFileAlreadyExists !FilePath
+  | AuthoringConcurrentModification !FilePath
   | AuthoringIoError !FilePath !Text.Text
   | AuthoringCleanupError !FilePath !Text.Text
   deriving stock (Eq, Show)
@@ -64,7 +65,8 @@ newMigrationOptions manifestPath requestedName initialSql
       explicitName <- traverse normalizeExplicitName requestedName
       Right NewMigrationOptions {manifestPath, explicitName, initialSql}
 
--- | Exclusively create a SQL file and atomically append its manifest entry.
+-- | Exclusively create a SQL file and atomically replace the manifest with its new entry.
+-- Concurrent authoring is not supported; detected post-replacement clobbers are reported.
 newMigration :: NewMigrationOptions -> IO (Either AuthoringError FilePath)
 newMigration = newMigrationWithRename Directory.renameFile
 
@@ -158,7 +160,15 @@ createAndAppend renameFile NewMigrationOptions {manifestPath, initialSql} entry 
           replacementResult <-
             replaceManifest renameFile manifestPath (appendEntry originalManifest entry)
           case replacementResult of
-            Right () -> pure (Right migrationPath)
+            Right () -> do
+              verificationResult <- manifestContainsEntry manifestPath entry
+              case verificationResult of
+                Left verificationError -> pure (Left verificationError)
+                Right True -> pure (Right migrationPath)
+                Right False ->
+                  cleanupCreatedFile
+                    migrationPath
+                    (AuthoringConcurrentModification manifestPath)
             Left replacementError -> do
               cleanupResult <- tryIOException (Directory.removeFile migrationPath)
               pure $ case cleanupResult of
@@ -198,7 +208,7 @@ createExclusive path contents = do
               ignoreIOException (IO.hClose handle)
               cleanupCreatedFile path (authoringIoError path err)
 
-cleanupCreatedFile :: FilePath -> AuthoringError -> IO (Either AuthoringError ())
+cleanupCreatedFile :: FilePath -> AuthoringError -> IO (Either AuthoringError value)
 cleanupCreatedFile path originalError = do
   cleanupResult <- tryIOException (Directory.removeFile path)
   pure $ case cleanupResult of
@@ -247,6 +257,23 @@ appendEntry original entry =
       | ByteString.null original = ByteString.empty
       | ByteString.last original == 0x0A = ByteString.empty
       | otherwise = "\n"
+
+manifestContainsEntry :: FilePath -> FilePath -> IO (Either AuthoringError Bool)
+manifestContainsEntry manifestPath entry = do
+  manifestResult <- tryIOException (ByteString.readFile manifestPath)
+  pure $ case manifestResult of
+    Left err -> Left (authoringIoError manifestPath err)
+    Right contents ->
+      Right
+        ( Text.Encoding.encodeUtf8 (Text.pack entry)
+            `elem` (dropCarriageReturn <$> ByteString.split 0x0A contents)
+        )
+
+dropCarriageReturn :: ByteString.ByteString -> ByteString.ByteString
+dropCarriageReturn line =
+  case ByteString.unsnoc line of
+    Just (prefix, 0x0D) -> prefix
+    _ -> line
 
 authoringIoError :: FilePath -> IOException -> AuthoringError
 authoringIoError path err = AuthoringIoError path (Text.pack (show err))

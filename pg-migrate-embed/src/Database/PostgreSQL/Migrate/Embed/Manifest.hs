@@ -36,6 +36,7 @@ manifestFormatVersion = 1
 data ManifestError
   = ManifestIoError !FilePath !Text.Text
   | ManifestInvalidUtf8 !FilePath !Text.Text
+  | ManifestByteOrderMark !FilePath
   | EmptyManifest
   | BlankManifestLine !Int
   | CommentManifestLine !Int
@@ -79,18 +80,24 @@ embedMigrationManifest inputPath = do
       pure (nonEmptyExpression entries)
 
 parseManifest :: FilePath -> ByteString.ByteString -> Either ManifestError (NonEmpty FilePath)
-parseManifest manifestPath manifestBytes = do
-  manifestText <-
-    first
-      (ManifestInvalidUtf8 manifestPath . Text.pack . show)
-      (Text.Encoding.decodeUtf8' manifestBytes)
-  let numberedLines = zip [1 ..] (normalizeLineEnding <$> Text.lines manifestText)
-  entries <- traverse validateManifestLine numberedLines
-  nonEmptyEntries <-
-    case entries of
-      firstEntry : remainingEntries -> Right (firstEntry :| remainingEntries)
-      [] -> Left EmptyManifest
-  validateDuplicates nonEmptyEntries
+parseManifest manifestPath manifestBytes
+  | utf8ByteOrderMark `ByteString.isPrefixOf` manifestBytes =
+      Left (ManifestByteOrderMark manifestPath)
+  | otherwise = do
+      manifestText <-
+        first
+          (ManifestInvalidUtf8 manifestPath . Text.pack . show)
+          (Text.Encoding.decodeUtf8' manifestBytes)
+      let numberedLines = zip [1 ..] (normalizeLineEnding <$> Text.lines manifestText)
+      entries <- traverse validateManifestLine numberedLines
+      nonEmptyEntries <-
+        case entries of
+          firstEntry : remainingEntries -> Right (firstEntry :| remainingEntries)
+          [] -> Left EmptyManifest
+      validateDuplicates nonEmptyEntries
+
+utf8ByteOrderMark :: ByteString.ByteString
+utf8ByteOrderMark = ByteString.pack [0xEF, 0xBB, 0xBF]
 
 normalizeLineEnding :: Text.Text -> Text.Text
 normalizeLineEnding = Text.dropWhileEnd (== '\r')

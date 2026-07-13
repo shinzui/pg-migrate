@@ -73,7 +73,13 @@ tests =
           case result of
             Left (ManifestInvalidUtf8 actualPath _) -> actualPath @?= manifestPath
             Left actual -> fail ("expected ManifestInvalidUtf8, received " <> show actual)
-            Right _ -> fail "expected invalid manifest UTF-8 to fail"
+            Right _ -> fail "expected invalid manifest UTF-8 to fail",
+      testCase "a manifest byte-order mark has a dedicated diagnostic"
+        $ withTemporaryManifest
+          "byte-order-mark"
+          (ByteString.pack [0xEF, 0xBB, 0xBF] <> "0001-first.sql\n")
+        $ \manifestPath ->
+          checkTemporaryError manifestPath (ManifestByteOrderMark manifestPath)
     ]
 
 validEmbedded :: NonEmpty (FilePath, ByteString.ByteString)

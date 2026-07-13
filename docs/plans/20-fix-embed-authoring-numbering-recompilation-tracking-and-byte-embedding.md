@@ -49,8 +49,9 @@ This section must always reflect the actual current state of the work.
 - [x] Milestone 1: numbering rollover fixed (`MigrationSequenceExhausted` at width boundary); regression tests. (2026-07-13T19:13:42Z)
 - [ ] Milestone 2 blocked by the supported compiler: `template-haskell-2.23.0.0` has no directory-dependency API, and `addDependentFile` rejects directories.
 - [x] Milestone 3: byte embedding via `bytesPrimL`; equality test on embedded bytes; compile-time sanity check on a large fixture. (2026-07-13T19:21:55Z)
-- [ ] Milestone 4: BOM diagnostic, haddock honesty, clobber detection, platform note in docs.
-- [ ] Changelog updated; `cabal test all` green.
+- [x] Milestone 4: BOM diagnostic, haddock honesty, clobber detection, platform note in docs. (2026-07-13T19:26:02Z)
+- [x] Changelog updated with PVP impact. (2026-07-13T19:26:02Z)
+- [ ] `cabal test all` green.
 
 
 ## Surprises & Discoveries
@@ -109,7 +110,12 @@ implementation. Provide concise evidence.
 Summarize outcomes, gaps, and lessons learned at major milestones or at completion.
 Compare the result against the original purpose.
 
-(To be filled during and after implementation.)
+Automatic authoring now stops at the fixed-width leading-zero boundary, primitive literals
+make large exact-byte embedding practical, BOM-prefixed manifests have a named diagnostic,
+and a simulated post-rename clobber is detected and cleaned up. The unit suite passes 33
+tests, including all-byte and >1 MiB payload coverage. Directory-level recompilation
+tracking remains open because the repository's supported GHC 9.12.4 Template Haskell API
+cannot register directories; completing that finding requires a compiler-policy decision.
 
 
 ## Context and Orientation
@@ -181,7 +187,7 @@ before/after compile time in Surprises & Discoveries.
 
 Milestone 4 — polish. In `Manifest.hs`, detect a leading BOM (bytes `EF BB BF`, or
 decoded `\xFEFF`) on the manifest's first line and fail with a new dedicated
-`ManifestError` constructor (e.g. `ManifestByteOrderMark`) whose message names the
+`ManifestError` constructor (`ManifestByteOrderMark FilePath`) whose name identifies the
 invisible character — replacing today's misleading `UnlistedSqlFiles`. (SQL file BOMs are
 handled by the core scanner in
 `docs/plans/21-harden-sql-validation-against-bom-misplaced-directives-and-wrong-diagnostics.md`;
@@ -267,7 +273,7 @@ deltas in `pg-migrate-embed`:
 
 ```haskell
 -- Database.PostgreSQL.Migrate.Embed.Manifest
-data ManifestError = ... | ManifestByteOrderMark  -- new, first-line BOM
+data ManifestError = ... | ManifestByteOrderMark !FilePath  -- new, first-line BOM
 
 -- Database.PostgreSQL.Migrate.Embed.Authoring
 data AuthoringError = ... | AuthoringConcurrentModification !FilePath  -- new
@@ -287,3 +293,7 @@ Revision note (2026-07-13): Corrected the Template Haskell API assumptions after
 against GHC 9.12.4, recorded the unsupported directory-dependency milestone, selected
 `unsafePackLenLiteral` for static primitive bytes, and replaced the unit-suite target with
 the repository's actual Cabal component name.
+
+Revision note (2026-07-13): Recorded completion of the BOM, authoring-clobber, platform
+documentation, and changelog work; updated the concrete public constructor shape and
+captured the partial outcome while directory tracking remains open.

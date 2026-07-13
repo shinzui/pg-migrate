@@ -100,6 +100,19 @@ tests =
           createdFileExists @?= False
           directoryEntries <- List.sort <$> Directory.listDirectory (FilePath.takeDirectory manifestPath)
           directoryEntries @?= ["0001-first.sql", "manifest"],
+      testCase "a post-rename clobber is detected and the new SQL file is removed" $
+        withWorkspace "concurrent-modification" [("0001-first.sql", "SELECT 1;\n")] $ \manifestPath -> do
+          originalManifest <- ByteString.readFile manifestPath
+          options <- assertRight (newMigrationOptions manifestPath Nothing "SELECT 2;\n")
+          let clobberingRename temporaryPath destinationPath = do
+                Directory.renameFile temporaryPath destinationPath
+                ByteString.writeFile destinationPath originalManifest
+          result <- newMigrationWithRename clobberingRename options
+          result @?= Left (AuthoringConcurrentModification manifestPath)
+          ByteString.readFile manifestPath >>= (@?= originalManifest)
+          Directory.doesFileExist
+            (FilePath.takeDirectory manifestPath FilePath.</> "0002.sql")
+            >>= (@?= False),
       testCase "option construction rejects nested explicit names" $
         case newMigrationOptions "migrations/manifest" (Just "../outside") "SELECT 1" of
           Left (InvalidNewMigrationName (ParentTraversalManifestEntry 1 "../outside.sql")) -> pure ()

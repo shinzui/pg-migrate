@@ -40,7 +40,7 @@ The validator rejects:
 - a filename without `.sql` or with an empty basename;
 - duplicate entries or an entry whose file is missing;
 - any sibling `.sql` file not listed in the manifest;
-- a manifest that is not valid UTF-8.
+- a manifest that is not valid UTF-8 or starts with a UTF-8 byte-order mark (BOM).
 
 Rejecting unlisted SQL files catches a common mistake: creating a migration file but
 forgetting to put it in the ordered plan. Non-SQL files may live beside the manifest and
@@ -172,7 +172,13 @@ my-service-migrate new \
 The `.sql` suffix on `--name` is optional. The command creates the SQL file exclusively,
 writes the description as an initial SQL comment, and replaces the manifest atomically.
 It will not overwrite an existing file. If manifest replacement fails, it removes the new
-file when possible and returns a structured cleanup error otherwise.
+file when possible and returns a structured cleanup error otherwise. Concurrent authoring
+is not supported; a post-replacement check reports a detected clobber rather than silently
+returning success after losing the new entry.
+
+Embedding and manifest validation are portable. The `newMigration` authoring helper and
+the CLI `new` command require a POSIX platform because exclusive creation uses
+`System.Posix.IO` from the `unix` package.
 
 Automatic numbering requires every existing basename to start with a zero-padded number
 of the same width. Irregular manifests must use `--name`. When the next number no longer
