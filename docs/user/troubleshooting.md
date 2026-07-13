@@ -106,8 +106,11 @@ deploying the wrong service artifact, removing a component, changing a component
 pointing at the wrong database or ledger schema.
 
 Confirm the artifact, database, role, and configured `LedgerConfig`. `status` can use
-`AllowUnknownMigrations` for diagnostic visibility, but strict verification and execution
-still reject unknown history. Do not delete the unknown row to make the command pass.
+`AllowUnknownMigrations` for diagnostic visibility, while `verify` always remains strict.
+Execution, repair, and history import use the policy in their `RunOptions`; the default
+rejects unknown history, but applications that intentionally share a ledger may explicitly
+allow foreign rows without relaxing verification of migrations owned by the active plan.
+Do not delete the unknown row to make the command pass.
 
 ## A migration is `Running` or `Failed`
 

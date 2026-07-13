@@ -84,17 +84,27 @@ let runOptions =
         $ defaultRunOptions
 ```
 
-Durations are `NominalDiffTime` values in seconds in the Haskell API. On `up` and `repair`,
-an absent execution flag preserves the corresponding application setting. The command-line
-`--no-wait`, `--lock-timeout MILLISECONDS`, and `--wait` flags explicitly replace the lock
-policy for that command. `--statement-timeout MILLISECONDS` sets a temporary timeout, while
-`--no-statement-timeout` explicitly disables it. The three lock flags are mutually
-exclusive, as are the two statement-timeout flags.
+Durations are `NominalDiffTime` values in seconds in the Haskell API.
+`withStatementTimeout (Just duration)` requires a strictly positive duration; zero and
+negative values fail with `InvalidStatementTimeout` before a connection is acquired. Use
+`Nothing` when no temporary statement-timeout override is wanted.
+
+On `up` and `repair`, an absent execution flag preserves the corresponding application
+setting. The command-line `--no-wait`, `--lock-timeout MILLISECONDS`, and `--wait` flags
+explicitly replace the lock policy for that command. `--statement-timeout MILLISECONDS`
+sets a temporary timeout, while `--no-statement-timeout` explicitly disables it. The three
+lock flags are mutually exclusive, as are the two statement-timeout flags.
 
 The conservative defaults use the `pgmigrate` ledger schema, the project lock key,
 indefinite lock waiting, no statement timeout, rejection of unknown stored migrations,
 and no event callback. Read the [locking and timeout guide](../operations/locking-and-timeouts.md)
 before choosing production limits.
+
+`withUnknownMigrationsPolicy` configures how execution, repair, and history import treat
+unknown stored rows. `migrationStatus` also honors that policy, while
+`verifyMigrationPlan` remains unconditionally strict. Keep the default
+`RejectUnknownMigrations` unless applications intentionally share one ledger; selecting
+`AllowUnknownMigrations` does not relax validation of migrations owned by the active plan.
 
 Use `withEventHandler` for application logging or telemetry. Events describe defined
 lifecycle and durable boundaries; they do not change commit, rollback, or retry behavior.

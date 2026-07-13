@@ -157,9 +157,12 @@ a metadata mismatch; it does change the order in which pending work runs. Place 
 component after every dependency and review its order relative to other pending components.
 
 Unknown ledger rows—stored migrations absent from the plan—are preserved and reported.
-`migrationStatus` may be configured with `AllowUnknownMigrations` for diagnostic status
-views. Strict `verifyMigrationPlan` and execution still reject unknown history; allowing a
-status view is not permission to run a divergent plan.
+`migrationStatus` honors the configured `UnknownMigrationsPolicy`, while
+`verifyMigrationPlan` is always strict. Execution, repair, and history import also honor
+the policy in their `RunOptions`: the default `RejectUnknownMigrations` rejects unknown
+history, and applications that intentionally share a ledger may explicitly select
+`AllowUnknownMigrations`. Allowing unknown rows never relaxes verification of migrations
+owned by the active plan.
 
 ## Verification and pending migrations
 
