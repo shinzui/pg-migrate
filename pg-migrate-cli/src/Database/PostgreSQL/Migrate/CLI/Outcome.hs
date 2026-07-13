@@ -53,7 +53,8 @@ data CliPayload
 
 -- | Structured CLI definition, runner, repair, authoring, or import failure.
 data CliError
-  = CliMigrationError !MigrationError
+  = CliInputError !Text
+  | CliMigrationError !MigrationError
   | CliRepairDefinitionError !RepairDefinitionError
   | CliRepairError !RepairError
   | CliManifestError !ManifestError

@@ -47,7 +47,7 @@ even if it requires splitting a partially completed task into two ("done" vs. "r
 This section must always reflect the actual current state of the work.
 
 - [x] Milestone 1: `ExecutionOptions` fields made optional; parser and `applyExecution` updated; regression tests added. (2026-07-13 10:57 PDT)
-- [ ] Milestone 2: `--description` input validation; authoring exit-class fixes.
+- [x] Milestone 2: `--description` input validation; authoring exit-class fixes. (2026-07-13 11:00 PDT)
 - [ ] Milestone 3: Remaining CLI polish (exit-class rename, filter validation, payload/issue consistency, manifest flag unification, haddocks, checksum renderer dedup, prelude exposure).
 - [ ] All test suites pass (`cabal test all`); changelog updated.
 
@@ -64,6 +64,12 @@ implementation. Provide concise evidence.
   `NoWait` policy and five-second statement timeout. Evidence: all 36 unit/golden tests
   passed and `cabal build pg-migrate-cli:pg-migrate-cli-integration` compiled the new
   regression scenario on 2026-07-13.
+
+- Observation: `NewOptions` is publicly constructible, so parser-only description
+  validation would leave direct library callers able to write multiline SQL. The handler
+  now repeats the same pure validation before calling the embed authoring API. Evidence:
+  `new rejects control characters before writing files` verifies that neither the SQL file
+  nor manifest changes when a direct command contains a newline.
 
 
 ## Decision Log
@@ -92,6 +98,13 @@ implementation. Provide concise evidence.
   Rationale: The parser unit tests fully cover absent and explicit values; the integration
   migration fails unless both non-default application settings survive dispatch, without
   widening the stable CLI facade.
+  Date: 2026-07-13
+
+- Decision: Add `CliInputError` and validate descriptions in both the parser and handler.
+  Rationale: Parser validation gives immediate command-line feedback, while handler
+  validation protects applications that construct the exported command algebra directly;
+  the dedicated error preserves a clear usage-level diagnostic without misclassifying the
+  problem as an embed-package authoring error.
   Date: 2026-07-13
 
 

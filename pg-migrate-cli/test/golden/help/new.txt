@@ -5,7 +5,7 @@ Usage: pg-migrate-cli-help-fixture new
 
 Available options:
   --manifest PATH          Ordered manifest to append
-  --description TEXT       Human description written into the new SQL file
+  --description TEXT       Single-line description written into the new SQL file
   --name BASENAME          Explicit SQL basename when numeric inference is
                            unavailable
   -h,--help                Show this help text

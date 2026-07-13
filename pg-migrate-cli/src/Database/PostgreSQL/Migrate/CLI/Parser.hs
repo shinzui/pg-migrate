@@ -119,7 +119,7 @@ newOptionsParser :: Parser NewOptions
 newOptionsParser =
   NewOptions
     <$> strOption (long "manifest" <> metavar "PATH" <> help "Ordered manifest to append")
-    <*> strOption (long "description" <> metavar "TEXT" <> help "Human description written into the new SQL file")
+    <*> option descriptionReader (long "description" <> metavar "TEXT" <> help "Single-line description written into the new SQL file")
     <*> optional (strOption (long "name" <> metavar "BASENAME" <> help "Explicit SQL basename when numeric inference is unavailable"))
     <*> outputOptionsParser
 
@@ -230,3 +230,9 @@ migrationIdReader = eitherReader $ \input ->
         Left err -> Left (show err)
         Right validated -> Right validated
     _ -> Left "expected COMPONENT/MIGRATION"
+
+descriptionReader :: ReadM Text
+descriptionReader = eitherReader $ \input ->
+  case validateDescription (Text.pack input) of
+    Left err -> Left (Text.unpack err)
+    Right description -> Right description

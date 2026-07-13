@@ -8,6 +8,10 @@ Plan/list/check output describes immutable plan metadata. Status/verify output s
 issues, applied, pending, and unknown rows. Up reports start/finish times and per-migration
 `alreadyApplied` or `appliedNow`. Repair reports target, operation, and old/new state.
 Errors contain a stable type namespace plus diagnostic message.
+Invalid command input uses the `input.invalid` type; for example, `new --description`
+rejects control characters before creating a file. Manifest syntax errors and manifest IO
+errors retain the `manifest.invalid` type, while the command's exit class distinguishes
+usage failures from runtime execution failures.
 
 History import JSON is rendered with `renderHistoryImportJson`:
 

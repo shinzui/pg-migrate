@@ -7,7 +7,10 @@ import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Database.PostgreSQL.Migrate
 import Database.PostgreSQL.Migrate.CLI
-import Database.PostgreSQL.Migrate.Embed (AuthoringError (ExplicitMigrationNameRequired))
+import Database.PostgreSQL.Migrate.Embed
+  ( AuthoringError (..),
+    ManifestError (..),
+  )
 import Hasql.Connection.Settings qualified as Settings
 import System.Directory qualified as Directory
 import System.FilePath ((</>))
@@ -22,8 +25,11 @@ tests =
       testCase "list filters narrow output without changing plan order" testListFilter,
       testCase "check returns exact-byte checksums" testCheck,
       testCase "new creates and appends a migration without applying it" testNew,
+      testCase "new rejects control characters before writing files" testNewRejectsControlCharacters,
       testCase "new reports when a nonnumeric manifest requires an explicit name" testNewRequiresName,
-      testCase "manifest failures are typed usage outcomes" testCheckFailure
+      testCase "manifest IO failures are typed execution outcomes" testCheckIoFailure,
+      testCase "manifest validation failures remain typed usage outcomes" testCheckValidationFailure,
+      testCase "new classifies manifest IO failures as execution outcomes" testNewManifestIoFailure
     ]
 
 testPlanText :: Assertion
@@ -84,17 +90,60 @@ testNew =
     ByteString.readFile (directory </> "0002.sql") >>= (@?= "-- add profile\n\n")
     ByteString.readFile manifest >>= (@?= "0001.sql\n0002.sql\n")
 
-testCheckFailure :: Assertion
-testCheckFailure =
+testNewRejectsControlCharacters :: Assertion
+testNewRejectsControlCharacters =
+  withFixtureDirectory "new-description" $ \directory -> do
+    let manifest = directory </> "manifest"
+    ByteString.writeFile (directory </> "0001.sql") "SELECT 1;\n"
+    ByteString.writeFile manifest "0001.sql\n"
+    outcome <-
+      runMigrationCommand
+        fixtureEnvironment
+        (New (NewOptions manifest "add profile\nDROP TABLE accounts" Nothing textOutput))
+    exitClass outcome @?= ExitUsageFailed
+    case payload outcome of
+      Left (CliInputError message) -> assertBool "diagnostic names the newline" ("\\n" `Text.isInfixOf` message)
+      result -> assertFailure ("expected typed description error, received: " <> show result)
+    Directory.doesFileExist (directory </> "0002.sql") >>= (@?= False)
+    ByteString.readFile manifest >>= (@?= "0001.sql\n")
+
+testCheckIoFailure :: Assertion
+testCheckIoFailure =
   withFixtureDirectory "missing" $ \directory -> do
     outcome <-
       runMigrationCommand
         fixtureEnvironment
         (Check (CheckOptions (directory </> "missing-manifest") textOutput))
+    exitClass outcome @?= ExitExecutionFailed
+    case payload outcome of
+      Left (CliManifestError ManifestIoError {}) -> pure ()
+      result -> assertFailure ("expected typed manifest IO error, received: " <> show result)
+
+testCheckValidationFailure :: Assertion
+testCheckValidationFailure =
+  withFixtureDirectory "invalid-manifest" $ \directory -> do
+    let manifest = directory </> "manifest"
+    ByteString.writeFile manifest ""
+    outcome <-
+      runMigrationCommand
+        fixtureEnvironment
+        (Check (CheckOptions manifest textOutput))
     exitClass outcome @?= ExitUsageFailed
     case payload outcome of
-      Left (CliManifestError _) -> pure ()
-      result -> assertFailure ("expected typed manifest error, received: " <> show result)
+      Left (CliManifestError EmptyManifest) -> pure ()
+      result -> assertFailure ("expected typed manifest validation error, received: " <> show result)
+
+testNewManifestIoFailure :: Assertion
+testNewManifestIoFailure =
+  withFixtureDirectory "new-missing-manifest" $ \directory -> do
+    outcome <-
+      runMigrationCommand
+        fixtureEnvironment
+        (New (NewOptions (directory </> "missing-manifest") "add profile" Nothing textOutput))
+    exitClass outcome @?= ExitExecutionFailed
+    case payload outcome of
+      Left (CliAuthoringError (AuthoringManifestError ManifestIoError {})) -> pure ()
+      result -> assertFailure ("expected typed authoring manifest IO error, received: " <> show result)
 
 testNewRequiresName :: Assertion
 testNewRequiresName =

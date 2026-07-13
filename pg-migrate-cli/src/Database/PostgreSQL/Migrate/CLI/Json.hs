@@ -231,6 +231,7 @@ errorValue cliError =
 cliErrorType :: CliError -> Text
 cliErrorType cliError =
   case cliError of
+    CliInputError _ -> "input.invalid"
     CliMigrationError migrationError -> "migration." <> migrationErrorType migrationError
     CliRepairDefinitionError _ -> "repair.definition"
     CliRepairError _ -> "repair.execution"
@@ -240,6 +241,7 @@ cliErrorType cliError =
 renderCliErrorMessage :: CliError -> String
 renderCliErrorMessage cliError =
   case cliError of
+    CliInputError err -> Text.unpack err
     CliMigrationError err -> show err
     CliRepairDefinitionError err -> show err
     CliRepairError err -> show err

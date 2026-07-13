@@ -33,6 +33,7 @@ import Database.PostgreSQL.Migrate.CLI.Outcome
 import Database.PostgreSQL.Migrate.CLI.Types
 import Database.PostgreSQL.Migrate.Embed
   ( AuthoringError (..),
+    ManifestError (..),
     checkMigrationManifest,
     newMigration,
     newMigrationOptions,
@@ -105,7 +106,7 @@ runCheck :: FilePath -> IO CliOutcome
 runCheck manifestPath = do
   checked <- checkMigrationManifest manifestPath
   pure $ case checked of
-    Left manifestError -> failure "check" ExitUsageFailed (CliManifestError manifestError)
+    Left manifestError -> failure "check" (manifestExitClass manifestError) (CliManifestError manifestError)
     Right entries ->
       success
         "check"
@@ -177,17 +178,20 @@ runRepair environment connection execution target operation reason confirmation 
 
 runNew :: FilePath -> Text -> Maybe FilePath -> IO CliOutcome
 runNew manifestPath description requestedName =
-  case newMigrationOptions manifestPath requestedName initialSql of
-    Left authoringError ->
-      pure (failure "new" ExitUsageFailed (CliAuthoringError authoringError))
-    Right options -> do
-      result <- newMigration options
-      pure $ case result of
+  case validateDescription description of
+    Left inputError -> pure (failure "new" ExitUsageFailed (CliInputError inputError))
+    Right validDescription ->
+      case newMigrationOptions manifestPath requestedName (initialSql validDescription) of
         Left authoringError ->
-          failure "new" (authoringExitClass authoringError) (CliAuthoringError authoringError)
-        Right path -> success "new" (NewPayload path)
+          pure (failure "new" ExitUsageFailed (CliAuthoringError authoringError))
+        Right options -> do
+          result <- newMigration options
+          pure $ case result of
+            Left authoringError ->
+              failure "new" (authoringExitClass authoringError) (CliAuthoringError authoringError)
+            Right path -> success "new" (NewPayload path)
   where
-    initialSql = Text.Encoding.encodeUtf8 ("-- " <> description <> "\n\n")
+    initialSql validDescription = Text.Encoding.encodeUtf8 ("-- " <> validDescription <> "\n\n")
 
 selectProvider :: CliEnvironment -> ConnectionOptions -> ConnectionProvider
 selectProvider CliEnvironment {defaultConnection} ConnectionOptions {databaseSettings} =
@@ -211,8 +215,15 @@ verificationExitClass VerificationReport {issues}
 authoringExitClass :: AuthoringError -> ExitClass
 authoringExitClass authoringError =
   case authoringError of
+    AuthoringManifestError ManifestIoError {} -> ExitExecutionFailed
     AuthoringIoError {} -> ExitExecutionFailed
     AuthoringCleanupError {} -> ExitExecutionFailed
+    _ -> ExitUsageFailed
+
+manifestExitClass :: ManifestError -> ExitClass
+manifestExitClass manifestError =
+  case manifestError of
+    ManifestIoError {} -> ExitExecutionFailed
     _ -> ExitUsageFailed
 
 success :: Text -> CliPayload -> CliOutcome

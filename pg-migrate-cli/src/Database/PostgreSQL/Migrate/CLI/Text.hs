@@ -22,6 +22,7 @@ renderMigrationCommandText CliOutcome {payload = Right cliPayload} = renderPaylo
 renderCliError :: CliError -> Text
 renderCliError cliError =
   case cliError of
+    CliInputError err -> err
     CliMigrationError err -> Text.pack (show err)
     CliRepairDefinitionError err -> Text.pack (show err)
     CliRepairError err -> Text.pack (show err)

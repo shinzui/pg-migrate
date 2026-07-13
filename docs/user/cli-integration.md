@@ -225,7 +225,9 @@ my-service-migrate new \
 ```
 
 `new` edits local files only; it never runs the migration. Review and fill in the generated
-SQL, then run `check` and rebuild the application. See
+SQL, then run `check` and rebuild the application. Descriptions must be a single line and
+cannot contain control characters; invalid descriptions are rejected before any file is
+created. See
 [manifest authoring](manifest-authoring.md#create-the-next-migration).
 
 ## Integrate with application configuration safely

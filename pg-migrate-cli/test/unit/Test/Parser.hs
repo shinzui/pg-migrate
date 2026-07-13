@@ -24,6 +24,7 @@ tests =
       testCase "absent execution flags preserve application options" testAbsentExecutionOverrides,
       testCase "lock wait flags produce explicit overrides" testLockWaitOverrides,
       testCase "statement timeout flags produce explicit overrides" testStatementTimeoutOverrides,
+      testCase "description rejects control characters" testDescriptionValidation,
       testCase "repair requires an operation and confirmation" testRepairConfirmation,
       testCase "repair validates the component/migration target" testRepairTarget,
       testCase "parsing does not imply database settings" testNoImplicitDatabaseSettings,
@@ -90,6 +91,12 @@ testStatementTimeoutOverrides :: Assertion
 testStatementTimeoutOverrides = do
   parsedExecution ["--statement-timeout", "250"] @?= ExecutionOptions Nothing (Just (Just 0.25))
   parsedExecution ["--no-statement-timeout"] @?= ExecutionOptions Nothing (Just Nothing)
+
+testDescriptionValidation :: Assertion
+testDescriptionValidation = do
+  failure <- parseFailure ["new", "--manifest", "manifest", "--description", "add profile\nDROP TABLE accounts"]
+  assertContains "--description" failure
+  assertContains "\\n" failure
 
 testRepairConfirmation :: Assertion
 testRepairConfirmation = do

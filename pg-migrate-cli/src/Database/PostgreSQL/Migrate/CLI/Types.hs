@@ -13,9 +13,12 @@ module Database.PostgreSQL.Migrate.CLI.Types
     RepairOptions (..),
     NewOptions (..),
     MigrationCommand (..),
+    validateDescription,
   )
 where
 
+import Data.Char qualified as Char
+import Data.Text qualified as Text
 import Database.PostgreSQL.Migrate
   ( ComponentName,
     Confirmation,
@@ -136,3 +139,14 @@ data MigrationCommand
   | Repair !RepairOptions
   | New !NewOptions
   deriving stock (Generic, Eq, Show)
+
+validateDescription :: Text -> Either Text Text
+validateDescription description =
+  case Text.find Char.isControl description of
+    Nothing -> Right description
+    Just character ->
+      Left
+        ( "invalid --description: control character "
+            <> Text.pack (show character)
+            <> " is not allowed"
+        )
