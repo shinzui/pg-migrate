@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Control.Exception qualified as Exception
+import Data.IORef qualified as IORef
 import Data.Int (Int64)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Set qualified as Set
@@ -35,7 +36,12 @@ tests settings =
 testCommandLifecycle :: Settings.Settings -> Assertion
 testCommandLifecycle settings =
   withCleanLedger settings "pgmigrate_cli_commands" 0x70676D636C690001 $ \options -> do
-    let environment = cliEnvironment settings commandPlan options
+    observedEvents <- IORef.newIORef []
+    let configuredOptions =
+          withEventHandler (IORef.modifyIORef' observedEvents . (:)) $
+            withStatementTimeout (Just 5) $
+              withLockWait NoWait options
+        environment = cliEnvironment settings commandPlan configuredOptions
 
     statusBefore <- runMigrationCommand environment statusCommand
     exitClass statusBefore @?= ExitSuccess
@@ -58,6 +64,8 @@ testCommandLifecycle settings =
     firstUp <- runMigrationCommand environment upCommand
     exitClass firstUp @?= ExitSuccess
     assertSingleOutcome AppliedNow firstUp
+    events <- IORef.readIORef observedEvents
+    assertBool "application lock-wait setting survives absent CLI flags" (LockWaitStarted NoWait `elem` events)
 
     verifyAfter <- runMigrationCommand environment verifyCommand
     exitClass verifyAfter @?= ExitSuccess
@@ -127,7 +135,7 @@ noConnectionOverride :: ConnectionOptions
 noConnectionOverride = ConnectionOptions Nothing
 
 defaultExecution :: ExecutionOptions
-defaultExecution = ExecutionOptions WaitIndefinitely Nothing
+defaultExecution = ExecutionOptions Nothing Nothing
 
 jsonOutput :: OutputOptions
 jsonOutput = OutputOptions JsonOutput
@@ -143,7 +151,16 @@ commandPlan =
                 ( expectRight
                     ( sqlMigration
                         "0001"
-                        "CREATE TABLE pgmigrate_cli_commands.cli_command_probe (id bigint PRIMARY KEY)"
+                        """
+                        DO $$
+                        BEGIN
+                          IF current_setting('statement_timeout') <> '5s' THEN
+                            RAISE EXCEPTION 'application statement timeout was overridden';
+                          END IF;
+                        END
+                        $$;
+                        CREATE TABLE pgmigrate_cli_commands.cli_command_probe (id bigint PRIMARY KEY)
+                        """
                     )
                     :| []
                 )

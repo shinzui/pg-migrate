@@ -46,7 +46,7 @@ Use a checklist to summarize granular steps. Every stopping point must be docume
 even if it requires splitting a partially completed task into two ("done" vs. "remaining").
 This section must always reflect the actual current state of the work.
 
-- [ ] Milestone 1: `ExecutionOptions` fields made optional; parser and `applyExecution` updated; regression tests added.
+- [x] Milestone 1: `ExecutionOptions` fields made optional; parser and `applyExecution` updated; regression tests added. (2026-07-13 10:57 PDT)
 - [ ] Milestone 2: `--description` input validation; authoring exit-class fixes.
 - [ ] Milestone 3: Remaining CLI polish (exit-class rename, filter validation, payload/issue consistency, manifest flag unification, haddocks, checksum renderer dedup, prelude exposure).
 - [ ] All test suites pass (`cabal test all`); changelog updated.
@@ -57,7 +57,13 @@ This section must always reflect the actual current state of the work.
 Document unexpected behaviors, bugs, optimizations, or insights discovered during
 implementation. Provide concise evidence.
 
-(None yet.)
+- Observation: `applyExecution` lives in the library's hidden `Handler` module, so importing
+  it from the external unit-test component would require exposing an implementation detail
+  as public API. Parser unit tests instead cover every optional override shape, and the
+  integration lifecycle now proves the handler preserves an application-configured
+  `NoWait` policy and five-second statement timeout. Evidence: all 36 unit/golden tests
+  passed and `cabal build pg-migrate-cli:pg-migrate-cli-integration` compiled the new
+  regression scenario on 2026-07-13.
 
 
 ## Decision Log
@@ -79,6 +85,13 @@ implementation. Provide concise evidence.
   Rationale: Every consumer must also import `System.Exit` (the library deliberately leaves
   process exit to the application), and `System.Exit.ExitSuccess` collides. Pre-release
   breaking change, recorded in the changelog.
+  Date: 2026-07-13
+
+- Decision: Keep `applyExecution` internal and test its public effect in the PostgreSQL
+  integration lifecycle rather than exporting the helper solely for a unit test.
+  Rationale: The parser unit tests fully cover absent and explicit values; the integration
+  migration fails unless both non-default application settings survive dispatch, without
+  widening the stable CLI facade.
   Date: 2026-07-13
 
 

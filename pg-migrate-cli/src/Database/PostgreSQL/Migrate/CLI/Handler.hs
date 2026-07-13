@@ -200,7 +200,8 @@ selectProvider CliEnvironment {defaultConnection} ConnectionOptions {databaseSet
 
 applyExecution :: ExecutionOptions -> RunOptions -> RunOptions
 applyExecution ExecutionOptions {lockWait, statementTimeout} =
-  withStatementTimeout statementTimeout . withLockWait lockWait
+  maybe id withStatementTimeout statementTimeout
+    . maybe id withLockWait lockWait
 
 verificationExitClass :: VerificationReport -> ExitClass
 verificationExitClass VerificationReport {issues}

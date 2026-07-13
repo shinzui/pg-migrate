@@ -41,8 +41,8 @@ newtype ConnectionOptions = ConnectionOptions
 
 -- | Shared lock and statement-timeout flags.
 data ExecutionOptions = ExecutionOptions
-  { lockWait :: !LockWait,
-    statementTimeout :: !(Maybe NominalDiffTime)
+  { lockWait :: !(Maybe LockWait),
+    statementTimeout :: !(Maybe (Maybe NominalDiffTime))
   }
   deriving stock (Generic, Eq, Show)
 

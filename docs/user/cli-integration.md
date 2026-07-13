@@ -85,9 +85,11 @@ let runOptions =
 ```
 
 Durations are `NominalDiffTime` values in seconds in the Haskell API. On `up` and `repair`,
-the command-line `--no-wait`, `--lock-timeout MILLISECONDS`, and
-`--statement-timeout MILLISECONDS` flags replace the corresponding runner defaults for
-that command.
+an absent execution flag preserves the corresponding application setting. The command-line
+`--no-wait`, `--lock-timeout MILLISECONDS`, and `--wait` flags explicitly replace the lock
+policy for that command. `--statement-timeout MILLISECONDS` sets a temporary timeout, while
+`--no-statement-timeout` explicitly disables it. The three lock flags are mutually
+exclusive, as are the two statement-timeout flags.
 
 The conservative defaults use the `pgmigrate` ledger schema, the project lock key,
 indefinite lock waiting, no statement timeout, rejection of unknown stored migrations,
@@ -182,9 +184,11 @@ my-service-migrate up \
   --json
 ```
 
-Timeout values are positive integer milliseconds. `--no-wait` and `--lock-timeout` are
-mutually exclusive parser alternatives. Choose values from the service's operational
-requirements; a timeout does not make nontransactional SQL atomic.
+Timeout values are positive integer milliseconds. Use `--wait` to override an
+application-configured finite or no-wait policy with indefinite waiting. Use
+`--no-statement-timeout` to override an application-configured timeout. Choose values from
+the service's operational requirements; a timeout does not make nontransactional SQL
+atomic.
 
 ### Repair only after inspection
 

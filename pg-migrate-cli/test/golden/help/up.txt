@@ -1,6 +1,6 @@
 Usage: pg-migrate-cli-help-fixture up
-         [--database-url URL] [--no-wait | --lock-timeout MILLISECONDS]
-         [--statement-timeout MILLISECONDS] [--json]
+         [--database-url URL] [--no-wait | --lock-timeout MILLISECONDS | --wait]
+         [--statement-timeout MILLISECONDS | --no-statement-timeout] [--json]
 
   Apply the complete migration plan; selective execution is unavailable in v1
 
@@ -14,8 +14,11 @@ Execution
   --lock-timeout MILLISECONDS
                            Wait at most this many positive milliseconds for the
                            advisory lock
+  --wait                   Wait indefinitely for the advisory lock
   --statement-timeout MILLISECONDS
-                           Positive PostgreSQL statement timeout in milliseconds
+                           Set a positive PostgreSQL statement timeout in
+                           milliseconds
+  --no-statement-timeout   Run without a temporary statement timeout
 
 Output
   --json                   Emit JSON schema version 1

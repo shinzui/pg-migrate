@@ -23,7 +23,8 @@ import Options.Applicative
 import PgMigrate.CLI.Prelude
 import Text.Read qualified as Read
 
--- | Build the reusable parser, using the plan for target-aware choices.
+-- | Build the reusable parser. The plan parameter is reserved for future
+-- target-aware completion.
 migrationCommandParser :: MigrationPlan -> Parser MigrationCommand
 migrationCommandParser _ =
   subparser (commandGroup "Inspection" <> inspectionCommands)
@@ -143,14 +144,7 @@ executionOptionsParser =
     "Execution"
     ( ExecutionOptions
         <$> lockWaitParser
-        <*> optional
-          ( option
-              positiveMillisecondsReader
-              ( long "statement-timeout"
-                  <> metavar "MILLISECONDS"
-                  <> help "Positive PostgreSQL statement timeout in milliseconds"
-              )
-          )
+        <*> statementTimeoutParser
     )
 
 outputOptionsParser :: Parser OutputOptions
@@ -172,18 +166,34 @@ inspectionOptionsParser =
           (option migrationNameReader (long "migration" <> metavar "MIGRATION" <> help "Limit inspection output to one migration name"))
     )
 
-lockWaitParser :: Parser LockWait
+lockWaitParser :: Parser (Maybe LockWait)
 lockWaitParser =
-  flag' NoWait (long "no-wait" <> help "Fail immediately when the advisory lock is unavailable")
-    <|> ( WaitFor
-            <$> option
-              positiveMillisecondsReader
-              ( long "lock-timeout"
-                  <> metavar "MILLISECONDS"
-                  <> help "Wait at most this many positive milliseconds for the advisory lock"
-              )
-        )
-    <|> pure WaitIndefinitely
+  optional
+    ( flag' NoWait (long "no-wait" <> help "Fail immediately when the advisory lock is unavailable")
+        <|> ( WaitFor
+                <$> option
+                  positiveMillisecondsReader
+                  ( long "lock-timeout"
+                      <> metavar "MILLISECONDS"
+                      <> help "Wait at most this many positive milliseconds for the advisory lock"
+                  )
+            )
+        <|> flag' WaitIndefinitely (long "wait" <> help "Wait indefinitely for the advisory lock")
+    )
+
+statementTimeoutParser :: Parser (Maybe (Maybe NominalDiffTime))
+statementTimeoutParser =
+  optional
+    ( ( Just
+          <$> option
+            positiveMillisecondsReader
+            ( long "statement-timeout"
+                <> metavar "MILLISECONDS"
+                <> help "Set a positive PostgreSQL statement timeout in milliseconds"
+            )
+      )
+        <|> flag' Nothing (long "no-statement-timeout" <> help "Run without a temporary statement timeout")
+    )
 
 repairOperationParser :: Parser RepairOperation
 repairOperationParser =

@@ -21,6 +21,9 @@ tests =
       testCase "up has no selective execution filters" testUpRejectsFilters,
       testCase "durations must be positive integer milliseconds" testDurationValidation,
       testCase "lock wait flags conflict" testConflictingWaitFlags,
+      testCase "absent execution flags preserve application options" testAbsentExecutionOverrides,
+      testCase "lock wait flags produce explicit overrides" testLockWaitOverrides,
+      testCase "statement timeout flags produce explicit overrides" testStatementTimeoutOverrides,
       testCase "repair requires an operation and confirmation" testRepairConfirmation,
       testCase "repair validates the component/migration target" testRepairTarget,
       testCase "parsing does not imply database settings" testNoImplicitDatabaseSettings,
@@ -70,6 +73,23 @@ testConflictingWaitFlags :: Assertion
 testConflictingWaitFlags = do
   failure <- parseFailure ["up", "--no-wait", "--lock-timeout", "100"]
   assertContains "Invalid option" failure
+  statementFailure <- parseFailure ["up", "--statement-timeout", "100", "--no-statement-timeout"]
+  assertContains "Invalid option" statementFailure
+
+testAbsentExecutionOverrides :: Assertion
+testAbsentExecutionOverrides =
+  parsedExecution [] @?= ExecutionOptions Nothing Nothing
+
+testLockWaitOverrides :: Assertion
+testLockWaitOverrides = do
+  parsedExecution ["--no-wait"] @?= ExecutionOptions (Just NoWait) Nothing
+  parsedExecution ["--lock-timeout", "250"] @?= ExecutionOptions (Just (WaitFor 0.25)) Nothing
+  parsedExecution ["--wait"] @?= ExecutionOptions (Just WaitIndefinitely) Nothing
+
+testStatementTimeoutOverrides :: Assertion
+testStatementTimeoutOverrides = do
+  parsedExecution ["--statement-timeout", "250"] @?= ExecutionOptions Nothing (Just (Just 0.25))
+  parsedExecution ["--no-statement-timeout"] @?= ExecutionOptions Nothing (Just Nothing)
 
 testRepairConfirmation :: Assertion
 testRepairConfirmation = do
@@ -102,7 +122,9 @@ testEnrichedCompletion = do
   assertContains "--database-url\tPostgreSQL URI" flags
   assertContains "--lock-timeout\tWait at most" flags
   assertContains "--no-wait\tFail immediately" flags
-  assertContains "--statement-timeout\tPositive PostgreSQL" flags
+  assertContains "--wait\tWait indefinitely" flags
+  assertContains "--statement-timeout\tSet a positive PostgreSQL" flags
+  assertContains "--no-statement-timeout\tRun without" flags
   assertContains "--json\tEmit JSON schema version 1" flags
 
 completionOutput :: Bool -> Int -> [String] -> IO String
@@ -158,6 +180,12 @@ parseSuccess arguments =
       let (message, _) = renderFailure failure "pg-migrate-cli-help-fixture"
        in error message
     CompletionInvoked _ -> error "unexpected completion"
+
+parsedExecution :: [String] -> ExecutionOptions
+parsedExecution arguments =
+  case parseSuccess ("up" : arguments) of
+    Up UpOptions {execution} -> execution
+    parsedCommand -> error ("expected up command, received: " <> show parsedCommand)
 
 parseFailure :: [String] -> IO String
 parseFailure arguments =
