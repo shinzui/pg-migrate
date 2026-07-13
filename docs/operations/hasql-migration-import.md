@@ -9,7 +9,9 @@ For every selected filename, supply the exact legacy payload bytes. The adapter 
 the predecessor's base64 MD5 and compares it with the stored value before creating
 `SourceLedgerChecksumVerified` evidence. It separately records SHA-256 of those exact bytes;
 the generic importer compares that SHA-256 with a SQL target for `SamePayload`. The local
-`timestamp without time zone` remains explicitly unzoned in audit JSON.
+`timestamp without time zone` remains explicitly unzoned in audit JSON. Each evidence
+detail also records `source_table` using the adapter's quoted schema-qualified rendering,
+so audits distinguish imports from different configured predecessor tables.
 
 Alternative histories require evidence requirements naming all relevant legacy rows plus a
 domain-specific `StateValidator`. The validator runs inside the target lock in a read-only

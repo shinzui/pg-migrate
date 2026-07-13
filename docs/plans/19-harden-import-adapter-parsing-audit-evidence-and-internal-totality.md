@@ -53,7 +53,7 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-13 11:51 PDT) Milestone 2: audit details record the rendered source table; strict Codd manifests reject missing selected rows; dead constructors are removed; manifest/parser Haddocks are accurate; and Codd exposes `--allow-equivalent` parity. Both adapter unit and PostgreSQL integration suites pass (25 + 11 Codd tests; 14 + 6 hasql-migration tests).
 - [x] (2026-07-13 11:58 PDT) Milestone 3: adapter source trees contain no `Map.!`; Codd ledger-only evidence carries no unverified checksum; and core rejects `SamePayload` evidence weaker than `SourceManifestVerified` with `HistoryPayloadEvidenceTooWeak`. Sequential validation passed 104 core, 25 Codd, and 14 hasql-migration unit tests.
 - [x] (2026-07-13 12:08 PDT) Milestone 4: Codd source unlock observations append to `HistoryImportReport.cleanupIssues` after target cleanup observations, while primary failures retain `CoddUnlockFailed`. The 12-case PostgreSQL suite proves a committed report survives `pg_advisory_unlock` returning false.
-- [ ] Docs and changelogs updated; `cabal test all` green.
+- [x] (2026-07-13 12:14 PDT) Runbooks and all three affected package changelogs updated; `nix fmt` changed no files; `just acceptance` passed all 15 test groups, production dependency closure, and the PostgreSQL 17 version gate.
 
 
 ## Surprises & Discoveries
@@ -145,7 +145,25 @@ implementation. Provide concise evidence.
 Summarize outcomes, gaps, and lessons learned at major milestones or at completion.
 Compare the result against the original purpose.
 
-(To be filled during and after implementation.)
+All four milestones are complete. Codd lock keys now reject signed-64-bit overflow before
+conversion. Strict Codd selections and manifests agree symmetrically, while partial
+manifests remain available for state-equivalent imports. Both adapter parsers accurately
+describe their reserved plan argument, Codd exposes equivalent-history opt-in parity, and
+impossible selection errors are gone. Hasql-migration evidence identifies its exact quoted
+source table and all adapter source paths use total payload lookups.
+
+Core `SamePayload` validation now requires evidence at least as strong as
+`SourceManifestVerified`; Codd ledger-only evidence carries no unverified checksum. A real
+PostgreSQL regression proves that a source unlock failure after target commit returns the
+complete `HistoryImportReport` with an ordered cleanup observation instead of discarding
+it. The implementation deliberately did not add a new CLI history-error API because the
+existing CLI contract renders only successful import reports and adapter applications own
+their outer error types.
+
+Validation passed `nix fmt`, all 15 acceptance groups, production dependency closure, and
+the PostgreSQL 17 gate. The main implementation lesson is operational: run Cabal commands
+sequentially when they rebuild a shared local package, because independent processes race
+inside one `dist-newstyle` tree.
 
 
 ## Context and Orientation
@@ -222,21 +240,20 @@ after resolving the `SamePayload` evidence, reject evidence whose `strength` is
 `LedgerOnly` with a new `HistoryValidationError` constructor
 `HistoryPayloadEvidenceTooWeak !MigrationId !EvidenceKey` (add to
 `pg-migrate/src/Database/PostgreSQL/Migrate/History/Types.hs`, export via
-`Database.PostgreSQL.Migrate` and `Database.PostgreSQL.Migrate.History`, and render in the
-CLI JSON/text error tables — coordinate with the JSON goldens in
-`pg-migrate-cli/test/golden/json`). Add a core unit test in
+`Database.PostgreSQL.Migrate` and `Database.PostgreSQL.Migrate.History`). The CLI has no
+history-import error renderer; adapter-owned failure output receives the constructor
+through `HistoryImportValidationFailed`. Add a core unit test in
 `pg-migrate/test/unit/Test/History.hs`: a `SamePayload` mapping whose only satisfying
 evidence is `ledgerOnlyEvidence` with a matching checksum must now fail with the new error
 instead of importing.
 
-Milestone 4 — unlock preserves success. Reshape the Codd source-lock bracket
-(`Ledger.hs` lines 46-56) following the pattern established by
-`docs/plans/18-preserve-durable-success-through-cleanup-failures-and-async-exceptions.md`:
-when the wrapped import returns a committed report and only the source unlock fails, return
-the report and surface the unlock problem as data (either a `coddCleanupIssues` field on
-the adapter's report wrapper or, minimally, keep `CoddUnlockFailed` for the failure path
-only and document its two `Maybe` fields). If plan 18 has not landed yet, implement the
-adapter-local version and record the deviation in both Decision Logs.
+Milestone 4 — unlock preserves success. The Codd source-lock bracket in `Ledger.hs`
+returns its typed primary result separately from internal source-unlock observations. On a
+successful target import, `Import.hs` maps those observations to core `CleanupIssue`
+values and appends them to `HistoryImportReport.cleanupIssues`. On a primary failure,
+`CoddUnlockFailed` retains the original error and the unlock diagnostic. Plain source reads
+retain their prior behavior of treating unlock failure as `CoddUnlockFailed`, because they
+have no successful report capable of carrying cleanup data.
 
 Update `docs/operations/codd-import.md` (new flag, strict-source symmetry, lock-key
 validation) and `docs/operations/hasql-migration-import.md` (source-table audit field), and
@@ -249,8 +266,8 @@ All commands run from the repository root `/Users/shinzui/Keikaku/bokuno/pg-migr
 
 ```bash
 cabal build pg-migrate-import-codd pg-migrate-import-hasql-migration
-cabal test pg-migrate-import-codd:pg-migrate-import-codd-unit
-cabal test pg-migrate-import-hasql-migration:pg-migrate-import-hasql-migration-unit
+cabal test pg-migrate-import-codd:pg-migrate-import-codd-test
+cabal test pg-migrate-import-hasql-migration:pg-migrate-import-hasql-migration-test
 
 # integration (requires PostgreSQL 17/18)
 process-compose up --detached
@@ -264,7 +281,7 @@ nix fmt
 Expected new unit-test fragment after Milestone 1:
 
 ```text
-pg-migrate-import-codd-unit
+pg-migrate-import-codd-test
   Parser
     accepts 0x7FFFFFFFFFFFFFFF:               OK
     rejects 0x8000000000000000:               OK
@@ -279,6 +296,7 @@ fix(import-codd): reject out-of-range source lock keys at parse time
 
 MasterPlan: docs/masterplans/4-remediate-pg-migrate-v1-audit-findings.md
 ExecPlan: docs/plans/19-harden-import-adapter-parsing-audit-evidence-and-internal-totality.md
+Intention: intention_01kxe7gddde44r2d42xyh45c2c
 ```
 
 
@@ -293,8 +311,9 @@ strict-source Codd import whose manifest omits a selected file fails with
 without `--strict-source` still succeeds with ledger-only evidence (existing mixed-evidence
 case must keep passing). Milestone 3: the new core unit test proves a `LedgerOnly`
 `SamePayload` import fails with `HistoryPayloadEvidenceTooWeak`; grep confirms no `Map.!`
-remains under either adapter's `src/`. Milestone 4: an integration case that breaks the
-source-lock connection after import commit still returns the import report. Full
+remains under either adapter's `src/`. Milestone 4: an integration case that releases the
+source lock while its row is read, forcing wrapper cleanup to return false after target
+commit, still returns the import report. Full
 acceptance: `cabal test all` passes and both runbooks document the new behavior.
 
 
@@ -302,10 +321,10 @@ acceptance: `cabal test all` passes and both runbooks document the new behavior.
 
 All edits are compile-guarded; constructor deletions surface every consumer as a compile
 error. Integration tests run against disposable databases (ephemeral-pg or the
-process-compose instance) and are safe to re-run. The core change in Milestone 3 touches
-`pg-migrate` and the CLI error rendering: if the golden diff shows anything beyond the one
-new error constructor, stop and reconcile with plans 17/18 (see master plan Integration
-Points) before regenerating goldens.
+process-compose instance) and are safe to re-run. The core change in Milestone 3 is
+compile-guarded across every downstream package. The CLI has no history-import error
+renderer, so no golden regeneration is expected or required for the new validation
+constructor.
 
 
 ## Interfaces and Dependencies
@@ -322,9 +341,18 @@ data HistoryValidationError
   | HistoryPayloadEvidenceTooWeak !MigrationId !EvidenceKey
 
 -- pg-migrate-import-hasql-migration .../HasqlMigration/Import.hs
-rowDetails :: QualifiedTable -> SchemaMigrationRow -> Aeson.Value  -- table now recorded
+rowDetails :: QualifiedTable -> HasqlMigrationRow -> Aeson.Value  -- table now recorded
 ```
 
 `CoddImportCommand` gains an `allowEquivalent` field mirroring the hasql-migration command.
 This plan consumes (but does not define) the success-preserving cleanup pattern from
 `docs/plans/18-preserve-durable-success-through-cleanup-failures-and-async-exceptions.md`.
+
+Internally, `withLockedCoddHistory` returns the primary result and source-unlock
+observations separately. `importCoddHistoryWithValidators` appends mapped observations to
+the existing report's `cleanupIssues`; no adapter-specific report wrapper is introduced.
+
+
+Revision note (2026-07-13): Recorded completed implementation, corrected stale Cabal
+component names, aligned the milestone prose with the landed cleanup and CLI contracts,
+and captured full acceptance evidence.

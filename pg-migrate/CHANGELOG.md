@@ -12,6 +12,8 @@ constructors and the `CleanupFailed` constructor.
   `newtype`.
 - Changed `CleanupFailed` from an optional primary error to
   `CleanupFailed MigrationError (NonEmpty CleanupIssue)`.
+- Added `HistoryPayloadEvidenceTooWeak` to `HistoryValidationError`; exhaustive consumers
+  must handle the new constructor.
 
 ### Fixes and behavior changes
 
@@ -21,6 +23,9 @@ constructors and the `CleanupFailed` constructor.
 - Retain a genuine primary runner failure inside `CleanupFailed` when cleanup also fails.
 - Added `Eq` for `CleanupIssue`, preserving the existing report `Eq` instances after their
   new field was added.
+- Require `SamePayload` mappings to use evidence of at least
+  `SourceManifestVerified` strength, preventing matching but unverified ledger-only
+  checksums from authorizing imports.
 
 ## 1.0.0.0 — 2026-07-10
 

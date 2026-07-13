@@ -84,7 +84,7 @@ behavior against a live database, so they verify differently and stay separate.
 |---|-------|------|-----------|-----------|--------|
 | 1 | Fix CLI runner-option overrides and authoring input safety | docs/plans/17-fix-cli-runner-option-overrides-and-authoring-input-safety.md | None | None | Complete |
 | 2 | Preserve durable success through cleanup failures and async exceptions | docs/plans/18-preserve-durable-success-through-cleanup-failures-and-async-exceptions.md | None | EP-1 | Complete |
-| 3 | Harden import adapter parsing, audit evidence, and internal totality | docs/plans/19-harden-import-adapter-parsing-audit-evidence-and-internal-totality.md | None | EP-2 | In Progress |
+| 3 | Harden import adapter parsing, audit evidence, and internal totality | docs/plans/19-harden-import-adapter-parsing-audit-evidence-and-internal-totality.md | None | EP-2 | Complete |
 | 4 | Fix embed authoring numbering, recompilation tracking, and byte embedding | docs/plans/20-fix-embed-authoring-numbering-recompilation-tracking-and-byte-embedding.md | None | None | Not Started |
 | 5 | Harden SQL validation against BOM, misplaced directives, and wrong diagnostics | docs/plans/21-harden-sql-validation-against-bom-misplaced-directives-and-wrong-diagnostics.md | None | None | Not Started |
 | 6 | Align verification policy handling and remove quadratic ledger scans | docs/plans/22-align-verification-policy-handling-and-remove-quadratic-ledger-scans.md | None | None | Not Started |
@@ -132,10 +132,11 @@ changelog merge in `pg-migrate-cli/CHANGELOG.md`.
 
 Unlock-failure result shape for the Codd adapter (`CoddUnlockFailed` in
 `pg-migrate-import-codd/src/Database/PostgreSQL/Migrate/History/Codd/Types.hs`): EP-2
-defines the pattern (success value preserved alongside cleanup issues); EP-3 applies the
-same pattern to `CoddUnlockFailed` and documents its two `Maybe` fields. If EP-3 is
-implemented before EP-2 completes, EP-3 defers this one item and records that in both
-Decision Logs.
+defines the pattern (success value preserved alongside cleanup issues); EP-3 applies it by
+appending source observations to `HistoryImportReport.cleanupIssues` after target
+observations. `CoddUnlockFailed` remains for source-read and primary-failure paths, and its
+two `Maybe` fields now document the optional primary error and optional unlock session
+error (a missing latter value means unlock returned false).
 
 Evidence-strength gate for `SamePayload` (`validatePayload` in
 `pg-migrate/src/Database/PostgreSQL/Migrate/History/Validation.hs`): EP-3 adds the core
@@ -168,9 +169,10 @@ and the milestone. This section provides an at-a-glance view of the entire initi
 - [x] EP-2: Core runner returns preserved success alongside cleanup issues
 - [x] EP-2: CLI JSON/text render the new `CleanupFailed` shape; goldens updated
 - [x] EP-2: Test-support rethrows async exceptions and preserves callback results
-- [ ] EP-3: Codd lock-key reader rejects out-of-range keys
-- [ ] EP-3: Audit evidence completeness (source table recorded, strict-source symmetry, dead constructors removed)
-- [ ] EP-3: Internal totality and core `SamePayload` strength gate
+- [x] EP-3: Codd lock-key reader rejects out-of-range keys
+- [x] EP-3: Audit evidence completeness (source table recorded, strict-source symmetry, dead constructors removed)
+- [x] EP-3: Internal totality and core `SamePayload` strength gate
+- [x] EP-3: Committed Codd import reports survive source-lock cleanup failures
 - [ ] EP-4: Numbering rollover fixed with regression tests
 - [ ] EP-4: Directory-level recompilation tracking via `addDependentDirectory`
 - [ ] EP-4: Efficient byte embedding and authoring/diagnostic polish
@@ -201,6 +203,17 @@ interactions between child plans. Provide concise evidence.
   `CleanupIssue` now derives `Eq`. Evidence: the real PostgreSQL regression releases the
   lock from a committed migration and receives `Right MigrationReport` with
   `AdvisoryUnlockReturnedFalse`; all 15 acceptance groups pass.
+
+- EP-3 reused `HistoryImportReport.cleanupIssues` for Codd source-lock cleanup rather than
+  introducing an adapter-specific report. Target-runner cleanup observations come first;
+  source unlock observations are appended. Evidence: a real PostgreSQL view releases the
+  source lock while being read, after which the committed import returns `Right` with
+  `[AdvisoryUnlockReturnedFalse]` and the full 15-group acceptance suite passes.
+
+- EP-3 added the public `HistoryPayloadEvidenceTooWeak` validation constructor and made
+  `SamePayload` require `SourceManifestVerified` strength or better. EP-6 touches nearby
+  history-import code and must preserve this gate when optimizing map construction, though
+  its planned `History.hs` edits do not overlap `Validation.hs`.
 
 
 ## Decision Log
@@ -239,21 +252,34 @@ interactions between child plans. Provide concise evidence.
   and prevent successful audit evidence from being discarded.
   Date: 2026-07-13
 
+- Decision: Carry Codd source-unlock observations in the existing
+  `HistoryImportReport.cleanupIssues` field, ordered after target-runner observations.
+  Rationale: This applies EP-2's shared durable-success contract without a second report
+  type and keeps the adapter's public operation signature unchanged.
+  Date: 2026-07-13
+
 
 ## Outcomes & Retrospective
 
 Summarize outcomes, gaps, and lessons learned at major milestones or at completion.
 Compare the result against the original vision.
 
-EP-1 completed the highest-severity CLI remediation, and EP-2 completed the cross-package
-durable-success invariant. Two of six child plans are complete. Migration, repair, and
-history-import reports now preserve cleanup observations; CLI schema v1 exposes them
-additively; test-support propagates cancellation after cleanup. The workspace remains green
-across all 15 test components, production dependency closure, PostgreSQL integration, and
-Template Haskell recompilation coverage. EP-3 is the recommended next plan, and the
-remaining four subsystem plans are Not Started.
+EP-1 completed the highest-severity CLI remediation, EP-2 completed the cross-package
+durable-success invariant, and EP-3 hardened both history-import adapters. Three of six
+child plans are complete. Migration, repair, and history-import reports preserve cleanup
+observations; Codd source cleanup now follows the same rule; CLI schema v1 exposes report
+cleanup additively; and test-support propagates cancellation after cleanup. Import audit
+evidence identifies its source table, strict Codd manifests are symmetric, lock-key
+overflow is rejected, adapter payload lookups are total, and `SamePayload` requires
+verified evidence strength. The workspace remains green across all 15 test components,
+production dependency closure, PostgreSQL integration, and Template Haskell recompilation
+coverage. EP-4 is the recommended next plan; EP-4 through EP-6 remain Not Started.
 
 
 Revision note (2026-07-13): Marked EP-2 complete, recorded its report-based cleanup
 contract for EP-3, and updated aggregate progress and outcomes after the full acceptance
 matrix passed.
+
+Revision note (2026-07-13): Marked EP-3 complete, recorded its core evidence-strength gate
+and reuse of report cleanup observations, and updated aggregate outcomes after all 15
+acceptance groups passed.
