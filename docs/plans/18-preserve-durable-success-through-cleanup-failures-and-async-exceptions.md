@@ -1,0 +1,301 @@
+---
+id: 18
+slug: preserve-durable-success-through-cleanup-failures-and-async-exceptions
+title: "Preserve durable success through cleanup failures and async exceptions"
+kind: exec-plan
+created_at: 2026-07-13T15:44:36Z
+intention: intention_01kxe7gddde44r2d42xyh45c2c
+master_plan: "docs/masterplans/4-remediate-pg-migrate-v1-audit-findings.md"
+---
+
+# Preserve durable success through cleanup failures and async exceptions
+
+This ExecPlan is a living document. The sections Progress, Surprises & Discoveries,
+Decision Log, and Outcomes & Retrospective must be kept up to date as work proceeds.
+
+
+## Purpose / Big Picture
+
+pg-migrate's runner brackets every operation (run, repair, history import) in a lifecycle:
+set a temporary PostgreSQL statement timeout, acquire a session advisory lock, do the work,
+release the lock, restore the timeout. Today, if the work succeeds — every migration
+committed durably — but a cleanup step then fails (the unlock statement errors because the
+connection dropped, or the timeout restore fails), the entire operation returns
+`Left (CleanupFailed Nothing …)` and the successful `MigrationReport` is discarded. An
+operator cannot tell from the result that their migrations actually applied. The
+2026-07-13 audit flagged this in the core runner
+(`pg-migrate/src/Database/PostgreSQL/Migrate/Runner.hs`, `attachCleanup`) and found the
+same pattern independently in `pg-migrate-test-support` (a successful test callback's value
+is replaced by `MigratedDatabaseCallbackCleanupFailed` when only the connection release
+fails). The test-support package has a second, related defect: it catches `SomeException`
+around the user callback, so asynchronous exceptions (Ctrl-C, tasty timeouts) are swallowed
+into an ordinary `Left` instead of propagating, defeating cancellation.
+
+After this plan, a caller of `runMigrationPlan`, `repairMigration`, or
+`importMigrationHistory` always receives the durable outcome: success reports carry any
+cleanup issues as data instead of being replaced by an error, `CleanupFailed` always
+carries the primary error (its `Maybe` becomes mandatory), the CLI renders the new shape,
+and test-support rethrows async exceptions and preserves callback results. The
+documentation contract in `docs/reference/errors-and-events.md` — "cleanup failure retains
+the primary failure" — becomes true for successes as well.
+
+
+## Progress
+
+Use a checklist to summarize granular steps. Every stopping point must be documented here,
+even if it requires splitting a partially completed task into two ("done" vs. "remaining").
+This section must always reflect the actual current state of the work.
+
+- [ ] Milestone 1: core lifecycle returns cleanup issues as data; reports gain `cleanupIssues`; `CleanupFailed` reshaped; unit + integration tests.
+- [ ] Milestone 2: CLI JSON/text rendering, goldens, and `docs/reference/json-v1.md` updated for the new shapes.
+- [ ] Milestone 3: test-support rethrows async exceptions, preserves callback values, closes the unmasked acquire window.
+- [ ] Docs (`errors-and-events.md`, `public-api.md`, operations runbooks) and changelogs updated; `cabal test all` green.
+
+
+## Surprises & Discoveries
+
+Document unexpected behaviors, bugs, optimizations, or insights discovered during
+implementation. Provide concise evidence.
+
+(None yet.)
+
+
+## Decision Log
+
+- Decision: Cleanup issues after a successful operation travel inside the success report
+  (a new `cleanupIssues :: [CleanupIssue]` field on `MigrationReport`, `RepairReport`, and
+  `HistoryImportReport`) rather than in a new error constructor or a widened return type.
+  Rationale: `MigrationError` cannot carry the polymorphic `value` that
+  `withRunLifecycle` threads, and changing every public signature to a triple would be far
+  more invasive; a report field keeps `Either error report` signatures stable and makes the
+  issues impossible to lose.
+  Date: 2026-07-13
+
+- Decision: `CleanupFailed !(Maybe MigrationError) !(NonEmpty CleanupIssue)` becomes
+  `CleanupFailed !MigrationError !(NonEmpty CleanupIssue)`.
+  Rationale: After Milestone 1 the success-with-cleanup-issues case never constructs
+  `CleanupFailed`, so the `Nothing` case is unrepresentable and should be removed from the
+  type (pre-release breaking change, recorded in the changelog).
+  Date: 2026-07-13
+
+- Decision: In test-support, a connection-release failure after a successful callback is
+  discarded (the callback value wins) rather than reported.
+  Rationale: The connection belongs to an ephemeral database that `ephemeral-pg` tears down
+  wholesale; failing a green test over an unreleasable connection inverts the tool's
+  purpose. Recorded in the haddock so the trade-off is visible.
+  Date: 2026-07-13
+
+
+## Outcomes & Retrospective
+
+Summarize outcomes, gaps, and lessons learned at major milestones or at completion.
+Compare the result against the original purpose.
+
+(To be filled during and after implementation.)
+
+
+## Context and Orientation
+
+The core runner lives in `pg-migrate/src/Database/PostgreSQL/Migrate/Runner.hs`. The
+lifecycle is: `runMigrationPlanWith` → `withRunLifecycle` → `runOnConnection`, which nests
+`withStatementTimeoutResource` (applies/restores the PostgreSQL `statement_timeout`
+setting) around `withAdvisoryLockResource` (acquires/releases a session advisory lock via
+`pg_try_advisory_lock`/`pg_advisory_unlock`, statements in
+`pg-migrate/src/Database/PostgreSQL/Migrate/Runner/Lock.hs`). Both resource brackets follow
+the same pattern: run the inner action under `Control.Exception.try @SomeException`,
+perform the cleanup step (which returns `Either CleanupIssue ()`), then call
+`finishResource`, which calls `attachCleanup` (Runner.hs around lines 150-174).
+`attachCleanup` is the defect: given any non-empty cleanup issues it returns
+`Left (CleanupFailed (either Just (const Nothing) result) issues)` — discarding a `Right`
+result. Asynchronous exceptions are already handled correctly here (`isAsyncException`
+rethrows).
+
+The relevant types are in `pg-migrate/src/Database/PostgreSQL/Migrate/Runner/Types.hs`:
+`CleanupIssue` (constructors `AdvisoryUnlockReturnedFalse`, `AdvisoryUnlockFailed`,
+`StatementTimeoutRestoreFailed`), `MigrationError` (including `CleanupFailed !(Maybe
+MigrationError) !(NonEmpty CleanupIssue)`), and `MigrationReport { startedAt, finishedAt,
+results }`. `RepairReport` is in
+`pg-migrate/src/Database/PostgreSQL/Migrate/Repair/Types.hs`; `HistoryImportReport` is in
+`pg-migrate/src/Database/PostgreSQL/Migrate/History/Types.hs`. Repair and history import
+reuse the same lifecycle via `withRunLifecycle` (see `repairMigration` in
+`pg-migrate/src/Database/PostgreSQL/Migrate/Repair.hs` and `importMigrationHistory` in
+`pg-migrate/src/Database/PostgreSQL/Migrate/History.hs`); for them the lifecycle's `value`
+type is itself an `Either <domain error> <report>`, which is why the fix must happen where
+the cleanup issues are known (the lifecycle) but be attached where the report type is known
+(each entry point).
+
+The CLI renders `MigrationError` and reports as JSON and text in
+`pg-migrate-cli/src/Database/PostgreSQL/Migrate/CLI/Json.hs` and `.../CLI/Text.hs`, with
+golden files under `pg-migrate-cli/test/golden/json` and the contract documented in
+`docs/reference/json-v1.md`. `CleanupFailed` and each `CleanupIssue` constructor already
+have renderings there that must follow the type change, and the report payloads gain a
+`cleanup_issues` array (additive JSON change; schema version stays 1 per the versioning
+rules in `docs/reference/release-policy.md`).
+
+Test-support is one module, `pg-migrate-test-support/src/Database/PostgreSQL/Migrate/Test.hs`.
+`withMigratedDatabase` starts an ephemeral PostgreSQL (`ephemeral-pg`), runs the plan,
+acquires a Hasql connection (line ~62, currently outside any mask), and calls `runCallback`
+(lines 70-83), which wraps the user callback in `Exception.try` at `SomeException` — this
+is where Ctrl-C is swallowed — and reports release failures even when the callback
+succeeded.
+
+Integration tests for the core runner live in `pg-migrate/test/integration/Main.hs` (needs
+PostgreSQL; `process-compose up` or `cabal test all` in a prepared environment; see
+`process-compose.yaml`). Unit tests: `pg-migrate/test/unit/Test/Runner.hs`,
+`pg-migrate-test-support/test/Main.hs`.
+
+
+## Plan of Work
+
+Milestone 1 — core. Change the two resource brackets so cleanup issues are returned as
+data instead of being folded into the result: give `finishResource` (and the brackets) the
+type `IO (Either SomeException (Either MigrationError value)) -> [Either CleanupIssue ()]
+-> IO (Either MigrationError value, [CleanupIssue])` (or introduce a tiny internal record;
+keep it local to `Runner.hs`). `runOnConnection` concatenates issues from both brackets and
+`withRunLifecycle` returns them to its caller: change `withRunLifecycle` to
+`RunOptions -> ConnectionProvider -> (Connection -> IO (Either MigrationError value)) ->
+IO (Either MigrationError value, [CleanupIssue])`. Each public entry point then attaches:
+`runMigrationPlanWith` puts issues into the new `cleanupIssues` field of `MigrationReport`
+on success, or wraps `CleanupFailed primary issues` on failure; `repairMigration` and
+`importMigrationHistory` do the same for `RepairReport`/`HistoryImportReport` and their
+error types (both already wrap `MigrationError` via `RepairRunnerError` /
+`HistoryImportRunnerError`, so the failure path needs no new constructors). Update
+`CleanupFailed` to carry a mandatory primary error. Add `cleanupIssues :: ![CleanupIssue]`
+to the three report records and update every construction site. Give `CleanupIssue` an
+`Eq`-free stock `Show` as today; no other type changes. Extend
+`pg-migrate/test/unit/Test/Runner.hs` with a fake-provider test exercising the pair-return,
+and extend the integration suite with a scenario that makes unlock fail deliberately (for
+example, release the advisory lock inside a session migration via
+`SELECT pg_advisory_unlock_all()` so the runner's own unlock returns false) and asserts the
+run result is `Right report` with `cleanupIssues == [AdvisoryUnlockReturnedFalse]` and all
+migrations recorded applied in the ledger.
+
+Milestone 2 — CLI cascade. Update `Json.hs`/`Text.hs` for the reshaped `CleanupFailed`
+(primary error now mandatory) and render the reports' `cleanup_issues` (empty array when
+none). Update the goldens under `pg-migrate-cli/test/golden/json` and the field tables in
+`docs/reference/json-v1.md`, noting the addition is backward-compatible for JSON consumers
+(new field, unchanged existing fields). Coordinate with
+`docs/plans/17-fix-cli-runner-option-overrides-and-authoring-input-safety.md` per the
+master plan's Integration Points: this plan owns every rendering change for
+`CleanupFailed`/reports; if plan 17 has not landed, expect no conflicts beyond the
+changelog.
+
+Milestone 3 — test-support. In `runCallback`, catch only synchronous exceptions: after
+`Exception.try`, inspect the exception with
+`Exception.fromException @Exception.SomeAsyncException` (this also covers
+`AsyncException`) and rethrow when it matches, mirroring `isAsyncException` in
+`Runner.hs:634`. Restructure `withMigratedDatabase` so `Connection.acquire` and the
+callback run under one `Exception.mask`/`restore` bracket (acquire inside the mask,
+callback under `restore`, release in the exit path) closing the leak window at line ~62.
+Change the result mapping so `(Right value, Left _releaseError)` yields `Right value`
+(decision above), delete `MigratedDatabaseCallbackCleanupFailed` and
+`MigratedDatabaseCallbackAndCleanupFailed`'s success-clobbering role (the latter remains
+for callback-failed-and-release-failed), and update the haddocks. Extend
+`pg-migrate-test-support/test/Main.hs`: a callback that throws `Exception.AsyncException
+Exception.UserInterrupt` (thrown asynchronously via `throwTo` from a helper thread, or
+directly via `throwIO` wrapped in `SomeAsyncException`) must propagate out of
+`withMigratedDatabase` rather than return `Left`.
+
+Throughout: update `docs/reference/errors-and-events.md` (cleanup issues now travel with
+durable outcomes), `docs/reference/public-api.md` (report shapes), and the operations
+runbooks that mention `CleanupFailed` (`docs/operations/locking-and-timeouts.md`). Update
+`pg-migrate/CHANGELOG.md`, `pg-migrate-cli/CHANGELOG.md`, and
+`pg-migrate-test-support/CHANGELOG.md`, marking the `CleanupFailed`/report changes as
+breaking.
+
+
+## Concrete Steps
+
+All commands run from the repository root `/Users/shinzui/Keikaku/bokuno/pg-migrate`.
+
+```bash
+# core loop
+cabal build pg-migrate
+just unit                                  # cabal test pg-migrate:pg-migrate-unit
+
+# integration (requires PostgreSQL 17/18)
+process-compose up --detached
+cabal test pg-migrate:pg-migrate-integration
+
+# cascade and full check
+cabal test pg-migrate-cli
+cabal test pg-migrate-test-support
+cabal test all
+nix fmt
+```
+
+Expected new integration output fragment:
+
+```text
+  runner
+    unlock failure preserves the migration report: OK
+```
+
+Commit message shape:
+
+```text
+fix(runner)!: return cleanup issues with durable outcomes
+
+Success reports carry cleanupIssues instead of being replaced by
+CleanupFailed; CleanupFailed now always carries its primary error.
+
+MasterPlan: docs/masterplans/4-remediate-pg-migrate-v1-audit-findings.md
+ExecPlan: docs/plans/18-preserve-durable-success-through-cleanup-failures-and-async-exceptions.md
+```
+
+
+## Validation and Acceptance
+
+Acceptance is behavioral. Core: with a plan whose last session migration runs
+`SELECT pg_advisory_unlock_all()`, `runMigrationPlan` returns `Right report`; `results`
+lists every migration `AppliedNow`, `cleanupIssues` is non-empty, and re-running returns
+`Right` with everything `AlreadyApplied` — before this plan the same scenario returns
+`Left (CleanupFailed Nothing …)` with no report. Failure path: a failing migration plus a
+broken cleanup still returns `Left (CleanupFailed primary issues)` where `primary` is the
+migration failure. CLI: the `up` JSON payload for a clean run contains
+`"cleanup_issues": []`, and the golden diff shows only additions. Test-support: the async
+test propagates `UserInterrupt` (test asserts via `Exception.try` around
+`withMigratedDatabase`), and a passing callback with a pre-released connection still
+returns the callback's value. `cabal test all` passes.
+
+
+## Idempotence and Recovery
+
+All edits are compile-guarded; the type changes make every affected construction site a
+compile error, which is the safety net — do not suppress warnings while working. The
+integration scenario mutates only an ephemeral/dev database defined by
+`process-compose.yaml` and can be re-run freely. If the report-field approach proves wrong
+during implementation (for example, a consumer requires errors for any cleanup issue),
+stop, record the evidence under Surprises & Discoveries, and add a Decision Log entry
+before changing course; the fallback design is a `CleanupObserved` `MigrationEvent`
+alongside the report field.
+
+
+## Interfaces and Dependencies
+
+No new dependencies. End-state signatures that must exist:
+
+```haskell
+-- Database.PostgreSQL.Migrate.Runner (internal)
+withRunLifecycle ::
+  RunOptions ->
+  ConnectionProvider ->
+  (Connection.Connection -> IO (Either MigrationError value)) ->
+  IO (Either MigrationError value, [CleanupIssue])
+
+-- Database.PostgreSQL.Migrate.Runner.Types (re-exported by Database.PostgreSQL.Migrate)
+data MigrationError = ... | CleanupFailed !MigrationError !(NonEmpty CleanupIssue) | ...
+
+data MigrationReport = MigrationReport
+  { startedAt :: !UTCTime,
+    finishedAt :: !UTCTime,
+    results :: !(NonEmpty MigrationResult),
+    cleanupIssues :: ![CleanupIssue]
+  }
+```
+
+`RepairReport` (`Database.PostgreSQL.Migrate.Repair.Types`) and `HistoryImportReport`
+(`Database.PostgreSQL.Migrate.History.Types`) gain the same `cleanupIssues` field. The Codd
+adapter's `CoddUnlockFailed` is deliberately not touched here; it adopts this pattern in
+`docs/plans/19-harden-import-adapter-parsing-audit-evidence-and-internal-totality.md` (see
+the master plan's Integration Points).
