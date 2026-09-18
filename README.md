@@ -24,15 +24,15 @@ Add only the packages an application needs; for example, a migration-owning libr
 
 ```cabal
 build-depends:
-    pg-migrate        >=1.1 && <1.2
-  , pg-migrate-embed  >=1.1 && <1.2
+    pg-migrate        >=1.2 && <1.3
+  , pg-migrate-embed  >=1.2 && <1.3
 ```
 
 Applications embedding manifests on GHC 9.12 must also load
 `Database.PostgreSQL.Migrate.Embed.RecompilePlugin`, as described in
 [manifest authoring](docs/user/manifest-authoring.md). The current release is
-[`1.1.0.0`](https://github.com/shinzui/pg-migrate/releases/tag/v1.1.0.0); it is breaking
-relative to `1.0.0.0`, so read each package's `CHANGELOG.md` before upgrading.
+[`1.2.0.0`](https://github.com/shinzui/pg-migrate/releases/tag/v1.2.0.0); it is breaking
+relative to `1.1.0.0`, so read each package's `CHANGELOG.md` before upgrading.
 
 ## Documentation
 

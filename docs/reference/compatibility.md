@@ -16,6 +16,7 @@ generated:
 | GHC | 9.12.4 project toolchain |
 | PostgreSQL | 17 and 18, each tested by the full acceptance matrix |
 | Hasql | `>= 1.10 && < 1.11` |
+| ephemeral-pg (`pg-migrate-test-support` only) | `>= 0.3.1 && < 0.4` |
 | Ledger | schema version 1 |
 | Manifest | format version 1 |
 | JSON | schema version 1 |

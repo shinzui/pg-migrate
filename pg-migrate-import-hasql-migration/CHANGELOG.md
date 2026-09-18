@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0.0 — 2026-09-18
+
+Coherent-set release: `pg-migrate-test-support` moved to ephemeral-pg 0.3, a breaking change
+to a type in its public API, so all six packages move to the 1.2 series together.
+
+### Other changes
+
+- No API or behavior changes in this package. Internal library bounds are now
+  `>= 1.2 && < 1.3`.
+
 ## 1.1.0.0 — 2026-07-13
 
 Major release: this set removes a public error constructor.

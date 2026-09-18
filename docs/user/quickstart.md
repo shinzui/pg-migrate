@@ -51,9 +51,9 @@ executable my-service-migrate
     containers            >=0.7  && <0.8,
     hasql                 >=1.10 && <1.11,
     optparse-applicative  >=0.19 && <0.20,
-    pg-migrate            >=1.1  && <1.2,
-    pg-migrate-cli        >=1.1  && <1.2,
-    pg-migrate-embed      >=1.1  && <1.2,
+    pg-migrate            >=1.2  && <1.3,
+    pg-migrate-cli        >=1.2  && <1.3,
+    pg-migrate-embed      >=1.2  && <1.3,
     text                  >=2.1  && <2.2
 ```
 

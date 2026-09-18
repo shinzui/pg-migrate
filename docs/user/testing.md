@@ -68,8 +68,8 @@ test-suite my-service-database-test
   build-depends:
     base,
     hasql                 >=1.10 && <1.11,
-    pg-migrate            >=1.1  && <1.2,
-    pg-migrate-test-support >=1.1 && <1.2,
+    pg-migrate            >=1.2  && <1.3,
+    pg-migrate-test-support >=1.2 && <1.3,
     tasty,
     tasty-hunit
 ```

@@ -1,13 +1,28 @@
 # Changelog
 
-## Unreleased
+## 1.2.0.0 — 2026-09-18
 
-- Require `ephemeral-pg >=0.3.1 && <0.4`, which reclaims clusters abandoned by killed
-  runs on the next startup.
+Major release: `withMigratedDatabaseConfig` takes an `EphemeralPg.Config`, and this set moves
+to ephemeral-pg 0.3, whose `Config` gained a field.
+
+### Breaking changes
+
+- Require `ephemeral-pg >=0.3.1 && <0.4` (was `>=0.2 && <0.3`). ephemeral-pg 0.3 added
+  `sweepStaleOnStart` to `Config`, so callers that construct `Config` exhaustively must
+  set it; ephemeral-pg 0.3.1 also reclaims clusters abandoned by killed runs on the next
+  startup.
+
+### New features
+
 - Add `defaultEphemeralConfig`, which pins ephemeral-pg's `temporaryRoot` to a stable
-  per-user directory (`/tmp/ephpg-pg-migrate-<uid>`). `withMigratedDatabase` and
-  `withMigratedDatabaseOptions` now use it, so the stale-cluster sweep keeps working
-  under a per-session `$TMPDIR` (`nix develop`, `nix-shell`, CI runners).
+  per-user directory (`/tmp/ephpg-pg-migrate-<uid>`, created if missing). Start from it
+  when calling `withMigratedDatabaseConfig`.
+
+### Fixes and behavior changes
+
+- `withMigratedDatabase` and `withMigratedDatabaseOptions` now use `defaultEphemeralConfig`,
+  so the stale-cluster sweep keeps working under a per-session `$TMPDIR` (`nix develop`,
+  `nix-shell`, CI runners).
 
 ## 1.1.0.0 — 2026-07-13
 

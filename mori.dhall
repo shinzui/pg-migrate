@@ -11,6 +11,7 @@ let augDefault =
       , kind = None Schema.DependencyKind
       , source = None Schema.DependencySource
       , scope = None Schema.DependencyScope
+      , versionConstraint = None Text
       }
 
 let internalDep =
