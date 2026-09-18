@@ -14,3 +14,4 @@ result-*
 .pre-commit-config.yaml
 .mina/
 .dev/
+.envrc.local
