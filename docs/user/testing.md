@@ -66,6 +66,13 @@ test-suite my-service-database-test
 `pg-migrate-test-support` depends on `ephemeral-pg`, which starts an isolated temporary
 PostgreSQL server. It is intentionally absent from the production dependency closure.
 
+Temporary clusters live under a stable per-user root, `/tmp/ephpg-pg-migrate-<uid>`,
+rather than `$TMPDIR`. `nix develop`, `nix-shell`, and many CI runners allocate a fresh
+`$TMPDIR` per session, which would hide clusters left behind by killed runs from
+ephemeral-pg's startup sweep. When you need a custom configuration, start from
+`defaultEphemeralConfig` and pass the result to `withMigratedDatabaseConfig` so the
+stable root is kept.
+
 Use `withMigratedDatabase` around an assertion:
 
 ```haskell
