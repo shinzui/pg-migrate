@@ -1,3 +1,14 @@
+---
+type: Navigation
+title: User guide
+description: Entry point that explains how pg-migrate fits into an application, which packages to choose, and where to find each task.
+docId: DOC-1
+tags: [overview, packages, learning-path, safety]
+generated:
+  by: human:nadeem
+  at: 2026-07-11T15:04:45Z
+---
+
 # User guide
 
 This guide is for developers adding `pg-migrate` to a Haskell application or library.

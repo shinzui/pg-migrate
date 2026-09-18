@@ -1,3 +1,14 @@
+---
+type: Reference
+title: Manifest format v1
+description: The version 1 migration manifest format, covering encoding, filename rules, rejections, and checksum semantics.
+docId: DOC-5
+tags: [manifest, format, checksums, contracts]
+generated:
+  by: human:nadeem
+  at: 2026-07-13T19:27:29Z
+---
+
 # Manifest format v1
 
 `manifestFormatVersion == 1`. A manifest has no in-file version marker. It is UTF-8 and

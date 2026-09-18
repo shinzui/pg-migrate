@@ -1,3 +1,14 @@
+---
+type: Reference
+title: Public API 1.0
+description: The stable 1.0 Haskell facades, primary operations, and atomicity contracts of the pg-migrate packages.
+docId: DOC-6
+tags: [api, haskell, facades, contracts]
+generated:
+  by: human:nadeem
+  at: 2026-07-13T20:21:13Z
+---
+
 # Public API 1.0
 
 The supported common facade is `Database.PostgreSQL.Migrate`. It exposes opaque validated

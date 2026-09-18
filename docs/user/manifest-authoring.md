@@ -1,3 +1,14 @@
+---
+type: Guide
+title: Manifest authoring
+description: Write, embed, check, and safely evolve an ordered SQL migration manifest with pg-migrate-embed.
+docId: DOC-4
+tags: [manifest, embedding, sql, authoring]
+generated:
+  by: human:nadeem
+  at: 2026-07-13T20:11:31Z
+---
+
 # Manifest authoring
 
 A manifest makes migration order explicit and lets `pg-migrate-embed` validate file

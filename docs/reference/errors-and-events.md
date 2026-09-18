@@ -1,3 +1,14 @@
+---
+type: Reference
+title: Errors and events
+description: Structured error, cleanup-issue, and runner event contracts across definition, plan, migration, repair, and import operations.
+docId: DOC-2
+tags: [errors, events, cleanup, contracts]
+generated:
+  by: human:nadeem
+  at: 2026-07-13T20:11:31Z
+---
+
 # Errors and events
 
 Definition and plan errors are pure and occur before acquisition. Migration errors preserve

@@ -1,3 +1,14 @@
+---
+type: Reference
+title: JSON schema v1
+description: The version 1 JSON output contract for CLI command results and structured errors.
+docId: DOC-3
+tags: [json, cli, schema, contracts]
+generated:
+  by: human:nadeem
+  at: 2026-07-13T18:36:01Z
+---
+
 # JSON schema v1
 
 `jsonSchemaVersion == 1`. Every command value contains `schemaVersion`, `command`, and

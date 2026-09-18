@@ -1,3 +1,14 @@
+---
+type: Reference
+title: Compatibility
+description: Supported GHC, PostgreSQL, Hasql, and versioned contract compatibility for pg-migrate v1.
+docId: DOC-1
+tags: [compatibility, postgresql, ghc, versions]
+generated:
+  by: human:nadeem
+  at: 2026-07-13T20:01:11Z
+---
+
 # Compatibility
 
 | Surface | v1 support |

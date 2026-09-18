@@ -20,3 +20,9 @@ acceptance:
 
 production-closure:
     scripts/check-production-closure
+
+docs:
+    okf validate docs/user --strict --profile mori/user-documentation-profile.dhall --profile-enforce --log-enforce
+    okf validate docs/reference --strict --profile mori/user-documentation-profile.dhall --profile-enforce --log-enforce
+    okf graph docs/user --json > /dev/null
+    okf graph docs/reference --json > /dev/null

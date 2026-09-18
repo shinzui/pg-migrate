@@ -1,3 +1,14 @@
+---
+type: Guide
+title: Component authoring
+description: Author a MigrationComponent with a stable identity, dependencies, SQL or Haskell migrations, and append-only evolution.
+docId: DOC-3
+tags: [components, migrations, nontransactional, authoring]
+generated:
+  by: human:nadeem
+  at: 2026-07-13T20:11:31Z
+---
+
 # Component authoring
 
 A `MigrationComponent` is the unit of migration ownership. A reusable library exports its

@@ -1,3 +1,14 @@
+---
+type: Guide
+title: Troubleshooting
+description: Diagnose manifest, validation, plan, verification, locking, and CLI failures from their structured errors.
+docId: DOC-8
+tags: [troubleshooting, errors, verification, advisory-lock]
+generated:
+  by: human:nadeem
+  at: 2026-07-13T20:33:37Z
+---
+
 # Troubleshooting
 
 Start with the structured error or verification issue instead of the rendered prose. In

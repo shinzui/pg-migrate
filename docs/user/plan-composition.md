@@ -1,3 +1,14 @@
+---
+type: Guide
+title: Plan composition
+description: Compose library components into one application-owned MigrationPlan, resolve dependency order, and evolve the plan after deployment.
+docId: DOC-5
+tags: [plans, composition, dependencies, verification]
+generated:
+  by: human:nadeem
+  at: 2026-07-13T20:33:37Z
+---
+
 # Plan composition
 
 The final application owns the complete `MigrationPlan`. Libraries contribute components;

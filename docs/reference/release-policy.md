@@ -1,3 +1,14 @@
+---
+type: Reference
+title: Release policy
+description: PVP versioning policy for the pg-migrate packages and independent versioning of each public contract.
+docId: DOC-7
+tags: [release, pvp, versioning, compatibility]
+generated:
+  by: human:nadeem
+  at: 2026-07-13T20:57:39Z
+---
+
 # Release policy
 
 The six packages use coherent PVP-style versions. An `A.B` series bounds internal public

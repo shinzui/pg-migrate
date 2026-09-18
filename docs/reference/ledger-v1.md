@@ -1,3 +1,14 @@
+---
+type: Reference
+title: Ledger schema v1
+description: The version 1 PostgreSQL migration ledger schema, row states, and initialization guarantees.
+docId: DOC-4
+tags: [ledger, schema, postgresql, contracts]
+generated:
+  by: human:nadeem
+  at: 2026-07-10T23:23:16Z
+---
+
 # Ledger schema v1
 
 `ledgerSchemaVersion == 1`. The default schema is `pgmigrate`; callers may supply another

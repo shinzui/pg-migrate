@@ -1,3 +1,14 @@
+---
+type: Guide
+title: Testing
+description: Test migrations without PostgreSQL, against fresh ephemeral databases, and in shared integration suites and CI.
+docId: DOC-7
+tags: [testing, ephemeral-pg, ci, integration]
+generated:
+  by: human:nadeem
+  at: 2026-09-18T13:37:24Z
+---
+
 # Testing
 
 Test migrations at three boundaries: validate definitions without PostgreSQL, apply the

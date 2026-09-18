@@ -1,3 +1,14 @@
+---
+type: Tutorial
+title: Quickstart
+description: Build a small application-owned migration plan, mount the standard commands, apply one migration, and verify the result.
+docId: DOC-6
+tags: [quickstart, getting-started, cli, examples]
+generated:
+  by: human:nadeem
+  at: 2026-07-13T20:57:39Z
+---
+
 # Quickstart
 
 This walkthrough builds a small application-owned migration plan, exposes the standard

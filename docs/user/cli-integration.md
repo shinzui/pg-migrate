@@ -1,3 +1,14 @@
+---
+type: Guide
+title: CLI integration
+description: Mount the reusable pg-migrate-cli commands in a service executable and integrate them with application configuration.
+docId: DOC-2
+tags: [cli, optparse-applicative, commands, configuration]
+generated:
+  by: human:nadeem
+  at: 2026-07-13T20:33:37Z
+---
+
 # CLI integration
 
 `pg-migrate-cli` is a reusable library, not a standalone executable. The application
