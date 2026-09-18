@@ -9,16 +9,22 @@ module Database.PostgreSQL.Migrate.Test
     withMigratedDatabaseOptions,
     -- | Fully configurable ephemeral-database variant.
     withMigratedDatabaseConfig,
+    -- | Default ephemeral-database configuration with a stable per-user temporary root.
+    defaultEphemeralConfig,
   )
 where
 
 import Control.Exception (SomeException)
 import Control.Exception qualified as Exception
+import Data.Monoid (Last (..))
 import Database.PostgreSQL.Migrate
 import EphemeralPg qualified
+import EphemeralPg.Config qualified
 import Hasql.Connection qualified as Connection
 import Hasql.Connection.Settings qualified as Settings
 import Hasql.Errors qualified as Errors
+import System.Directory (createDirectoryIfMissing)
+import System.Posix.User (getEffectiveUserID)
 
 -- | Structured failures from the ephemeral database, migration, callback, or a callback
 -- failure accompanied by a connection-release failure. A release failure after a
@@ -44,7 +50,25 @@ withMigratedDatabaseOptions ::
   MigrationPlan ->
   (Connection.Connection -> IO value) ->
   IO (Either MigratedDatabaseError value)
-withMigratedDatabaseOptions = withMigratedDatabaseConfig EphemeralPg.defaultConfig
+withMigratedDatabaseOptions options plan callback = do
+  config <- defaultEphemeralConfig
+  withMigratedDatabaseConfig config options plan callback
+
+-- | 'EphemeralPg.defaultConfig' with @temporaryRoot@ pinned to
+-- @\/tmp\/ephpg-pg-migrate-\<uid\>@, created if missing.
+--
+-- An unset root resolves to @$TMPDIR@, which @nix develop@, @nix-shell@, and many CI
+-- runners allocate per session; ephemeral-pg's startup sweep then never sees clusters
+-- abandoned by earlier killed runs. A root that is stable per effective uid keeps the
+-- sweep effective while keeping build sandboxes running as another uid out of a
+-- developer-owned @0700@ directory. Extend this rather than 'EphemeralPg.defaultConfig'
+-- when calling 'withMigratedDatabaseConfig'.
+defaultEphemeralConfig :: IO EphemeralPg.Config
+defaultEphemeralConfig = do
+  uid <- getEffectiveUserID
+  let root = "/tmp/ephpg-pg-migrate-" <> show uid
+  createDirectoryIfMissing True root
+  pure EphemeralPg.defaultConfig {EphemeralPg.Config.temporaryRoot = Last (Just root)}
 
 -- | Fully configurable variant accepting both ephemeral database and migration options.
 -- Asynchronous callback exceptions are rethrown after releasing the callback connection.

@@ -65,7 +65,8 @@ testAsyncCallbackException = do
 
 testStartupFailure :: Assertion
 testStartupFailure = do
-  let invalidConfig = EphemeralPg.Config.defaultConfig {EphemeralPg.Config.initDbArgs = ["--definitely-invalid-initdb-option"]}
+  baseConfig <- defaultEphemeralConfig
+  let invalidConfig = baseConfig {EphemeralPg.Config.initDbArgs = ["--definitely-invalid-initdb-option"]}
   result <- withMigratedDatabaseConfig invalidConfig defaultRunOptions fixturePlan (const (pure ()))
   case result of
     Left MigratedDatabaseStartupFailed {} -> pure ()
