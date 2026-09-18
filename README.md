@@ -7,18 +7,34 @@ forward-only, uses ledger schema v1, and supports PostgreSQL 17 and 18.
 
 The package set is:
 
-- [`pg-migrate`](https://hackage.haskell.org/package/pg-migrate-1.1.0.0): validated
+- [`pg-migrate`](https://hackage.haskell.org/package/pg-migrate): validated
   plans, runner, ledger, repair, inspection, and generic import.
-- [`pg-migrate-embed`](https://hackage.haskell.org/package/pg-migrate-embed-1.1.0.0):
+- [`pg-migrate-embed`](https://hackage.haskell.org/package/pg-migrate-embed):
   manifest v1 validation, exact-byte embedding, and authoring.
-- [`pg-migrate-cli`](https://hackage.haskell.org/package/pg-migrate-cli-1.1.0.0):
+- [`pg-migrate-cli`](https://hackage.haskell.org/package/pg-migrate-cli):
   reusable command parser, dispatcher, text output, and JSON schema v1.
-- [`pg-migrate-import-codd`](https://hackage.haskell.org/package/pg-migrate-import-codd-1.1.0.0):
+- [`pg-migrate-import-codd`](https://hackage.haskell.org/package/pg-migrate-import-codd):
   Codd V1–V5 source adapter.
-- [`pg-migrate-import-hasql-migration`](https://hackage.haskell.org/package/pg-migrate-import-hasql-migration-1.1.0.0):
+- [`pg-migrate-import-hasql-migration`](https://hackage.haskell.org/package/pg-migrate-import-hasql-migration):
   base64-MD5 predecessor adapter.
-- [`pg-migrate-test-support`](https://hackage.haskell.org/package/pg-migrate-test-support-1.1.0.0):
+- [`pg-migrate-test-support`](https://hackage.haskell.org/package/pg-migrate-test-support):
   opt-in `ephemeral-pg` test helper.
+
+Add only the packages an application needs; for example, a migration-owning library can use:
+
+```cabal
+build-depends:
+    pg-migrate        >=1.1 && <1.2
+  , pg-migrate-embed  >=1.1 && <1.2
+```
+
+Applications embedding manifests on GHC 9.12 must also load
+`Database.PostgreSQL.Migrate.Embed.RecompilePlugin`, as described in
+[manifest authoring](docs/user/manifest-authoring.md). The current release is
+[`1.1.0.0`](https://github.com/shinzui/pg-migrate/releases/tag/v1.1.0.0); it is breaking
+relative to `1.0.0.0`, so read each package's `CHANGELOG.md` before upgrading.
+
+## Documentation
 
 Start with the [user guide](docs/user/README.md), its
 [quickstart](docs/user/quickstart.md), and the runnable [`examples/basic`](examples/basic).
@@ -27,46 +43,19 @@ The remaining documentation is organized by audience:
 - Library authors: [component](docs/user/component-authoring.md),
   [manifest](docs/user/manifest-authoring.md), and
   [plan composition](docs/user/plan-composition.md).
-- Application owners: [CLI integration](docs/user/cli-integration.md) and
-  [testing](docs/user/testing.md).
-- Developers diagnosing adoption problems: [troubleshooting](docs/user/troubleshooting.md).
+- Application owners: [CLI integration](docs/user/cli-integration.md),
+  [testing](docs/user/testing.md), and [troubleshooting](docs/user/troubleshooting.md).
 - Operators: [deployment](docs/operations/deployment.md),
   [locks/timeouts](docs/operations/locking-and-timeouts.md),
   [repair](docs/operations/nontransactional-repair.md), and
   [history import](docs/operations/history-import.md).
 - Contract consumers: [public API](docs/reference/public-api.md),
+  [errors and events](docs/reference/errors-and-events.md),
   [ledger v1](docs/reference/ledger-v1.md),
   [manifest v1](docs/reference/manifest-v1.md),
-  [JSON v1](docs/reference/json-v1.md), and
-  [compatibility](docs/reference/compatibility.md).
-
-`verify` compares the declared plan with the migration ledger. It is not a schema snapshot
-or database-state equivalence checker. Back up the database before deployment or history
-import, use a maintenance window for predecessor cutovers, and treat `Running` after a
-crash as operationally ambiguous until an operator inspects the database.
-
-## Release status
-
-Version [`1.1.0.0`](https://github.com/shinzui/pg-migrate/releases/tag/v1.1.0.0) is the
-current release. All six packages and their Haddocks are published on Hackage. It is a
-breaking release: see each package's `CHANGELOG.md` before upgrading from `1.0.0.0`.
-Applications embedding manifests on GHC 9.12 must also load
-`Database.PostgreSQL.Migrate.Embed.RecompilePlugin`, as described in
-[manifest authoring](docs/user/manifest-authoring.md). Add only the packages an
-application needs; for example, a migration-owning library can use:
-
-```cabal
-build-depends:
-    pg-migrate        >=1.1 && <1.2
-  , pg-migrate-embed  >=1.1 && <1.2
-```
-
-Package versions are independent of the ledger, manifest, and JSON contract versions,
-which are each currently v1. The complete release gate covers source distributions,
-Haddocks, production dependency closure, documentation, and the fifteen-group acceptance
-matrix on both PostgreSQL 17 and 18. See the [release policy](docs/reference/release-policy.md),
-[acceptance matrix](docs/acceptance-matrix.md), and
-[release checklist](docs/release-checklist.md).
+  [JSON v1](docs/reference/json-v1.md),
+  [compatibility](docs/reference/compatibility.md), and
+  [release policy](docs/reference/release-policy.md).
 
 ## Goals
 
@@ -83,9 +72,9 @@ matrix on both PostgreSQL 17 and 18. See the [release policy](docs/reference/rel
 - Import existing Codd and `hasql-migration` history through optional adapters without
   coupling predecessor engines to the core runner.
 
-The current v1 contracts target the GHC 9.12.4 project toolchain and PostgreSQL 17 and 18.
-They intentionally exclude down migrations, automatic retries or repair, arbitrary `IO`
-migrations, runtime filesystem discovery, and whole-database schema snapshot comparison.
+The v1 contracts intentionally exclude down migrations, automatic retries or repair,
+arbitrary `IO` migrations, runtime filesystem discovery, and schema snapshot comparison:
+`verify` compares the declared plan with the migration ledger, not with the live schema.
 
 ## Design overview
 
@@ -95,28 +84,14 @@ application assembles components into the final order, validates the resulting p
 passes it to the runner.
 
 At runtime, the runner acquires one dedicated Hasql connection and one session advisory
-lock for the complete plan. It verifies the embedded plan against the versioned
-`pg_migrate` ledger before executing unapplied migrations. Transactional and
+lock for the complete plan. It verifies the embedded plan against the versioned ledger
+(schema `pgmigrate` by default) before executing unapplied migrations. Transactional and
 nontransactional SQL follow separate durable state machines; no recovery path silently
 assumes that interrupted nontransactional SQL is safe to replay.
 
 The central boundary is deliberate: core execution understands only the native plan and
 ledger. Compatibility with predecessor migration engines lives in separate packages that
 translate verified source evidence into the generic history-import model.
-
-## Documentation and roadmap
-
-- [Initial specification](docs/initial-spec.md) defines the normative v1 behavior and
-  public contracts.
-- [Core engine MasterPlan](docs/masterplans/1-build-pg-migrate-v1-core-engine.md) records
-  the model, embedding, ledger, runner, repair, and generic history import.
-- [Integrations and release MasterPlan](docs/masterplans/2-deliver-pg-migrate-v1-integrations-and-release.md)
-  records the CLI, predecessor adapters, test support, acceptance matrix, and release
-  documentation.
-- [Ecosystem migration MasterPlan](docs/masterplans/3-migrate-initial-ecosystem-to-pg-migrate.md)
-  covers staged adoption by Kiroku, Keiro, and PGMQ and the production cutover.
-- [ExecPlans](docs/plans/) contain the self-contained implementation steps and acceptance
-  criteria for each delivery slice.
 
 ## Development
 
@@ -126,18 +101,17 @@ The repository provides a Nix flake for the development environment:
 nix develop
 ```
 
-Build the package and run the unit suite from that shell:
+Build the packages, run the unit suite, and validate the OKF documentation bundles from
+that shell:
 
 ```console
 cabal build all
 just unit
+just docs
 ```
 
-Project identity and dependency metadata live in [`mori.dhall`](mori.dhall). Use `mori`
-to locate registered dependency source and documentation when working on the
-implementation:
-
-```console
-mori show --full
-mori registry list
-```
+The [initial specification](docs/initial-spec.md) defines the normative v1 behavior.
+Design history lives in [MasterPlans](docs/masterplans/) and [ExecPlans](docs/plans/);
+releases follow the [release checklist](docs/release-checklist.md) and
+[acceptance matrix](docs/acceptance-matrix.md). Project identity and dependency metadata
+live in [`mori.dhall`](mori.dhall).
